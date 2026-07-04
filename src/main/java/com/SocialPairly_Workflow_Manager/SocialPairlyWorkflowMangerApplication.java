@@ -1,4 +1,4 @@
-package com.SocialPairly_Workflow_Manger;
+package com.SocialPairly_Workflow_Manager;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
