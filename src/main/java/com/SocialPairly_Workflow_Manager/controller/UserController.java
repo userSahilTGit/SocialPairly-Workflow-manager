@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
+import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.UserService;
 import jakarta.validation.Valid;

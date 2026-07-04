@@ -1,7 +1,7 @@
 package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto;
-import com.SocialPairly_Workflow_Manager.dto.CountByLabel;
+import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto.CountByLabel;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.QuestionType;

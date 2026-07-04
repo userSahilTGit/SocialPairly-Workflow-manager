@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Primary;
 import javax.sql.DataSource;
 
 /**
- * Binds the custom {@code spring.datasource.atgrep.*} namespace (and its
+ * Binds the custom {@code spring.datasource.mysql.*} namespace (and its
  * {@code .hikari.*} pool settings) to the primary application DataSource.
  * Spring Boot's JPA auto-configuration then uses this DataSource.
  */
@@ -19,16 +19,16 @@ public class DataSourceConfig {
 
     @Bean
     @Primary
-    @ConfigurationProperties("spring.datasource.atgrep")
-    public DataSourceProperties atgrepDataSourceProperties() {
+    @ConfigurationProperties("spring.datasource.mysql")
+    public DataSourceProperties mysqlDataSourceProperties() {
         return new DataSourceProperties();
     }
 
     @Bean
     @Primary
-    @ConfigurationProperties("spring.datasource.atgrep.hikari")
-    public DataSource atgrepDataSource(DataSourceProperties atgrepDataSourceProperties) {
-        return atgrepDataSourceProperties
+    @ConfigurationProperties("spring.datasource.mysql.hikari")
+    public DataSource mysqlDataSource(DataSourceProperties mysqlDataSourceProperties) {
+        return mysqlDataSourceProperties
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();

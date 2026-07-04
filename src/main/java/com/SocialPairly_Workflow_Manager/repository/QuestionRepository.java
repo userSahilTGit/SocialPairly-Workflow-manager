@@ -1,4 +1,4 @@
-package com.SocialPairly_Workflow_Manager.exception;
+package com.SocialPairly_Workflow_Manager.repository;
 
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import org.springframework.data.jpa.repository.JpaRepository;
