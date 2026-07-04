@@ -66,7 +66,7 @@ public class DataInitializer implements CommandLineRunner {
 
         Question q1 = new Question();
         q1.setQuestionText("How would you describe your work-life balance?");
-        q1.setQuestionType(QuestionType.SINGLE_CHOICE);
+        q1.setType(QuestionType.SINGLE_CHOICE);
         q1.setCategory("Lifestyle");
         q1.setRequired(true);
         q1.setActive(true);
@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
 
         Question q2 = new Question();
         q2.setQuestionText("Which activities are you interested in?");
-        q2.setQuestionType(QuestionType.MULTI_CHOICE);
+        q2.setType(QuestionType.MULTI_CHOICE);
         q2.setCategory("Interest");
         q2.setRequired(false);
         q2.setActive(true);
@@ -84,7 +84,7 @@ public class DataInitializer implements CommandLineRunner {
 
         Question q3 = new Question();
         q3.setQuestionText("What are your career goals for the next 5 years?");
-        q3.setQuestionType(QuestionType.TEXT);
+        q3.setType(QuestionType.TEXT);
         q3.setCategory("Occupation");
         q3.setRequired(false);
         q3.setActive(true);
