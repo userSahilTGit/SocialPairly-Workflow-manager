@@ -1,0 +1,87 @@
+package com.SocialPairly_Workflow_Manager.service;
+
+import com.SocialPairly_Workflow_Manager.dto.ProfileRequest;
+import com.SocialPairly_Workflow_Manager.entity.Education;
+import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.entity.UserProfile;
+import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.Optional;
+
+@Service
+public class ProfileService {
+
+    private final UserProfileRepository profileRepository;
+    private final UserRepository userRepository;
+
+    public ProfileService(UserProfileRepository profileRepository, UserRepository userRepository) {
+        this.profileRepository = profileRepository;
+        this.userRepository = userRepository;
+    }
+
+    public UserProfile getProfile(User user) {
+        return profileRepository.findByUserId(user.getId()).orElse(null);
+    }
+
+    @Transactional
+    public UserProfile updateProfile(User user, ProfileRequest request) {
+        UserProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    UserProfile p = new UserProfile();
+                    p.setUser(user);
+                    return p;
+                });
+
+        profile.setAboutMe(request.aboutMe());
+        profile.setOccupation(request.occupation());
+        profile.setLifestyle(request.lifestyle());
+        profile.setLocationCity(request.locationCity());
+        profile.setLocationCountry(request.locationCountry());
+        profile.setLatitude(request.latitude());
+        profile.setLongitude(request.longitude());
+        profile.setDateOfBirth(request.dateOfBirth());
+        profile.setGender(request.gender());
+        profile.setInterests(request.interests() == null ? new HashSet<>() : new HashSet<>(request.interests()));
+
+        // Rebuild educations
+        profile.getEducations().clear();
+        if (request.educations() != null) {
+            for (ProfileRequest.EducationDto e : request.educations()) {
+                if (e.institution() == null || e.institution().isBlank()) {
+                    continue;
+                }
+                Education edu = new Education();
+                edu.setProfile(profile);
+                edu.setInstitution(e.institution());
+                edu.setDegree(e.degree());
+                edu.setFieldOfStudy(e.fieldOfStudy());
+                edu.setStartYear(e.startYear());
+                edu.setEndYear(e.endYear());
+                profile.getEducations().add(edu);
+            }
+        }
+
+        UserProfile saved = profileRepository.save(profile);
+
+        user.setProfileCompleted(true);
+        userRepository.save(user);
+
+        return saved;
+    }
+
+    @Transactional
+    public UserProfile setProfilePhoto(User user, String photoUrl) {
+        UserProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    UserProfile p = new UserProfile();
+                    p.setUser(user);
+                    return p;
+                });
+        profile.setProfilePhotoUrl(photoUrl);
+        return profileRepository.save(profile);
+    }
+}
