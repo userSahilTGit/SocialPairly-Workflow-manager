@@ -13,13 +13,21 @@ import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+import java.security.SecureRandom;
 
 import java.util.Map;
 
@@ -34,20 +42,27 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final OtpService otpService;
     private final UserService userService;
+    private final JavaMailSender mailSender;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        JwtUtil jwtUtil,
                        OtpService otpService,
-                       UserService userService) {
+                       UserService userService,
+                       JavaMailSender mailSender) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.otpService = otpService;
         this.userService = userService;
+        this.mailSender=mailSender;
     }
+    private final SecureRandom random = new SecureRandom();
+
+    @Value("${spring.mail.username}")
+    private String senderEmail;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -87,14 +102,54 @@ public class AuthService {
         return new AuthResponse(token, UserDto.from(user));
     }
 
-    public Map<String, String> sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) {
+    public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) throws MessagingException {
         User user = userService.findByIdentifier(request.identifier());
         String otp = otpService.generateAndStore(request.identifier());
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        String userName=user.getFirstName()+" "+user.getLastName();
+        helper.setFrom(senderEmail);
+        helper.setTo(user.getEmail());
+        helper.setSubject("Password Reset Verification Code");
+
+        String htmlContent = "<html>" +
+                "<body style='font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px; color: #333333;'>" +
+                "  <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);'>" +
+                "    <h2 style='color: #2c3e50; border-bottom: 2px solid #eaedd; padding-bottom: 10px; margin-top: 0;'>Password Reset Request</h2>" +
+                "    <p>Hi " + userName + ",</p>"+
+                "    <p>We received a request to reset your account password. Please use the verification One-Time Password (OTP) below to complete your process:</p>" +
+                "    " +
+                "    <div style='text-align: center; margin: 30px 0;'>" +
+                "      <span style='font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2e86de; background-color: #f0f7ff; padding: 10px 30px; border-radius: 5px; border: 1px dashed #2e86de; display: inline-block;'>" + otp + "</span>" +
+                "    </div>" +
+                "    " +
+                "    <p style='color: #e74c3c; font-weight: bold;'>This OTP is valid for the next 10 minutes.</p>" +
+                "    <p style='font-size: 13px; color: #7f8c8d; line-height: 1.5;'>" +
+                "      If you did not make this request, you can safely ignore this email. Your password will remain unchanged, but you may want to review your security settings." +
+                "    </p>" +
+                "    " +
+                "    <hr style='border: none; border-top: 1px solid #eeeeee; margin: 20px 0;'>" +
+                "    <p style='font-size: 12px; color: #95a5a6; text-align: center; margin-bottom: 0;'>This is an automated security transmission. Please do not reply directly to this email.</p>" +
+                "  </div>" +
+                "</body>" +
+                "</html>";
+
+        helper.setText(htmlContent, true);
+        mailSender.send(message);
+//        message.setFrom(senderEmail);
+//        message.setTo(user.getEmail());
+//        message.setSubject("Your One-Time Password (OTP)");
+//        String emailBody = String.format(
+//                "Hi here is the One time password for your account: %s\n" +
+//                        "It will be valid for next 10 min.",
+//                otp
+//        );
+//        message.setText(emailBody);
+//        mailSender.send(message);
         String destination = user.getEmail().contains("@")
                 ? user.getEmail()
                 : user.getPhoneNumber();
         log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
-        return Map.of("message", "OTP sent to your registered email or phone number");
     }
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {
