@@ -79,4 +79,25 @@ class QuestionServiceTest {
         assertEquals("Java", dtos.get(0).answerValue());
         assertEquals("Favorite programming language?", dtos.get(0).questionText());
     }
+
+    @Test
+    void shouldCreateTextQuestionWithoutOptions() {
+        QuestionRequest request = new QuestionRequest(
+                "Describe yourself",
+                QuestionType.TEXT,
+                "profile",
+                false,
+                true,
+                null
+        );
+
+        when(questionRepository.save(any(Question.class))).thenAnswer(i -> i.getArgument(0));
+
+        Question question = questionService.create(request);
+
+        assertNotNull(question);
+        assertEquals("Describe yourself", question.getQuestionText());
+        assertEquals(QuestionType.TEXT, question.getType());
+        assertTrue(question.getOptions().isEmpty());
+    }
 }

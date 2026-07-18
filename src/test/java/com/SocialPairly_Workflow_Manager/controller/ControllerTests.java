@@ -1,0 +1,190 @@
+package com.SocialPairly_Workflow_Manager.controller;
+
+import com.SocialPairly_Workflow_Manager.dto.*;
+import com.SocialPairly_Workflow_Manager.entity.Question;
+import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.service.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ControllerTests {
+
+    @Mock
+    private AuthService authService;
+
+    @Mock
+    private AdminService adminService;
+
+    @Mock
+    private QuestionService questionService;
+
+    @Mock
+    private ProfileService profileService;
+
+    @Mock
+    private CurrentUserService currentUserService;
+
+    @Mock
+    private FileStorageService fileStorageService;
+
+    @Mock
+    private ProfileCompletionService profileCompletionService;
+
+    @Mock
+    private AnswerService answerService;
+
+    @Mock
+    private UserService userService;
+
+    @InjectMocks
+    private AuthController authController;
+
+    @InjectMocks
+    private AdminController adminController;
+
+    @InjectMocks
+    private ProfileController profileController;
+
+    @InjectMocks
+    private QuestionController questionController;
+
+    @InjectMocks
+    private UserController userController;
+
+    @Test
+    void authControllerShouldDelegateRegistrationAndLogin() {
+        RegisterRequest registerRequest = new RegisterRequest("A", "B", "a@example.com", "1234567", "password", "addr");
+        LoginRequest loginRequest = new LoginRequest("a@example.com", "password");
+        UserDto userDto = new UserDto(1L, "A", "B", "a@example.com", "1234567", "addr", null, false, "");
+        AuthResponse authResponse = new AuthResponse("token", userDto);
+
+        when(authService.register(registerRequest)).thenReturn(authResponse);
+        when(authService.login(loginRequest)).thenReturn(authResponse);
+
+        ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest);
+        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest);
+
+        assertEquals(200, registerResponse.getStatusCode().value());
+        assertSame(authResponse, registerResponse.getBody());
+        assertSame(authResponse, loginResponse.getBody());
+    }
+
+    @Test
+    void adminControllerShouldExposeAdminEndpoints() {
+        AdminStatsDto stats = new AdminStatsDto(
+                1,
+                1,
+                1,
+                0,
+                1,
+                2,
+                List.<AdminStatsDto.CountByLabel>of(),
+                List.<AdminStatsDto.CountByLabel>of(),
+                List.<AdminStatsDto.CountByLabel>of(),
+                Map.of()
+        );
+        UserDto userDto = new UserDto(1L, "A", "B", "a@example.com", "123", "addr", null, false, "");
+        Question question = new Question();
+        QuestionRequest request = new QuestionRequest("q", null, "cat", true, true, List.of());
+
+        List<UserDto> userDtos = List.of(userDto);
+        List<Question> questions = List.of(question);
+
+        when(adminService.getStats()).thenReturn(stats);
+        when(adminService.listUsers()).thenReturn(userDtos);
+        when(questionService.findAll()).thenReturn(questions);
+        when(questionService.create(request)).thenReturn(question);
+        when(questionService.update(1L, request)).thenReturn(question);
+
+        ResponseEntity<AdminStatsDto> statsResponse = adminController.getStats();
+        ResponseEntity<List<UserDto>> usersResponse = adminController.getUsers();
+        ResponseEntity<List<Question>> questionsResponse = adminController.getAllQuestions();
+        ResponseEntity<Question> createdResponse = adminController.createQuestion(request);
+        ResponseEntity<Question> updatedResponse = adminController.updateQuestion(1L, request);
+        ResponseEntity<Map<String, String>> deletedResponse = adminController.deleteQuestion(1L);
+
+        assertEquals(200, statsResponse.getStatusCode().value());
+        assertEquals(1, usersResponse.getBody().size());
+        assertEquals(1, questionsResponse.getBody().size());
+        assertSame(question, createdResponse.getBody());
+        assertSame(question, updatedResponse.getBody());
+        assertEquals("Question deleted", deletedResponse.getBody().get("message"));
+    }
+
+    @Test
+    void profileControllerShouldReturnAndUpdateProfileData() {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("a@example.com");
+        com.SocialPairly_Workflow_Manager.entity.UserProfile profile = new com.SocialPairly_Workflow_Manager.entity.UserProfile();
+        ProfileRequest request = new ProfileRequest("about", "job", "life", "city", "country", 1.2, 2.3, null, "M", null, null);
+        MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", "data".getBytes());
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(profileService.getProfile(user)).thenReturn(profile);
+        when(profileService.updateProfile(user, request)).thenReturn(profile);
+        when(profileCompletionService.calculate(user, profile)).thenReturn(Map.of("percent", 100));
+        when(fileStorageService.store(file)).thenReturn("/uploads/photo.png");
+
+        ResponseEntity<Map<String, Object>> profileResponse = profileController.getProfile();
+        ResponseEntity<Map<String, Object>> completionResponse = profileController.getProfileCompletion();
+        ResponseEntity<com.SocialPairly_Workflow_Manager.entity.UserProfile> updateResponse = profileController.updateProfile(request);
+        ResponseEntity<Map<String, String>> uploadResponse = profileController.uploadPhoto(file);
+
+        assertEquals(200, profileResponse.getStatusCode().value());
+        assertTrue(profileResponse.getBody().containsKey("user"));
+        assertEquals(100, completionResponse.getBody().get("percent"));
+        assertSame(profile, updateResponse.getBody());
+        assertEquals("/uploads/photo.png", uploadResponse.getBody().get("url"));
+        verify(profileService).setProfilePhoto(user, "/uploads/photo.png");
+    }
+
+    @Test
+    void questionControllerShouldReturnQuestionsAndSaveAnswers() {
+        User user = new User();
+        user.setId(1L);
+        QuestionDto questionDto = new QuestionDto(1L, "Q", null, "cat", true, true, List.of(), null);
+        AnswerRequest answerRequest = new AnswerRequest(1L, "value");
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(questionService.getActiveQuestionsForUser(user)).thenReturn(List.of(questionDto));
+
+        ResponseEntity<List<QuestionDto>> questionsResponse = questionController.getQuestions();
+        ResponseEntity<Map<String, String>> answersResponse = questionController.submitAnswers(List.of(answerRequest));
+
+        assertEquals(200, questionsResponse.getStatusCode().value());
+        assertEquals(1, questionsResponse.getBody().size());
+        assertEquals("Answers saved", answersResponse.getBody().get("message"));
+        verify(answerService).saveAnswers(eq(user), anyList());
+    }
+
+    @Test
+    void userControllerShouldReturnCurrentUserAndDeleteAccount() {
+        User user = new User();
+        user.setId(2L);
+        user.setEmail("b@example.com");
+        DeleteAccountRequest deleteRequest = new DeleteAccountRequest("b@example.com", "password");
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+
+        ResponseEntity<UserDto> meResponse = userController.me();
+        ResponseEntity<Map<String, String>> deleteResponse = userController.deleteAccount(deleteRequest);
+
+        assertEquals(200, meResponse.getStatusCode().value());
+        assertEquals("b@example.com", meResponse.getBody().email());
+        assertEquals("Account deleted successfully", deleteResponse.getBody().get("message"));
+        verify(userService).deleteAccount(eq(user), eq(deleteRequest));
+    }
+}

@@ -10,4 +10,9 @@ class SocialPairlyWorkflowMangerApplicationTests {
 	void contextLoads() {
 	}
 
+	@Test
+	void shouldStartApplicationMainWithoutWebServer() {
+		SocialPairlyWorkflowMangerApplication.main(new String[]{"--spring.main.web-application-type=none"});
+	}
+
 }

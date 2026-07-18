@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.dto.AuthResponse;
+import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
 import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
@@ -20,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -124,5 +126,42 @@ class AuthServiceTest {
         assertNotNull(response);
         assertNotNull(response.token());
         assertEquals("jane@example.com", response.user().email());
+    }
+
+    @Test
+    void shouldLoginWithPhoneNumber() {
+        LoginRequest request = new LoginRequest("+12025550123", "secret123");
+        User user = new User();
+        user.setEmail("jane@example.com");
+        user.setPassword("encoded-password");
+
+        when(userRepository.findByEmail(eq("+12025550123"))).thenReturn(Optional.empty());
+        when(userRepository.findByPhoneNumber(eq("+12025550123"))).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(mock(org.springframework.security.core.Authentication.class));
+
+        AuthResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("jane@example.com", response.user().email());
+    }
+
+    @Test
+    void shouldResetPasswordSuccessfullyWhenOtpVerified() {
+        User user = new User();
+        user.setEmail("jane@example.com");
+        user.setPassword("old-password");
+
+        String otp = otpService.generateAndStore("jane@example.com");
+        otpService.verify("jane@example.com", otp);
+
+        when(userService.findByIdentifier("jane@example.com")).thenReturn(user);
+        when(passwordEncoder.encode("newpass")).thenReturn("encoded-newpass");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        Map<String, String> result = authService.resetPassword(
+                new ForgotPasswordResetRequest("jane@example.com", otp, "newpass", "newpass"));
+
+        assertEquals("Password reset successfully", result.get("message"));
+        assertEquals("encoded-newpass", user.getPassword());
     }
 }

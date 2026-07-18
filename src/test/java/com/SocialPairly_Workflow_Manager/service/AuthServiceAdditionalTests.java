@@ -1,0 +1,109 @@
+package com.SocialPairly_Workflow_Manager.service;
+
+import com.SocialPairly_Workflow_Manager.dto.*;
+import com.SocialPairly_Workflow_Manager.entity.Role;
+import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
+import jakarta.mail.internet.MimeMessage;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class AuthServiceAdditionalTests {
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private AuthenticationManager authenticationManager;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private OtpService otpService;
+
+    @Mock
+    private UserService userService;
+
+    @Mock
+    private JavaMailSender mailSender;
+
+    @InjectMocks
+    private AuthService authService;
+
+    @Test
+    void registerShouldThrowWhenEmailTaken() {
+        RegisterRequest request = new RegisterRequest("A", "B", "test@example.com", "1234567", "pass123", "addr");
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> authService.register(request));
+    }
+
+    @Test
+    void loginShouldThrowWhenIdentifierMissing() {
+        LoginRequest request = new LoginRequest("missing@example.com", "pass123");
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByPhoneNumber("missing@example.com")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void resetPasswordShouldThrowWhenPasswordsDontMatch() {
+        ForgotPasswordResetRequest request = new ForgotPasswordResetRequest("test@example.com", "123456", "pass1", "pass2");
+
+        assertThrows(BadRequestException.class, () -> authService.resetPassword(request));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldUseMailSender() throws Exception {
+        User user = new User();
+        user.setEmail("test@example.com");
+        user.setFirstName("Test");
+        user.setLastName("User");
+
+        when(userService.findByIdentifier("test@example.com")).thenReturn(user);
+        when(otpService.generateAndStore("test@example.com")).thenReturn("123456");
+        MimeMessage message = mock(MimeMessage.class);
+        when(mailSender.createMimeMessage()).thenReturn(message);
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "senderEmail", "noreply@example.com");
+
+        authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com"));
+
+        verify(mailSender).send(message);
+    }
+
+    @Test
+    void verifyForgotPasswordOtpShouldReturnSuccessMessage() {
+        when(userService.findByIdentifier("test@example.com")).thenReturn(new User());
+        doNothing().when(otpService).verify("test@example.com", "123456");
+
+        Map<String, String> result = authService.verifyForgotPasswordOtp(new ForgotPasswordVerifyOtpRequest("test@example.com", "123456"));
+
+        assertEquals("OTP verified successfully", result.get("message"));
+    }
+}
