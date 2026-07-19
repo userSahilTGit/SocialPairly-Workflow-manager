@@ -129,6 +129,8 @@ class ControllerTests {
         user.setId(1L);
         user.setEmail("a@example.com");
         com.SocialPairly_Workflow_Manager.entity.UserProfile profile = new com.SocialPairly_Workflow_Manager.entity.UserProfile();
+        profile.setAboutMe("about");
+        profile.setOccupation("job");
         ProfileRequest request = new ProfileRequest("about", "job", "life", "city", "country", 1.2, 2.3, null, "M", null, null);
         MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", "data".getBytes());
 
@@ -140,13 +142,16 @@ class ControllerTests {
 
         ResponseEntity<Map<String, Object>> profileResponse = profileController.getProfile();
         ResponseEntity<Map<String, Object>> completionResponse = profileController.getProfileCompletion();
-        ResponseEntity<com.SocialPairly_Workflow_Manager.entity.UserProfile> updateResponse = profileController.updateProfile(request);
+        ResponseEntity<ProfileDto> updateResponse = profileController.updateProfile(request);
         ResponseEntity<Map<String, String>> uploadResponse = profileController.uploadPhoto(file);
 
         assertEquals(200, profileResponse.getStatusCode().value());
         assertTrue(profileResponse.getBody().containsKey("user"));
+        assertTrue(profileResponse.getBody().containsKey("profile"));
         assertEquals(100, completionResponse.getBody().get("percent"));
-        assertSame(profile, updateResponse.getBody());
+        assertNotNull(updateResponse.getBody());
+        assertEquals("about", updateResponse.getBody().aboutMe());
+        assertEquals("job", updateResponse.getBody().occupation());
         assertEquals("/uploads/photo.png", uploadResponse.getBody().get("url"));
         verify(profileService).setProfilePhoto(user, "/uploads/photo.png");
     }
