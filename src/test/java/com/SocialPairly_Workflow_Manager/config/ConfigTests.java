@@ -86,7 +86,9 @@ class ConfigTests {
         CorsConfiguration config = ((UrlBasedCorsConfigurationSource) source)
                 .getCorsConfiguration(new MockHttpServletRequest());
         assertNotNull(config);
-        assertTrue(config.getAllowedOrigins().contains("http://localhost:5173"));
+        assertNull(config.getAllowedOrigins());
+        assertTrue(config.getAllowedOriginPatterns().contains("http://localhost:*"));
+        assertTrue(config.getAllowedOriginPatterns().contains("http://127.0.0.1:*"));
         assertTrue(config.getAllowedMethods().contains("GET"));
 
         assertNotNull(securityConfig.passwordEncoder());

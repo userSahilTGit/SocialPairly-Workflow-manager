@@ -35,6 +35,7 @@ public class ProfileService {
                     p.setUser(user);
                     return p;
                 });
+        profile.setUser(user);
 
         profile.setAboutMe(request.aboutMe());
         profile.setOccupation(request.occupation());
@@ -67,6 +68,7 @@ public class ProfileService {
 
         UserProfile saved = profileRepository.save(profile);
 
+        user.setProfile(saved);
         user.setProfileCompleted(true);
         userRepository.save(user);
 
@@ -81,7 +83,11 @@ public class ProfileService {
                     p.setUser(user);
                     return p;
                 });
+        profile.setUser(user);
         profile.setProfilePhotoUrl(photoUrl);
-        return profileRepository.save(profile);
+        UserProfile saved = profileRepository.save(profile);
+        user.setProfile(saved);
+        userRepository.save(user);
+        return saved;
     }
 }
