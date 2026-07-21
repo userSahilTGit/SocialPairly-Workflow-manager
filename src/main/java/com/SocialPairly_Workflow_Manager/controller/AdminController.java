@@ -7,6 +7,8 @@ import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.service.AdminService;
 import com.SocialPairly_Workflow_Manager.service.QuestionService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequestMapping("/api/admin")
 public class AdminController {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminController.class);
     private final AdminService adminService;
     private final QuestionService questionService;
 
@@ -27,6 +30,7 @@ public class AdminController {
 
     @GetMapping("/stats")
     public ResponseEntity<AdminStatsDto> getStats() {
+        log.info("Admin stats requested");
         return ResponseEntity.ok(adminService.getStats());
     }
 
@@ -44,6 +48,7 @@ public class AdminController {
 
     @PostMapping("/questions")
     public ResponseEntity<Question> createQuestion(@Valid @RequestBody QuestionRequest request) {
+        log.info("Admin creating question category={} active={}", request.category(), request.active());
         return ResponseEntity.ok(questionService.create(request));
     }
 
@@ -54,6 +59,7 @@ public class AdminController {
 
     @DeleteMapping("/questions/{id}")
     public ResponseEntity<Map<String, String>> deleteQuestion(@PathVariable Long id) {
+        log.info("Admin deleting question id={}", id);
         questionService.delete(id);
         return ResponseEntity.ok(Map.of("message", "Question deleted"));
     }

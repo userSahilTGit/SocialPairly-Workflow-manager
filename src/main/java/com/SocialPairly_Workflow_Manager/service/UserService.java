@@ -7,6 +7,8 @@ import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final UserRepository userRepository;
     private final UserProfileRepository profileRepository;
     private final UserAnswerRepository answerRepository;
@@ -32,6 +35,7 @@ public class UserService {
     @Transactional
     public void deleteAccount(User currentUser, DeleteAccountRequest request) {
         String identifier = request.identifier().trim();
+        log.info("Deleting account for currentUserId={} identifier={}", currentUser.getId(), identifier);
         User user = userRepository.findByEmail(identifier.toLowerCase())
                 .or(() -> userRepository.findByPhoneNumber(identifier))
                 .orElseThrow(() -> new BadRequestException("Invalid credentials"));
@@ -55,6 +59,7 @@ public class UserService {
 
     public User findByIdentifier(String identifier) {
         String trimmed = identifier.trim();
+        log.debug("Finding user by identifier={}", trimmed);
         return userRepository.findByEmail(trimmed.toLowerCase())
                 .or(() -> userRepository.findByPhoneNumber(trimmed))
                 .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));

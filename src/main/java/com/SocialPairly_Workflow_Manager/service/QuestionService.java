@@ -10,6 +10,8 @@ import com.SocialPairly_Workflow_Manager.entity.UserAnswer;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 @Service
 public class QuestionService {
 
+    private static final Logger log = LoggerFactory.getLogger(QuestionService.class);
     private final QuestionRepository questionRepository;
     private final UserAnswerRepository answerRepository;
 
@@ -33,6 +36,7 @@ public class QuestionService {
 
     @Transactional
     public Question create(QuestionRequest request) {
+        log.info("Creating question category={} active={} required={}", request.category(), request.active(), request.required());
         Question q = new Question();
         applyRequest(q, request);
         return questionRepository.save(q);
@@ -40,6 +44,7 @@ public class QuestionService {
 
     @Transactional
     public Question update(Long id, QuestionRequest request) {
+        log.info("Updating question id={} category={} active={}", id, request.category(), request.active());
         Question q = questionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + id));
         q.getOptions().clear();
@@ -49,6 +54,7 @@ public class QuestionService {
 
     @Transactional
     public void delete(Long id) {
+        log.info("Deleting question id={}", id);
         if (!questionRepository.existsById(id)) {
             throw new ResourceNotFoundException("Question not found: " + id);
         }
@@ -56,6 +62,7 @@ public class QuestionService {
     }
 
     public List<Question> findAll() {
+        log.debug("Loading all questions");
         return questionRepository.findAll();
     }
 
@@ -88,6 +95,7 @@ public class QuestionService {
         List<Question> questions = questionRepository.findByActiveTrueOrderByCreatedAtAsc();
         Map<Long, String> answersByQuestion = answerRepository.findByUserId(user.getId()).stream()
                 .collect(Collectors.toMap(a -> a.getQuestion().getId(), UserAnswer::getAnswerValue, (a, b) -> b));
+        log.info("Loaded {} active questions for userId={} with {} existing answers", questions.size(), user.getId(), answersByQuestion.size());
 
         List<QuestionDto> result = new ArrayList<>();
         for (Question q : questions) {

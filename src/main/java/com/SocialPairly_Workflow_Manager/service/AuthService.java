@@ -66,6 +66,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        log.info("Registering user email={} phone={}", request.email(), request.phoneNumber());
         if (userRepository.existsByEmail(request.email())) {
             throw new BadRequestException("Email is already registered");
         }
@@ -90,6 +91,7 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         String identifier = request.identifier().trim();
+        log.info("Authenticating login request for identifier={}", identifier);
         User user = userRepository.findByEmail(identifier.toLowerCase())
                 .or(() -> userRepository.findByPhoneNumber(identifier))
                 .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
@@ -103,6 +105,7 @@ public class AuthService {
     }
 
     public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) throws MessagingException {
+        log.info("Sending forgot password OTP for identifier={}", request.identifier());
         User user = userService.findByIdentifier(request.identifier());
         String otp = otpService.generateAndStore(request.identifier());
         MimeMessage message = mailSender.createMimeMessage();
@@ -153,6 +156,7 @@ public class AuthService {
     }
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {
+        log.info("Verifying forgot password OTP for identifier={}", request.identifier());
         userService.findByIdentifier(request.identifier());
         otpService.verify(request.identifier(), request.otp());
         return Map.of("message", "OTP verified successfully");
@@ -160,6 +164,7 @@ public class AuthService {
 
     @Transactional
     public Map<String, String> resetPassword(ForgotPasswordResetRequest request) {
+        log.info("Resetting password for identifier={}", request.identifier());
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new BadRequestException("Passwords do not match");
         }

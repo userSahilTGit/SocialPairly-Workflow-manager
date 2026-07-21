@@ -5,6 +5,8 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -14,6 +16,7 @@ import java.util.Map;
 @Service
 public class ProfileCompletionService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProfileCompletionService.class);
     private final QuestionRepository questionRepository;
     private final UserAnswerRepository answerRepository;
 
@@ -23,6 +26,7 @@ public class ProfileCompletionService {
     }
 
     public Map<String, Object> calculate(User user, UserProfile profile) {
+        log.info("Calculating profile completion for userId={} profileExists={}", user.getId(), profile != null);
         int total = 10;
         int filled = 0;
 
@@ -54,6 +58,7 @@ public class ProfileCompletionService {
         }
 
         int percentage = Math.min(100, Math.round((filled * 100f) / total));
+        log.debug("Profile completion calculated for userId={} filled={} total={} percentage={}", user.getId(), filled, total, percentage);
 
         Map<String, Object> result = new HashMap<>();
         result.put("percentage", percentage);
