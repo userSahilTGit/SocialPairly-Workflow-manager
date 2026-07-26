@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.ProfileDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
@@ -42,7 +43,7 @@ public class ProfileController {
 
         Map<String, Object> body = new HashMap<>();
         body.put("user", UserDto.from(user));
-        body.put("profile", profile);
+        body.put("profile", ProfileDto.from(profile));
         return ResponseEntity.ok(body);
     }
 
@@ -54,9 +55,9 @@ public class ProfileController {
     }
 
     @PutMapping
-    public ResponseEntity<UserProfile> updateProfile(@Valid @RequestBody ProfileRequest request) {
+    public ResponseEntity<ProfileDto> updateProfile(@Valid @RequestBody ProfileRequest request) {
         User user = currentUserService.getCurrentUser();
-        return ResponseEntity.ok(profileService.updateProfile(user, request));
+        return ResponseEntity.ok(ProfileDto.from(profileService.updateProfile(user, request)));
     }
 
     @PostMapping("/photo")
