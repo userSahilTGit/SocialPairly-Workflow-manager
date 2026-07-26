@@ -10,8 +10,12 @@ public record PlanDto(
     String planType,
     Integer durationDays,
     BigDecimal amount,
+    String tokensIncluded,
+    String communityPosts,
+    String subBadgeTag,
     String description,
-    Boolean isActive
+    Boolean isActive,
+    Boolean isFeatured
 ) {
     public static PlanDto from(Plan plan) {
         return new PlanDto(
@@ -20,8 +24,12 @@ public record PlanDto(
             plan.getPlanType(),
             plan.getDurationDays(),
             plan.getAmount(),
+            plan.getTokensIncluded(),
+            plan.getCommunityPosts(),
+            plan.getSubBadgeTag(),
             plan.getDescription(),
-            plan.isActive()
+            plan.isActive(),
+            plan.isFeatured()
         );
     }
 }

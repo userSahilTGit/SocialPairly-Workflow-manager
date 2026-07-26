@@ -21,9 +21,17 @@ public record PlanRequest(
     @DecimalMin(value = "0.01", message = "Amount must be greater than 0")
     BigDecimal amount,
 
+    String tokensIncluded,
+
+    String communityPosts,
+
+    String subBadgeTag,
+
     @NotBlank(message = "Description is required")
     String description,
 
     @NotNull(message = "Active status is required")
-    Boolean isActive
+    Boolean isActive,
+
+    Boolean isFeatured
 ) {}

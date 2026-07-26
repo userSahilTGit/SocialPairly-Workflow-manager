@@ -42,8 +42,12 @@ public class PlanService {
         plan.setPlanType(request.planType());
         plan.setDurationDays(request.durationDays());
         plan.setAmount(request.amount());
+        plan.setTokensIncluded(request.tokensIncluded());
+        plan.setCommunityPosts(request.communityPosts());
+        plan.setSubBadgeTag(request.subBadgeTag());
         plan.setDescription(request.description());
-        plan.setActive(request.isActive());
+        plan.setActive(request.isActive() != null ? request.isActive() : true);
+        plan.setFeatured(request.isFeatured() != null ? request.isFeatured() : false);
 
         Plan savedPlan = planRepository.save(plan);
         log.info("Plan created successfully with id: {}", savedPlan.getId());
@@ -59,8 +63,12 @@ public class PlanService {
         plan.setPlanType(request.planType());
         plan.setDurationDays(request.durationDays());
         plan.setAmount(request.amount());
+        plan.setTokensIncluded(request.tokensIncluded());
+        plan.setCommunityPosts(request.communityPosts());
+        plan.setSubBadgeTag(request.subBadgeTag());
         plan.setDescription(request.description());
-        plan.setActive(request.isActive());
+        plan.setActive(request.isActive() != null ? request.isActive() : true);
+        plan.setFeatured(request.isFeatured() != null ? request.isFeatured() : false);
 
         Plan updatedPlan = planRepository.save(plan);
         log.info("Plan updated successfully with id: {}", id);

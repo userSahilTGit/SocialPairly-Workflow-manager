@@ -27,6 +27,18 @@ public class Plan {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "tokens_included", length = 50)
+    private String tokensIncluded;
+
+    @Column(name = "community_posts", length = 50)
+    private String communityPosts;
+
+    @Column(name = "sub_badge_tag", length = 100)
+    private String subBadgeTag;
+
+    @Column(name = "is_featured", nullable = false)
+    private boolean isFeatured = false;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -84,6 +96,38 @@ public class Plan {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getTokensIncluded() {
+        return tokensIncluded;
+    }
+
+    public void setTokensIncluded(String tokensIncluded) {
+        this.tokensIncluded = tokensIncluded;
+    }
+
+    public String getCommunityPosts() {
+        return communityPosts;
+    }
+
+    public void setCommunityPosts(String communityPosts) {
+        this.communityPosts = communityPosts;
+    }
+
+    public String getSubBadgeTag() {
+        return subBadgeTag;
+    }
+
+    public void setSubBadgeTag(String subBadgeTag) {
+        this.subBadgeTag = subBadgeTag;
+    }
+
+    public boolean isFeatured() {
+        return isFeatured;
+    }
+
+    public void setFeatured(boolean featured) {
+        isFeatured = featured;
     }
 
     public boolean isActive() {
