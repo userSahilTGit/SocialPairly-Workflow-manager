@@ -26,12 +26,33 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
     // Replace with your actual Google Client ID from the Google Developer Console
     private static final String GOOGLE_CLIENT_ID = "1043168194153-i82qfvqg1jsk804qaa7ipkkov67b8pt4.apps.googleusercontent.com";
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AuthController(AuthService authService) {
+        this(authService, createDefaultVerifier());
+    }
+
+    // Constructor for testability — allows injecting a mock GoogleIdTokenVerifier (not used by Spring)
+    AuthController(AuthService authService, GoogleIdTokenVerifier googleIdTokenVerifier) {
         this.authService = authService;
+        this.googleIdTokenVerifier = googleIdTokenVerifier;
+    }
+
+    private static GoogleIdTokenVerifier createDefaultVerifier() {
+        try {
+            return new GoogleIdTokenVerifier.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    new GsonFactory()
+            )
+            .setAudience(Collections.singletonList(GOOGLE_CLIENT_ID))
+            .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create GoogleIdTokenVerifier", e);
+        }
     }
 
     @PostMapping("/register")
@@ -70,14 +91,7 @@ public class AuthController {
     @PostMapping("/google")
     public ResponseEntity<?> verifyGoogleToken(@RequestBody TokenDto tokenDto) {
         try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    GoogleNetHttpTransport.newTrustedTransport(), 
-                    new GsonFactory()
-            )
-            .setAudience(Collections.singletonList(GOOGLE_CLIENT_ID))
-            .build();
-
-            GoogleIdToken idToken = verifier.verify(tokenDto.getIdToken());
+            GoogleIdToken idToken = googleIdTokenVerifier.verify(tokenDto.getIdToken());
             
             if (idToken != null) {
                 Payload payload = idToken.getPayload();
