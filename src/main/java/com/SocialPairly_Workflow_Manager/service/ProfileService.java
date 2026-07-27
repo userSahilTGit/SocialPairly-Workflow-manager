@@ -6,6 +6,8 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,7 @@ import java.util.Optional;
 @Service
 public class ProfileService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
     private final UserProfileRepository profileRepository;
     private final UserRepository userRepository;
 
@@ -24,11 +27,13 @@ public class ProfileService {
     }
 
     public UserProfile getProfile(User user) {
+        log.debug("Fetching profile for userId={}", user.getId());
         return profileRepository.findByUserId(user.getId()).orElse(null);
     }
 
     @Transactional
     public UserProfile updateProfile(User user, ProfileRequest request) {
+        log.info("Updating profile for userId={}", user.getId());
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     UserProfile p = new UserProfile();
@@ -77,6 +82,7 @@ public class ProfileService {
 
     @Transactional
     public UserProfile setProfilePhoto(User user, String photoUrl) {
+        log.info("Updating profile photo for userId={} url={}", user.getId(), photoUrl);
         UserProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     UserProfile p = new UserProfile();

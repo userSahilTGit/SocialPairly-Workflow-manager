@@ -10,6 +10,8 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 @Service
 public class AdminService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminService.class);
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
     private final UserAnswerRepository answerRepository;
@@ -35,12 +38,14 @@ public class AdminService {
     }
 
     public List<UserDto> listUsers() {
+        log.info("Listing all users");
         return userRepository.findAll().stream()
                 .map(UserDto::from)
                 .collect(Collectors.toList());
     }
 
     public AdminStatsDto getStats() {
+        log.info("Generating admin dashboard stats");
         List<User> users = userRepository.findAll();
 
         long totalUsers = users.size();
