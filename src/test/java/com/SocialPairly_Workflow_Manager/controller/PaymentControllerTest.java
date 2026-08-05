@@ -2,6 +2,9 @@ package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.PaymentRequestDTO;
 import com.SocialPairly_Workflow_Manager.dto.PaymentResponseDTO;
+import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.service.CheckoutFulfillmentService;
+import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.PaymentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,12 +24,21 @@ public class PaymentControllerTest {
     @Mock
     private PaymentService paymentService;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private CheckoutFulfillmentService checkoutFulfillmentService;
+
     @InjectMocks
     private PaymentController paymentController;
 
     @Test
     public void checkoutProducts_shouldReturnOkResponse_whenServiceReturnsResponse() {
-        PaymentRequestDTO request = new PaymentRequestDTO(2000L, 1L, "Book", "USD");
+        PaymentRequestDTO request = new PaymentRequestDTO(2000L, 1L, "Book", "USD", 1L);
         PaymentResponseDTO serviceResponse = PaymentResponseDTO.builder()
                 .status("SUCCESS")
                 .message("Payment session created ")

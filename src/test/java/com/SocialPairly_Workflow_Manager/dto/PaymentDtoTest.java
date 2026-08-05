@@ -13,11 +13,13 @@ public class PaymentDtoTest {
         request.setQuantity(3L);
         request.setName("Membership");
         request.setCurrency("USD");
+        request.setPlanId(5L);
 
         assertEquals(2500L, request.getAmount());
         assertEquals(3L, request.getQuantity());
         assertEquals("Membership", request.getName());
         assertEquals("USD", request.getCurrency());
+        assertEquals(5L, request.getPlanId());
     }
 
     @Test
