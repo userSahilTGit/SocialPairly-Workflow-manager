@@ -39,6 +39,9 @@ public class User {
     @Column(name = "profile_completed", nullable = false)
     private boolean profileCompleted = false;
 
+    @Column(name = "verified", nullable = false)
+    private boolean verified = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -86,6 +89,9 @@ public class User {
 
     public boolean isProfileCompleted() { return profileCompleted; }
     public void setProfileCompleted(boolean profileCompleted) { this.profileCompleted = profileCompleted; }
+
+    public boolean isVerified() { return verified; }
+    public void setVerified(boolean verified) { this.verified = verified; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
