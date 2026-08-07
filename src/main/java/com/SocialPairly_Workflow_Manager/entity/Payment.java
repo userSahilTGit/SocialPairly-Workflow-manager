@@ -44,6 +44,9 @@ public class Payment {
     @Column(name = "receipt_url", columnDefinition = "TEXT")
     private String receiptUrl;
 
+    @Column(name = "method", length = 100)
+    private String method;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -147,6 +150,14 @@ public class Payment {
 
     public void setReceiptUrl(String receiptUrl) {
         this.receiptUrl = receiptUrl;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public void setMethod(String method) {
+        this.method = method;
     }
 
     public LocalDateTime getCreatedAt() {

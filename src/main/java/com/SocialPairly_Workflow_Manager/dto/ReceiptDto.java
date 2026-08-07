@@ -12,5 +12,6 @@ public record ReceiptDto(
         String customerEmail,
         String receiptUrl,
         String merchantName,
-        String supportEmail
+        String supportEmail,
+        String paymentMethod
 ) {}

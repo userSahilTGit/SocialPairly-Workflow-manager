@@ -21,6 +21,7 @@ import com.stripe.model.checkout.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +60,7 @@ public class CheckoutFulfillmentService {
         this.planRepository = planRepository;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = DataIntegrityViolationException.class)
     public CheckoutConfirmDto fulfillCheckoutSession(String sessionId, Long expectedUserId) {
         Stripe.apiKey = secretKey;
 
@@ -74,7 +75,7 @@ public class CheckoutFulfillmentService {
         return fulfillPaidSession(session, expectedUserId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = DataIntegrityViolationException.class)
     public CheckoutConfirmDto fulfillPaidSession(Session session, Long expectedUserId) {
         if (!"paid".equals(session.getPaymentStatus())) {
             throw new BadRequestException("Checkout session is not paid. Status: " + session.getPaymentStatus());
@@ -93,8 +94,7 @@ public class CheckoutFulfillmentService {
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found: " + planId));
 
-        Subscription subscription = subscriptionRepository.findByStripeSubscriptionId(session.getId())
-                .orElseGet(() -> createSubscription(session, user, plan));
+        Subscription subscription = findOrCreateSubscription(session, user, plan);
 
         Payment payment = findOrCreatePayment(session, user, subscription);
 
@@ -106,7 +106,9 @@ public class CheckoutFulfillmentService {
     }
 
     private ReceiptDto buildReceiptDto(Payment payment, Plan plan, User user) {
-        String receiptNumber = fetchReceiptNumber(payment.getStripeChargeId());
+        String chargeId = payment.getStripeChargeId();
+        String receiptNumber = fetchReceiptNumber(chargeId);
+        String paymentMethod = resolveStoredOrFetchPaymentMethod(payment);
         return new ReceiptDto(
                 receiptNumber,
                 plan.getPlanName(),
@@ -116,12 +118,20 @@ public class CheckoutFulfillmentService {
                 user.getEmail(),
                 payment.getReceiptUrl(),
                 merchantName,
-                supportEmail
+                supportEmail,
+                paymentMethod
         );
     }
 
+    private String resolveStoredOrFetchPaymentMethod(Payment payment) {
+        if (payment.getMethod() != null && !payment.getMethod().isBlank()) {
+            return payment.getMethod();
+        }
+        return fetchPaymentMethodLabel(payment.getStripePaymentIntentId(), payment.getStripeChargeId());
+    }
+
     private String fetchReceiptNumber(String chargeId) {
-        if (chargeId == null || chargeId.isBlank()) {
+        if (chargeId == null || chargeId.isBlank() || !chargeId.startsWith("ch_")) {
             return null;
         }
         Stripe.apiKey = secretKey;
@@ -134,6 +144,137 @@ public class CheckoutFulfillmentService {
             log.warn("Unable to retrieve receipt number for charge {}", chargeId, e);
         }
         return null;
+    }
+
+    private String fetchPaymentMethodLabel(String paymentIntentId, String chargeId) {
+        Stripe.apiKey = secretKey;
+
+        if (chargeId != null && !chargeId.isBlank() && chargeId.startsWith("ch_")) {
+            try {
+                Charge charge = Charge.retrieve(chargeId);
+                String fromCharge = formatPaymentMethodDetails(charge.getPaymentMethodDetails());
+                if (fromCharge != null) {
+                    return fromCharge;
+                }
+            } catch (StripeException e) {
+                log.warn("Unable to retrieve payment method from charge {}", chargeId, e);
+            }
+        }
+
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return null;
+        }
+
+        try {
+            PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
+            String fromIntent = resolvePaymentMethodFromIntent(paymentIntent);
+            if (fromIntent != null) {
+                return fromIntent;
+            }
+        } catch (StripeException e) {
+            log.warn("Unable to retrieve payment method from payment intent {}", paymentIntentId, e);
+        }
+
+        return null;
+    }
+
+    private String resolvePaymentMethodFromIntent(PaymentIntent paymentIntent) {
+        if (paymentIntent.getPaymentMethod() != null) {
+            try {
+                com.stripe.model.PaymentMethod paymentMethod =
+                        com.stripe.model.PaymentMethod.retrieve(paymentIntent.getPaymentMethod());
+                String formatted = formatStripePaymentMethod(paymentMethod);
+                if (formatted != null) {
+                    return formatted;
+                }
+            } catch (StripeException e) {
+                log.warn("Unable to retrieve payment method object {}", paymentIntent.getPaymentMethod(), e);
+            }
+        }
+
+        if (paymentIntent.getPaymentMethodTypes() != null && !paymentIntent.getPaymentMethodTypes().isEmpty()) {
+            String primaryType = paymentIntent.getPaymentMethodTypes().get(0);
+            if ("affirm".equals(primaryType)) {
+                return "Affirm";
+            }
+            return capitalize(primaryType.replace('_', ' '));
+        }
+
+        return null;
+    }
+
+    private String formatPaymentMethodDetails(Charge.PaymentMethodDetails details) {
+        if (details == null) {
+            return null;
+        }
+        if ("affirm".equals(details.getType())) {
+            return "Affirm";
+        }
+        if (details.getCard() != null) {
+            return formatCardBrand(details.getCard().getBrand()) + " - " + details.getCard().getLast4();
+        }
+        if (details.getLink() != null) {
+            return "Link";
+        }
+        if (details.getUsBankAccount() != null) {
+            return "Bank account - " + details.getUsBankAccount().getLast4();
+        }
+        String type = details.getType();
+        return type != null ? capitalize(type.replace('_', ' ')) : null;
+    }
+
+    private String formatStripePaymentMethod(com.stripe.model.PaymentMethod paymentMethod) {
+        if (paymentMethod == null || paymentMethod.getType() == null) {
+            return null;
+        }
+        return switch (paymentMethod.getType()) {
+            case "card" -> {
+                com.stripe.model.PaymentMethod.Card card = paymentMethod.getCard();
+                if (card != null && card.getLast4() != null) {
+                    yield formatCardBrand(card.getBrand()) + " - " + card.getLast4();
+                }
+                yield "Card";
+            }
+            case "affirm" -> "Affirm";
+            case "link" -> "Link";
+            case "us_bank_account" -> {
+                com.stripe.model.PaymentMethod.UsBankAccount bank = paymentMethod.getUsBankAccount();
+                if (bank != null && bank.getLast4() != null) {
+                    yield "Bank account - " + bank.getLast4();
+                }
+                yield "Bank account";
+            }
+            default -> capitalize(paymentMethod.getType().replace('_', ' '));
+        };
+    }
+
+    private String formatCardBrand(String brand) {
+        if (brand == null || brand.isBlank()) {
+            return "Card";
+        }
+        return brand.toUpperCase();
+    }
+
+    private String capitalize(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private Subscription findOrCreateSubscription(Session session, User user, Plan plan) {
+        Optional<Subscription> existing = subscriptionRepository.findByStripeSubscriptionId(session.getId());
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        try {
+            return createSubscription(session, user, plan);
+        } catch (DataIntegrityViolationException ex) {
+            log.info("Subscription already exists for checkout session {}, reusing existing record", session.getId());
+            return subscriptionRepository.findByStripeSubscriptionId(session.getId())
+                    .orElseThrow(() -> ex);
+        }
     }
 
     private Subscription createSubscription(Session session, User user, Plan plan) {
@@ -165,8 +306,19 @@ public class CheckoutFulfillmentService {
             Optional<Payment> existing = paymentRepository.findByStripePaymentIntentId(paymentIntentId);
             if (existing.isPresent()) {
                 Payment payment = existing.get();
+                boolean updated = false;
                 if (payment.getSubscription() == null) {
                     payment.setSubscription(subscription);
+                    updated = true;
+                }
+                if (payment.getMethod() == null || payment.getMethod().isBlank()) {
+                    String method = fetchPaymentMethodLabel(paymentIntentId, payment.getStripeChargeId());
+                    if (method != null) {
+                        payment.setMethod(method);
+                        updated = true;
+                    }
+                }
+                if (updated) {
                     payment = paymentRepository.save(payment);
                 }
                 return payment;
@@ -174,7 +326,16 @@ public class CheckoutFulfillmentService {
         }
 
         Payment payment = buildPaymentFromSession(session, user, subscription);
-        return paymentRepository.save(payment);
+        try {
+            return paymentRepository.save(payment);
+        } catch (DataIntegrityViolationException ex) {
+            if (paymentIntentId != null) {
+                log.info("Payment already exists for paymentIntent {}, reusing existing record", paymentIntentId);
+                return paymentRepository.findByStripePaymentIntentId(paymentIntentId)
+                        .orElseThrow(() -> ex);
+            }
+            throw ex;
+        }
     }
 
     @Transactional
@@ -200,6 +361,7 @@ public class CheckoutFulfillmentService {
         payment.setAmount(centsToDollars(paymentIntent.getAmount()));
         payment.setCurrency(paymentIntent.getCurrency());
         payment.setStatus("failed");
+        payment.setMethod(fetchPaymentMethodLabel(paymentIntent.getId(), paymentIntent.getLatestCharge()));
         paymentRepository.save(payment);
 
         log.info("Recorded failed payment for userId={} paymentIntent={}", userId, paymentIntent.getId());
@@ -218,8 +380,13 @@ public class CheckoutFulfillmentService {
             Stripe.apiKey = secretKey;
             try {
                 PaymentIntent paymentIntent = PaymentIntent.retrieve(session.getPaymentIntent());
-                payment.setStripeChargeId(paymentIntent.getLatestCharge());
-                payment.setReceiptUrl(fetchReceiptUrl(paymentIntent.getLatestCharge()));
+                String latestCharge = paymentIntent.getLatestCharge();
+                payment.setStripeChargeId(latestCharge);
+                payment.setReceiptUrl(fetchReceiptUrl(latestCharge));
+                payment.setMethod(resolvePaymentMethodFromIntent(paymentIntent));
+                if (payment.getMethod() == null) {
+                    payment.setMethod(fetchPaymentMethodLabel(session.getPaymentIntent(), latestCharge));
+                }
             } catch (StripeException e) {
                 log.warn("Unable to retrieve payment intent {} for session {}",
                         session.getPaymentIntent(), session.getId(), e);
@@ -230,7 +397,7 @@ public class CheckoutFulfillmentService {
     }
 
     private String fetchReceiptUrl(String chargeId) {
-        if (chargeId == null || chargeId.isBlank()) {
+        if (chargeId == null || chargeId.isBlank() || !chargeId.startsWith("ch_")) {
             return null;
         }
         Stripe.apiKey = secretKey;

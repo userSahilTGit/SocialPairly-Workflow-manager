@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.dto;
 
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record SubscriptionDto(
@@ -10,6 +11,7 @@ public record SubscriptionDto(
         String planName,
         String planType,
         Integer durationDays,
+        BigDecimal amount,
         String status,
         LocalDateTime currentPeriodStart,
         LocalDateTime currentPeriodEnd,
@@ -22,6 +24,7 @@ public record SubscriptionDto(
                 subscription.getPlan().getPlanName(),
                 subscription.getPlan().getPlanType(),
                 subscription.getPlan().getDurationDays(),
+                subscription.getPlan().getAmount(),
                 subscription.getStatus(),
                 subscription.getCurrentPeriodStart(),
                 subscription.getCurrentPeriodEnd(),

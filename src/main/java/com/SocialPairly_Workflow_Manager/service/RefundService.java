@@ -1,0 +1,266 @@
+package com.SocialPairly_Workflow_Manager.service;
+
+import com.SocialPairly_Workflow_Manager.dto.*;
+import com.SocialPairly_Workflow_Manager.entity.*;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
+import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
+import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class RefundService {
+
+    private static final Logger log = LoggerFactory.getLogger(RefundService.class);
+    private static final BigDecimal PROCESSING_FEE_RATE = new BigDecimal("0.05");
+
+    private final RefundRepository refundRepository;
+    private final BankDetailsRepository bankDetailsRepository;
+    private final PaymentRepository paymentRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final CurrentUserService currentUserService;
+
+    public RefundService(RefundRepository refundRepository,
+                         BankDetailsRepository bankDetailsRepository,
+                         PaymentRepository paymentRepository,
+                         SubscriptionRepository subscriptionRepository,
+                         CurrentUserService currentUserService) {
+        this.refundRepository = refundRepository;
+        this.bankDetailsRepository = bankDetailsRepository;
+        this.paymentRepository = paymentRepository;
+        this.subscriptionRepository = subscriptionRepository;
+        this.currentUserService = currentUserService;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<RefundDto> getCurrentUserRefund() {
+        User user = currentUserService.getCurrentUser();
+        return refundRepository.findFirstByUser_IdOrderByCreatedAtDesc(user.getId())
+                .map(this::toUserRefundDto);
+    }
+
+    @Transactional
+    public RefundDto submitRefundRequest(RefundRequestDto request) {
+        User user = currentUserService.getCurrentUser();
+
+        List<RefundStatus> terminalStatuses = List.of(RefundStatus.Completed, RefundStatus.Rejected);
+        if (refundRepository.existsByUser_IdAndStatusNotIn(user.getId(), terminalStatuses)) {
+            throw new BadRequestException("You already have an active refund request in progress");
+        }
+
+        Subscription subscription = subscriptionRepository
+                .findActiveSubscriptionForUser(user.getId(), LocalDateTime.now())
+                .orElseThrow(() -> new BadRequestException("No active subscription found to discontinue"));
+
+        List<Payment> payments = paymentRepository.findBySubscription_Id(subscription.getId());
+        Payment payment = payments.stream()
+                .filter(p -> "succeeded".equalsIgnoreCase(p.getStatus()))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("No successful payment found for your subscription"));
+
+        Refund refund = new Refund();
+        refund.setUser(user);
+        refund.setPayment(payment);
+        refund.setStatus(RefundStatus.Initiated);
+        refund.setAction(RefundAction.Requested);
+        refund.setReason(request.reason().trim());
+
+        refund = refundRepository.save(refund);
+        log.info("Refund request created id={} userId={}", refund.getRefundId(), user.getId());
+
+        return toUserRefundDto(refund);
+    }
+
+    @Transactional
+    public RefundDto submitSlot(Long refundId, SlotRequestDto request) {
+        Refund refund = getUserRefundOrThrow(refundId);
+
+        if (refund.getAction() != RefundAction.Requested_a_Call) {
+            throw new BadRequestException("A consultation slot is not required at this stage");
+        }
+        if (request.slot().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Please select a future date and time");
+        }
+
+        refund.setSlot(request.slot());
+        refund.setAction(RefundAction.Provided_Slot);
+        refund = refundRepository.save(refund);
+
+        log.info("Refund slot submitted id={}", refundId);
+        return toUserRefundDto(refund);
+    }
+
+    @Transactional
+    public RefundDto submitBankDetails(Long refundId, BankDetailsRequestDto request) {
+        Refund refund = getUserRefundOrThrow(refundId);
+
+        if (refund.getAction() != RefundAction.Approved) {
+            throw new BadRequestException("Bank details are not required at this stage");
+        }
+        if (bankDetailsRepository.findByRefund_RefundId(refundId).isPresent()) {
+            throw new BadRequestException("Bank details have already been submitted");
+        }
+
+        BankDetails details = new BankDetails();
+        details.setUserId(refund.getUser().getId());
+        details.setRefund(refund);
+        details.setAccountHolderName(request.accountHolderName().trim());
+        details.setBankName(request.bankName().trim());
+        details.setAccountNumber(request.accountNumber().trim());
+        details.setAccountType(request.accountType().trim());
+        details.setAbaRoutingNumber(request.abaRoutingNumber().trim());
+        details.setRecipientsAddress(request.recipientsAddress().trim());
+        bankDetailsRepository.save(details);
+
+        refund.setAction(RefundAction.Provided_Bank_Details);
+        refund = refundRepository.save(refund);
+
+        log.info("Bank details submitted for refund id={}", refundId);
+        return toUserRefundDto(refund);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminRefundListDto> listRefundsForAdmin() {
+        return refundRepository.findAllWithDetails().stream()
+                .map(AdminRefundListDto::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AdminRefundDetailDto getRefundDetailForAdmin(Long refundId) {
+        Refund refund = refundRepository.findByIdWithDetails(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + refundId));
+        BankDetails bankDetails = bankDetailsRepository.findByRefund_RefundId(refundId).orElse(null);
+        return AdminRefundDetailDto.from(refund, bankDetails);
+    }
+
+    @Transactional
+    public AdminRefundDetailDto adminRequestCall(Long refundId) {
+        Refund refund = getAdminRefundOrThrow(refundId);
+        validateAdminActionAllowed(refund);
+
+        refund.setStatus(RefundStatus.In_Progress);
+        refund.setAction(RefundAction.Requested_a_Call);
+        refundRepository.save(refund);
+
+        log.info("Admin requested call for refund id={}", refundId);
+        return getRefundDetailForAdmin(refundId);
+    }
+
+    @Transactional
+    public AdminRefundDetailDto adminApprove(Long refundId) {
+        Refund refund = getAdminRefundOrThrow(refundId);
+        validateAdminActionAllowed(refund);
+
+        if (refund.getAction() == RefundAction.Closed) {
+            throw new BadRequestException("This refund request has been closed");
+        }
+
+        refund.setStatus(RefundStatus.In_Progress);
+        refund.setAction(RefundAction.Approved);
+        refundRepository.save(refund);
+
+        log.info("Admin approved refund id={}", refundId);
+        return getRefundDetailForAdmin(refundId);
+    }
+
+    @Transactional
+    public AdminRefundDetailDto adminClose(Long refundId) {
+        Refund refund = getAdminRefundOrThrow(refundId);
+        validateAdminActionAllowed(refund);
+
+        refund.setStatus(RefundStatus.Rejected);
+        refund.setAction(RefundAction.Closed);
+        refundRepository.save(refund);
+
+        log.info("Admin closed/rejected refund id={}", refundId);
+        return getRefundDetailForAdmin(refundId);
+    }
+
+    @Transactional
+    public AdminRefundDetailDto adminCompletePayout(Long refundId) {
+        Refund refund = getAdminRefundOrThrow(refundId);
+
+        if (refund.getStatus() == RefundStatus.Completed) {
+            throw new BadRequestException("Refund payout has already been finalized");
+        }
+        if (refund.getAction() != RefundAction.Provided_Bank_Details) {
+            throw new BadRequestException("Bank details must be provided before finalizing payout");
+        }
+
+        Payment payment = refund.getPayment();
+        BigDecimal refundAmount = calculateNetRefundAmount(payment.getAmount());
+
+        payment.setAmountRefunded(refundAmount);
+        paymentRepository.save(payment);
+
+        refund.setStatus(RefundStatus.Completed);
+        refundRepository.save(refund);
+
+        cancelUserSubscription(refund.getUser().getId());
+
+        log.info("Admin finalized refund payout id={} amount={}", refundId, refundAmount);
+        return getRefundDetailForAdmin(refundId);
+    }
+
+    private void cancelUserSubscription(Long userId) {
+        subscriptionRepository.findActiveSubscriptionForUser(userId, LocalDateTime.now())
+                .ifPresent(subscription -> {
+                    subscription.setStatus("cancelled");
+                    subscription.setCanceledAt(LocalDateTime.now());
+                    subscription.setCancelAtPeriodEnd(false);
+                    subscriptionRepository.save(subscription);
+                });
+    }
+
+    private BigDecimal calculateNetRefundAmount(BigDecimal grossAmount) {
+        BigDecimal fee = grossAmount.multiply(PROCESSING_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
+        return grossAmount.subtract(fee).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private RefundDto toUserRefundDto(Refund refund) {
+        BigDecimal netRefund = null;
+        if (refund.getStatus() == RefundStatus.Completed) {
+            netRefund = refund.getPayment().getAmountRefunded();
+            if (netRefund == null || netRefund.compareTo(BigDecimal.ZERO) == 0) {
+                netRefund = calculateNetRefundAmount(refund.getPayment().getAmount());
+            }
+        }
+        return RefundDto.from(refund, netRefund);
+    }
+
+    private Refund getUserRefundOrThrow(Long refundId) {
+        User user = currentUserService.getCurrentUser();
+        Refund refund = refundRepository.findByIdWithDetails(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + refundId));
+        if (!refund.getUser().getId().equals(user.getId())) {
+            throw new BadRequestException("You do not have access to this refund request");
+        }
+        return refund;
+    }
+
+    private Refund getAdminRefundOrThrow(Long refundId) {
+        return refundRepository.findByIdWithDetails(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund not found: " + refundId));
+    }
+
+    private void validateAdminActionAllowed(Refund refund) {
+        if (refund.getStatus() == RefundStatus.Completed) {
+            throw new BadRequestException("This refund has already been completed");
+        }
+        if (refund.getStatus() == RefundStatus.Rejected || refund.getAction() == RefundAction.Closed) {
+            throw new BadRequestException("This refund request has been closed");
+        }
+    }
+}

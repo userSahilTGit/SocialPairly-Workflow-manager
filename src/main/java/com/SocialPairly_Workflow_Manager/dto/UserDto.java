@@ -21,4 +21,12 @@ public record UserDto(
             ""
         );
     }
+
+    public static UserDto from(User u, boolean subscribed) {
+        return new UserDto(
+            u.getId(), u.getFirstName(), u.getLastName(), u.getEmail(),
+            u.getPhoneNumber(), u.getAddress(), u.getRole(), u.isProfileCompleted(),
+            subscribed ? "Subscribed" : "Unsubscribed"
+        );
+    }
 }

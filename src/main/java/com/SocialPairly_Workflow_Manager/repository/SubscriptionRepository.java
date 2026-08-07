@@ -6,9 +6,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    @Query("""
+            SELECT DISTINCT s.user.id FROM Subscription s
+            WHERE s.status = 'active'
+              AND s.currentPeriodEnd > :now
+            """)
+    List<Long> findActiveSubscribedUserIds(@Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT s FROM Subscription s
+            JOIN FETCH s.user
+            JOIN FETCH s.plan
+            ORDER BY s.currentPeriodStart DESC
+            """)
+    List<Subscription> findAllWithUserAndPlan();
 
     Optional<Subscription> findByStripeSubscriptionId(String stripeSubscriptionId);
 
