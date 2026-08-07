@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.service;
 import com.SocialPairly_Workflow_Manager.dto.AdminSubscriptionDto;
 import com.SocialPairly_Workflow_Manager.dto.SubscriptionDto;
 import com.SocialPairly_Workflow_Manager.entity.*;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
@@ -72,8 +73,8 @@ class SubscriptionServiceTest {
     @Test
     void getCurrentSubscriptionShouldReturnEmptyWhenNoneActive() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any()))
-                .thenReturn(Optional.empty());
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
+                .thenReturn(List.of());
 
         assertTrue(subscriptionService.getCurrentSubscription().isEmpty());
     }
@@ -81,14 +82,30 @@ class SubscriptionServiceTest {
     @Test
     void getCurrentSubscriptionShouldReturnDtoWhenActive() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any()))
-                .thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
+                .thenReturn(List.of(subscription));
 
         Optional<SubscriptionDto> result = subscriptionService.getCurrentSubscription();
 
         assertTrue(result.isPresent());
         assertEquals(10L, result.get().id());
         assertEquals("Pro", result.get().planName());
+    }
+
+    @Test
+    void ensureNoActiveSubscriptionShouldThrowWhenActiveSubscriptionExists() {
+        when(subscriptionRepository.hasActiveSubscriptionForUser(eq(1L), any())).thenReturn(true);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> subscriptionService.ensureNoActiveSubscription(user));
+        assertTrue(ex.getMessage().contains("already have an active subscription"));
+    }
+
+    @Test
+    void ensureNoActiveSubscriptionShouldPassWhenNoActiveSubscription() {
+        when(subscriptionRepository.hasActiveSubscriptionForUser(eq(1L), any())).thenReturn(false);
+
+        assertDoesNotThrow(() -> subscriptionService.ensureNoActiveSubscription(user));
     }
 
     @Test

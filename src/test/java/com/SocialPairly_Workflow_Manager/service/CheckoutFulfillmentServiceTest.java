@@ -29,11 +29,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -82,6 +85,9 @@ class CheckoutFulfillmentServiceTest {
         sessionStatic = mockStatic(Session.class);
         paymentIntentStatic = mockStatic(PaymentIntent.class);
         chargeStatic = mockStatic(Charge.class);
+
+        lenient().when(subscriptionRepository.findActiveSubscriptionsForUser(anyLong(), any()))
+                .thenReturn(List.of());
     }
 
     @AfterEach
@@ -165,6 +171,30 @@ class CheckoutFulfillmentServiceTest {
 
         assertThrows(ResourceNotFoundException.class,
                 () -> checkoutFulfillmentService.fulfillPaidSession(session, null));
+    }
+
+    @Test
+    void fulfillPaidSessionShouldThrowWhenUserAlreadyHasActiveSubscription() {
+        Session session = createPaidSession("1", "5");
+        when(session.getId()).thenReturn("sess_new");
+
+        Subscription existingSub = new Subscription();
+        existingSub.setId(10L);
+        existingSub.setUser(user);
+        existingSub.setPlan(plan);
+        existingSub.setStatus("active");
+        existingSub.setStripeSubscriptionId("sess_old");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(planRepository.findById(5L)).thenReturn(Optional.of(plan));
+        when(subscriptionRepository.findByStripeSubscriptionId("sess_new")).thenReturn(Optional.empty());
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
+                .thenReturn(List.of(existingSub));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> checkoutFulfillmentService.fulfillPaidSession(session, 1L));
+        assertTrue(ex.getMessage().contains("already have an active subscription"));
+        verify(subscriptionRepository, never()).save(any());
     }
 
     @Test

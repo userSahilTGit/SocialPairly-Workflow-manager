@@ -4,6 +4,7 @@ import com.SocialPairly_Workflow_Manager.dto.PaymentRequestDTO;
 import com.SocialPairly_Workflow_Manager.dto.PaymentResponseDTO;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -38,9 +39,12 @@ public class PaymentServiceTest {
     @Mock
     private PlanRepository planRepository;
 
+    @Mock
+    private SubscriptionService subscriptionService;
+
     @BeforeEach
     public void setUp() {
-        paymentService = new PaymentService(currentUserService, planRepository);
+        paymentService = new PaymentService(currentUserService, planRepository, subscriptionService);
         ReflectionTestUtils.setField(paymentService, "secretKey", "test-secret");
         ReflectionTestUtils.setField(paymentService, "frontendUrl", "http://localhost:3000");
         stripeStatic = mockStatic(Stripe.class);
@@ -118,5 +122,24 @@ public class PaymentServiceTest {
         });
 
         assertTrue(ex.getMessage().contains("Unable to create payment session"));
+    }
+
+    @Test
+    public void checkoutProducts_shouldThrowBadRequestException_whenUserHasActiveSubscription() {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("user@test.com");
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        doThrow(new BadRequestException("You already have an active subscription."))
+                .when(subscriptionService).ensureNoActiveSubscription(user);
+
+        PaymentRequestDTO request = new PaymentRequestDTO(5000L, 1L, "Coffee", "USD", 10L);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> paymentService.checkoutProducts(request));
+
+        assertTrue(ex.getMessage().contains("already have an active subscription"));
+        sessionStatic.verifyNoInteractions();
     }
 }

@@ -5,6 +5,7 @@ import com.SocialPairly_Workflow_Manager.dto.SubscriptionDto;
 import com.SocialPairly_Workflow_Manager.entity.Payment;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
@@ -33,9 +34,28 @@ public class SubscriptionService {
     @Transactional(readOnly = true)
     public Optional<SubscriptionDto> getCurrentSubscription() {
         User user = currentUserService.getCurrentUser();
-        return subscriptionRepository
-                .findActiveSubscriptionForUser(user.getId(), LocalDateTime.now())
-                .map(SubscriptionDto::from);
+        return findPrimaryActiveSubscription(user.getId()).map(SubscriptionDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasActiveSubscription(Long userId) {
+        return subscriptionRepository.hasActiveSubscriptionForUser(userId, LocalDateTime.now());
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Subscription> findPrimaryActiveSubscription(Long userId) {
+        List<Subscription> activeSubscriptions =
+                subscriptionRepository.findActiveSubscriptionsForUser(userId, LocalDateTime.now());
+        return activeSubscriptions.isEmpty() ? Optional.empty() : Optional.of(activeSubscriptions.get(0));
+    }
+
+    @Transactional(readOnly = true)
+    public void ensureNoActiveSubscription(User user) {
+        if (hasActiveSubscription(user.getId())) {
+            throw new BadRequestException(
+                    "You already have an active subscription. Please wait until your current plan expires or discontinue it before purchasing a new plan."
+            );
+        }
     }
 
     @Transactional(readOnly = true)

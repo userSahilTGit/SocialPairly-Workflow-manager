@@ -60,7 +60,9 @@ public class RefundService {
         }
 
         Subscription subscription = subscriptionRepository
-                .findActiveSubscriptionForUser(user.getId(), LocalDateTime.now())
+                .findActiveSubscriptionsForUser(user.getId(), LocalDateTime.now())
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> new BadRequestException("No active subscription found to discontinue"));
 
         List<Payment> payments = paymentRepository.findBySubscription_Id(subscription.getId());
@@ -215,13 +217,15 @@ public class RefundService {
     }
 
     private void cancelUserSubscription(Long userId) {
-        subscriptionRepository.findActiveSubscriptionForUser(userId, LocalDateTime.now())
-                .ifPresent(subscription -> {
-                    subscription.setStatus("cancelled");
-                    subscription.setCanceledAt(LocalDateTime.now());
-                    subscription.setCancelAtPeriodEnd(false);
-                    subscriptionRepository.save(subscription);
-                });
+        List<Subscription> activeSubscriptions =
+                subscriptionRepository.findActiveSubscriptionsForUser(userId, LocalDateTime.now());
+
+        for (Subscription subscription : activeSubscriptions) {
+            subscription.setStatus("cancelled");
+            subscription.setCanceledAt(LocalDateTime.now());
+            subscription.setCancelAtPeriodEnd(false);
+            subscriptionRepository.save(subscription);
+        }
     }
 
     private BigDecimal calculateNetRefundAmount(BigDecimal grossAmount) {

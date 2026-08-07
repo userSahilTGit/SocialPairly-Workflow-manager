@@ -26,6 +26,7 @@ public class PaymentService {
 
     private final CurrentUserService currentUserService;
     private final PlanRepository planRepository;
+    private final SubscriptionService subscriptionService;
 
     @Value("${stripe.secretKey}")
     private String secretKey;
@@ -33,15 +34,20 @@ public class PaymentService {
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
-    public PaymentService(CurrentUserService currentUserService, PlanRepository planRepository) {
+    public PaymentService(CurrentUserService currentUserService,
+                          PlanRepository planRepository,
+                          SubscriptionService subscriptionService) {
         this.currentUserService = currentUserService;
         this.planRepository = planRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     public PaymentResponseDTO checkoutProducts(PaymentRequestDTO productRequest) {
         Stripe.apiKey = secretKey;
 
         User user = currentUserService.getCurrentUser();
+        subscriptionService.ensureNoActiveSubscription(user);
+
         Plan plan = resolvePlan(productRequest);
 
         long amountInCents = resolveAmountInCents(productRequest, plan);

@@ -117,7 +117,7 @@ class RefundServiceTest {
     void submitRefundRequestShouldThrowWhenNoActiveSubscription() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any())).thenReturn(Optional.empty());
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of());
 
         RefundRequestDto request = new RefundRequestDto("reason");
 
@@ -132,7 +132,7 @@ class RefundServiceTest {
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any())).thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of(subscription));
         when(paymentRepository.findBySubscription_Id(20L)).thenReturn(List.of(payment));
 
         RefundRequestDto request = new RefundRequestDto("reason");
@@ -146,7 +146,7 @@ class RefundServiceTest {
     void submitRefundRequestShouldCreateRefundWhenValid() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any())).thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of(subscription));
         when(paymentRepository.findBySubscription_Id(20L)).thenReturn(List.of(payment));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> {
             Refund r = inv.getArgument(0);
@@ -348,8 +348,8 @@ class RefundServiceTest {
         when(refundRepository.findByIdWithDetails(99L)).thenReturn(Optional.of(refund));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
         when(bankDetailsRepository.findByRefund_RefundId(99L)).thenReturn(Optional.empty());
-        when(subscriptionRepository.findActiveSubscriptionForUser(eq(1L), any()))
-                .thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
+                .thenReturn(List.of(subscription));
 
         AdminRefundDetailDto result = refundService.adminCompletePayout(99L);
 

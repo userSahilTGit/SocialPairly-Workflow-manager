@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -268,12 +269,28 @@ public class CheckoutFulfillmentService {
             return existing.get();
         }
 
+        ensureNoOtherActiveSubscription(user.getId(), session.getId());
+
         try {
             return createSubscription(session, user, plan);
         } catch (DataIntegrityViolationException ex) {
             log.info("Subscription already exists for checkout session {}, reusing existing record", session.getId());
             return subscriptionRepository.findByStripeSubscriptionId(session.getId())
                     .orElseThrow(() -> ex);
+        }
+    }
+
+    private void ensureNoOtherActiveSubscription(Long userId, String checkoutSessionId) {
+        List<Subscription> activeSubscriptions =
+                subscriptionRepository.findActiveSubscriptionsForUser(userId, LocalDateTime.now());
+
+        boolean hasOtherActiveSubscription = activeSubscriptions.stream()
+                .anyMatch(subscription -> !checkoutSessionId.equals(subscription.getStripeSubscriptionId()));
+
+        if (hasOtherActiveSubscription) {
+            throw new BadRequestException(
+                    "You already have an active subscription. Please wait until your current plan expires or discontinue it before purchasing a new plan."
+            );
         }
     }
 
