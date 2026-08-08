@@ -20,10 +20,12 @@ public class ProfileService {
     private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
     private final UserProfileRepository profileRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
-    public ProfileService(UserProfileRepository profileRepository, UserRepository userRepository) {
+    public ProfileService(UserProfileRepository profileRepository, UserRepository userRepository, EmailService emailService) {
         this.profileRepository = profileRepository;
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     public UserProfile getProfile(User user) {
@@ -73,9 +75,14 @@ public class ProfileService {
 
         UserProfile saved = profileRepository.save(profile);
 
+        boolean wasProfileCompleted = user.isProfileCompleted();
         user.setProfile(saved);
         user.setProfileCompleted(true);
         userRepository.save(user);
+
+        if (!wasProfileCompleted) {
+            emailService.sendProfileCompletedEmail(user);
+        }
 
         return saved;
     }

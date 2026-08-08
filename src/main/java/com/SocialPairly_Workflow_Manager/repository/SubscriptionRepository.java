@@ -52,4 +52,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             @Param("userId") Long userId,
             @Param("now") LocalDateTime now
     );
+
+    void deleteByUser_Id(Long userId);
 }

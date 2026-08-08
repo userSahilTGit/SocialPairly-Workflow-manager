@@ -188,7 +188,7 @@ class ControllerTests {
         User user = new User();
         user.setId(2L);
         user.setEmail("b@example.com");
-        DeleteAccountRequest deleteRequest = new DeleteAccountRequest("b@example.com", "password");
+        DeleteAccountRequest deleteRequest = new DeleteAccountRequest("password");
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
 

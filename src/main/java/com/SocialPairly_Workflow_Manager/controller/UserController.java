@@ -36,7 +36,7 @@ public class UserController {
     @DeleteMapping("/me")
     public ResponseEntity<Map<String, String>> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
         User user = currentUserService.getCurrentUser();
-        log.info("Delete account request for userId={} identifier={}", user.getId(), request.identifier());
+        log.info("Delete account request for userId={}", user.getId());
         userService.deleteAccount(user, request);
         return ResponseEntity.ok(Map.of("message", "Account deleted successfully"));
     }
