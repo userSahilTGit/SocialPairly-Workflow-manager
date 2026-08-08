@@ -1,46 +1,82 @@
 package com.SocialPairly_Workflow_Manager.config;
 
 import com.SocialPairly_Workflow_Manager.security.JwtAuthenticationFilter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 class SecurityConfigTest {
 
-    @Autowired
     private SecurityConfig securityConfig;
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Autowired
-    private HttpSecurity httpSecurity; // <--- Inject HttpSecurity here
+    @BeforeEach
+    void setUp() {
+        securityConfig = new SecurityConfig(mock(JwtAuthenticationFilter.class));
+    }
 
     @Test
     void testSecurityFilterChain() throws Exception {
-        // Pass the injected HttpSecurity instance
-        SecurityFilterChain filterChain = securityConfig.filterChain(httpSecurity);
-        assertNotNull(filterChain);
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        SecurityFilterChain result = securityConfig.filterChain(httpSecurity);
+
+        assertNotNull(result);
+        assertSame(filterChain, result);
+        verify(httpSecurity).build();
     }
 
     @Test
     void testPasswordEncoder() {
         assertNotNull(securityConfig.passwordEncoder());
-        assertTrue(securityConfig.passwordEncoder() instanceof org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder);
+        assertInstanceOf(BCryptPasswordEncoder.class, securityConfig.passwordEncoder());
     }
 
     @Test
     void testAuthenticationManager() throws Exception {
-        assertNotNull(securityConfig.authenticationManager(null));
+        AuthenticationConfiguration authenticationConfiguration = mock(AuthenticationConfiguration.class);
+        AuthenticationManager authenticationManager = mock(AuthenticationManager.class);
+        when(authenticationConfiguration.getAuthenticationManager()).thenReturn(authenticationManager);
+
+        AuthenticationManager result = securityConfig.authenticationManager(authenticationConfiguration);
+
+        assertNotNull(result);
+        assertSame(authenticationManager, result);
+        verify(authenticationConfiguration).getAuthenticationManager();
     }
 
     @Test
     void testCorsConfigurationSource() {
-        assertNotNull(securityConfig.corsConfigurationSource());
+        CorsConfigurationSource source = securityConfig.corsConfigurationSource();
+
+        assertNotNull(source);
+        assertInstanceOf(UrlBasedCorsConfigurationSource.class, source);
+
+        CorsConfiguration config = ((UrlBasedCorsConfigurationSource) source)
+                .getCorsConfiguration(new MockHttpServletRequest());
+
+        assertNotNull(config);
+        assertTrue(config.getAllowedOrigins().contains("http://localhost:5173"));
+        assertTrue(config.getAllowedOrigins().contains("http://localhost:3000"));
+        assertTrue(config.getAllowedOrigins().contains("http://localhost:3001"));
+        assertTrue(config.getAllowCredentials());
+        assertTrue(config.getAllowedMethods().contains("GET"));
+        assertTrue(config.getAllowedMethods().contains("OPTIONS"));
     }
 }
