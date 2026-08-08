@@ -136,7 +136,9 @@ class UserMediaRepositoryIT {
         other.setPhoneNumber(String.valueOf(System.nanoTime()));
         other.setPassword("pass");
         userRepository.save(other);
-        userMediaRepository.save(media(MediaType.PHOTO, "PUBLIC", "FULL_LENGTH", false, MediaStatus.APPROVED));
+        UserMedia otherMedia = media(MediaType.PHOTO, "PUBLIC", "FULL_LENGTH", false, MediaStatus.APPROVED);
+        otherMedia.setUser(other);
+        userMediaRepository.save(otherMedia);
 
         List<UserMedia> result = userMediaRepository.findVisibleMediaForViewer(target.getId(), false, false, false);
         assertEquals(1, result.size());

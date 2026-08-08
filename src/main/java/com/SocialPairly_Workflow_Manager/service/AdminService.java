@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.dto.AdminPaymentDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto.CountByLabel;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
@@ -7,7 +8,9 @@ import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.QuestionType;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
+import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import org.slf4j.Logger;
@@ -18,9 +21,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,17 +35,35 @@ public class AdminService {
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
     private final UserAnswerRepository answerRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final PaymentRepository paymentRepository;
 
-    public AdminService(UserRepository userRepository, QuestionRepository questionRepository, UserAnswerRepository answerRepository) {
+    public AdminService(UserRepository userRepository,
+                        QuestionRepository questionRepository,
+                        UserAnswerRepository answerRepository,
+                        SubscriptionRepository subscriptionRepository,
+                        PaymentRepository paymentRepository) {
         this.userRepository = userRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
+        this.subscriptionRepository = subscriptionRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     public List<UserDto> listUsers() {
         log.info("Listing all users");
+        Set<Long> subscribedUserIds = new HashSet<>(
+                subscriptionRepository.findActiveSubscribedUserIds(LocalDateTime.now())
+        );
         return userRepository.findAll().stream()
-                .map(UserDto::from)
+                .map(user -> UserDto.from(user, subscribedUserIds.contains(user.getId())))
+                .collect(Collectors.toList());
+    }
+
+    public List<AdminPaymentDto> listPayments() {
+        log.info("Listing all payments for admin");
+        return paymentRepository.findAllWithUserOrderByCreatedAtDesc().stream()
+                .map(AdminPaymentDto::from)
                 .collect(Collectors.toList());
     }
 

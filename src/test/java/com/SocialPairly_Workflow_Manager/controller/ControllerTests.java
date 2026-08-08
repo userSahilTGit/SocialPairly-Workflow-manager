@@ -12,6 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +31,12 @@ class ControllerTests {
 
     @Mock
     private QuestionService questionService;
+
+    @Mock
+    private SubscriptionService subscriptionService;
+
+    @Mock
+    private RefundService refundService;
 
     @Mock
     private ProfileService profileService;
@@ -191,5 +199,46 @@ class ControllerTests {
         assertEquals("b@example.com", meResponse.getBody().email());
         assertEquals("Account deleted successfully", deleteResponse.getBody().get("message"));
         verify(userService).deleteAccount(eq(user), eq(deleteRequest));
+    }
+
+    @Test
+    void adminControllerShouldExposePaymentSubscriptionAndRefundEndpoints() {
+        AdminPaymentDto paymentDto = new AdminPaymentDto(
+                1L, 1L, "User One", "user@example.com", "ch_1",
+                new BigDecimal("29.99"), "usd", "succeeded", LocalDateTime.now(), null
+        );
+        AdminSubscriptionDto subscriptionDto = new AdminSubscriptionDto(
+                2L, 1L, "User One", 5L, "Pro",
+                LocalDateTime.now(), LocalDateTime.now().plusDays(30), "active"
+        );
+        AdminRefundListDto refundListDto = new AdminRefundListDto(
+                3L, "REF-3", new BigDecimal("29.99"), "Initiated", "Requested", LocalDateTime.now()
+        );
+        AdminRefundDetailDto refundDetailDto = new AdminRefundDetailDto(
+                3L, "REF-3", "User One", "user@example.com", new BigDecimal("29.99"),
+                "Initiated", "Requested", "reason", null, LocalDateTime.now(), null
+        );
+
+        when(adminService.listPayments()).thenReturn(List.of(paymentDto));
+        when(subscriptionService.getAllSubscriptionsForAdmin()).thenReturn(List.of(subscriptionDto));
+        when(refundService.listRefundsForAdmin()).thenReturn(List.of(refundListDto));
+        when(refundService.getRefundDetailForAdmin(3L)).thenReturn(refundDetailDto);
+        when(refundService.adminRequestCall(3L)).thenReturn(refundDetailDto);
+        when(refundService.adminApprove(3L)).thenReturn(refundDetailDto);
+        when(refundService.adminClose(3L)).thenReturn(refundDetailDto);
+        when(refundService.adminCompletePayout(3L)).thenReturn(refundDetailDto);
+
+        assertEquals(1, adminController.getPayments().getBody().size());
+        assertEquals(1, adminController.getSubscriptions().getBody().size());
+        assertEquals("Subscription removed successfully",
+                adminController.removeSubscription(2L).getBody().get("message"));
+        assertEquals(1, adminController.getRefunds().getBody().size());
+        assertSame(refundDetailDto, adminController.getRefundDetail(3L).getBody());
+        assertSame(refundDetailDto, adminController.requestCall(3L).getBody());
+        assertSame(refundDetailDto, adminController.approveRefund(3L).getBody());
+        assertSame(refundDetailDto, adminController.closeRefund(3L).getBody());
+        assertSame(refundDetailDto, adminController.completeRefund(3L).getBody());
+
+        verify(subscriptionService).removeSubscription(2L);
     }
 }

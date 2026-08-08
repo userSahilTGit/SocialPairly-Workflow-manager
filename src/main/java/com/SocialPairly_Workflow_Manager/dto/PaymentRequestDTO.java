@@ -11,4 +11,5 @@ public class PaymentRequestDTO {
     private Long quantity;
     private String name;
     private String currency;
+    private Long planId;
 }

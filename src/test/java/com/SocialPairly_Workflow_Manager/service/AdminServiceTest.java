@@ -7,7 +7,9 @@ import com.SocialPairly_Workflow_Manager.entity.QuestionType;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserAnswer;
+import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
+import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,12 @@ class AdminServiceTest {
 
     @Mock
     private UserAnswerRepository answerRepository;
+
+    @Mock
+    private SubscriptionRepository subscriptionRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
 
     @InjectMocks
     private AdminService adminService;
