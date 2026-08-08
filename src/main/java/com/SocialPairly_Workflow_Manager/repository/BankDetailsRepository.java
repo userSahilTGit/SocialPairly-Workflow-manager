@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface BankDetailsRepository extends JpaRepository<BankDetails, Long> {
 
     Optional<BankDetails> findByRefund_RefundId(Long refundId);
+
+    void deleteByUserId(Long userId);
 }

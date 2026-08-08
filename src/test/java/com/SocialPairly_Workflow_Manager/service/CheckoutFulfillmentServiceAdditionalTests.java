@@ -49,6 +49,9 @@ class CheckoutFulfillmentServiceAdditionalTests {
     @Mock
     private PlanRepository planRepository;
 
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private CheckoutFulfillmentService checkoutFulfillmentService;
 

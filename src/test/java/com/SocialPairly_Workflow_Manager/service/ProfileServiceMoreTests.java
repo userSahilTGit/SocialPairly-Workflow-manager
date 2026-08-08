@@ -29,6 +29,9 @@ class ProfileServiceMoreTests {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private ProfileService profileService;
 

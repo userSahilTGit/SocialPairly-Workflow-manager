@@ -19,4 +19,7 @@ public interface VideoAccessRequestRepository extends JpaRepository<VideoAccessR
     Optional<VideoAccessRequest> findByMediaIdAndRequesterId(Long mediaId, Long requesterId);
     List<VideoAccessRequest> findByMediaIdAndStatus(Long mediaId, AccessRequestStatus status);
     boolean existsByMediaIdAndRequesterIdAndStatus(Long mediaId, Long requesterId, AccessRequestStatus status);
+
+    void deleteByRequesterId(Long requesterId);
+    void deleteByOwnerId(Long ownerId);
 }

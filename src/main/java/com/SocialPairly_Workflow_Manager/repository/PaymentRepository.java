@@ -26,4 +26,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             Long userId,
             LocalDateTime since
     );
+
+    void deleteByUser_Id(Long userId);
 }

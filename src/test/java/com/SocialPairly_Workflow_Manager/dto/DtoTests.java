@@ -19,7 +19,7 @@ class DtoTests {
         RegisterRequest register = new RegisterRequest("Ada", "Lovelace", "ada@example.com", "1234567", "secret", "London");
         LoginRequest login = new LoginRequest("ada@example.com", "secret");
         AnswerRequest answer = new AnswerRequest(10L, "yes");
-        DeleteAccountRequest deleteAccount = new DeleteAccountRequest("ada@example.com", "secret");
+        DeleteAccountRequest deleteAccount = new DeleteAccountRequest("secret");
         ForgotPasswordSendOtpRequest sendOtp = new ForgotPasswordSendOtpRequest("ada@example.com");
         ForgotPasswordVerifyOtpRequest verifyOtp = new ForgotPasswordVerifyOtpRequest("ada@example.com", "222222");
         ForgotPasswordResetRequest reset = new ForgotPasswordResetRequest("ada@example.com", "222222", "newSecret", "newSecret");

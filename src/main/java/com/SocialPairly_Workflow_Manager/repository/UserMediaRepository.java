@@ -17,6 +17,8 @@ public interface UserMediaRepository extends JpaRepository<UserMedia, Long> {
     List<UserMedia> findByStatus(MediaStatus status);
     List<UserMedia> findAllByOrderByCreatedAtDesc();
 
+    void deleteByUserId(Long userId);
+
     // 👈 Privacy query layer (Step 1) - Expanded with VERIFIED_ONLY and EVENT_ONLY
     // Returns only media a viewer is allowed to see on a target profile:
     //   - Always visible: PUBLIC items that are APPROVED

@@ -38,4 +38,6 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     Optional<Refund> findFirstByUser_IdOrderByCreatedAtDesc(Long userId);
 
     boolean existsByUser_IdAndStatusNotIn(Long userId, List<RefundStatus> terminalStatuses);
+
+    void deleteByUser_Id(Long userId);
 }

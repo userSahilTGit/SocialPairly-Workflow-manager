@@ -41,6 +41,7 @@ public class CheckoutFulfillmentService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final PlanRepository planRepository;
+    private final EmailService emailService;
 
     @Value("${stripe.secretKey}")
     private String secretKey;
@@ -54,11 +55,13 @@ public class CheckoutFulfillmentService {
     public CheckoutFulfillmentService(SubscriptionRepository subscriptionRepository,
                                       PaymentRepository paymentRepository,
                                       UserRepository userRepository,
-                                      PlanRepository planRepository) {
+                                      PlanRepository planRepository,
+                                      EmailService emailService) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.planRepository = planRepository;
+        this.emailService = emailService;
     }
 
     @Transactional(noRollbackFor = DataIntegrityViolationException.class)
@@ -97,7 +100,14 @@ public class CheckoutFulfillmentService {
 
         Subscription subscription = findOrCreateSubscription(session, user, plan);
 
+        boolean paymentAlreadyExists = session.getPaymentIntent() != null
+                && paymentRepository.findByStripePaymentIntentId(session.getPaymentIntent()).isPresent();
+
         Payment payment = findOrCreatePayment(session, user, subscription);
+
+        if (!paymentAlreadyExists && "succeeded".equalsIgnoreCase(payment.getStatus())) {
+            emailService.sendSubscriptionConfirmationEmail(user, subscription, payment);
+        }
 
         return new CheckoutConfirmDto(
                 SubscriptionDto.from(subscription),

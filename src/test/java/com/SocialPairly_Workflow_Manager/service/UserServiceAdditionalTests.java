@@ -4,11 +4,16 @@ import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
-import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
+import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
+import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import com.SocialPairly_Workflow_Manager.repository.VideoAccessRequestRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,38 +39,28 @@ class UserServiceAdditionalTests {
     private UserAnswerRepository answerRepository;
 
     @Mock
+    private VideoAccessRequestRepository videoAccessRequestRepository;
+
+    @Mock
+    private UserMediaRepository userMediaRepository;
+
+    @Mock
+    private BankDetailsRepository bankDetailsRepository;
+
+    @Mock
+    private RefundRepository refundRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private SubscriptionRepository subscriptionRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private UserService userService;
-
-    @Test
-    void deleteAccountShouldThrowWhenIdentifierNotFound() {
-        DeleteAccountRequest request = new DeleteAccountRequest("missing@example.com", "pass");
-        User currentUser = new User();
-        currentUser.setId(1L);
-
-        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
-        when(userRepository.findByPhoneNumber("missing@example.com")).thenReturn(Optional.empty());
-
-        assertThrows(BadRequestException.class, () -> userService.deleteAccount(currentUser, request));
-    }
-
-    @Test
-    void deleteAccountShouldThrowWhenUserMismatch() {
-        User user = new User();
-        user.setId(2L);
-        user.setRole(Role.USER);
-        user.setPassword("encoded");
-
-        DeleteAccountRequest request = new DeleteAccountRequest("match@example.com", "pass");
-        User currentUser = new User();
-        currentUser.setId(1L);
-
-        when(userRepository.findByEmail("match@example.com")).thenReturn(Optional.of(user));
-
-        assertThrows(BadRequestException.class, () -> userService.deleteAccount(currentUser, request));
-    }
 
     @Test
     void findByIdentifierShouldThrowWhenMissing() {
@@ -74,16 +69,13 @@ class UserServiceAdditionalTests {
 
     @Test
     void deleteAccountShouldDeleteProfileAndAnswers() {
-        User user = new User();
-        user.setId(2L);
-        user.setRole(Role.USER);
-        user.setPassword("encoded");
-
-        DeleteAccountRequest request = new DeleteAccountRequest("match@example.com", "pass");
         User currentUser = new User();
         currentUser.setId(2L);
+        currentUser.setRole(Role.USER);
+        currentUser.setPassword("encoded");
 
-        when(userRepository.findByEmail("match@example.com")).thenReturn(Optional.of(user));
+        DeleteAccountRequest request = new DeleteAccountRequest("pass");
+
         when(passwordEncoder.matches("pass", "encoded")).thenReturn(true);
         when(answerRepository.findByUserId(2L)).thenReturn(java.util.List.of());
         when(profileRepository.findByUserId(2L)).thenReturn(Optional.of(new UserProfile()));
@@ -92,6 +84,6 @@ class UserServiceAdditionalTests {
 
         verify(answerRepository).deleteAll(anyList());
         verify(profileRepository).delete(any(UserProfile.class));
-        verify(userRepository).delete(user);
+        verify(userRepository).delete(currentUser);
     }
 }

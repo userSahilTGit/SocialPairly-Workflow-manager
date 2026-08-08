@@ -30,17 +30,20 @@ public class RefundService {
     private final PaymentRepository paymentRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final CurrentUserService currentUserService;
+    private final EmailService emailService;
 
     public RefundService(RefundRepository refundRepository,
                          BankDetailsRepository bankDetailsRepository,
                          PaymentRepository paymentRepository,
                          SubscriptionRepository subscriptionRepository,
-                         CurrentUserService currentUserService) {
+                         CurrentUserService currentUserService,
+                         EmailService emailService) {
         this.refundRepository = refundRepository;
         this.bankDetailsRepository = bankDetailsRepository;
         this.paymentRepository = paymentRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.currentUserService = currentUserService;
+        this.emailService = emailService;
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +83,8 @@ public class RefundService {
 
         refund = refundRepository.save(refund);
         log.info("Refund request created id={} userId={}", refund.getRefundId(), user.getId());
+
+        emailService.sendRefundRequestReceivedEmail(user, refund, subscription.getPlan().getPlanName());
 
         return toUserRefundDto(refund);
     }
@@ -156,6 +161,8 @@ public class RefundService {
         refund.setAction(RefundAction.Requested_a_Call);
         refundRepository.save(refund);
 
+        emailService.sendAdminRequestedCallEmail(refund.getUser());
+
         log.info("Admin requested call for refund id={}", refundId);
         return getRefundDetailForAdmin(refundId);
     }
@@ -172,6 +179,8 @@ public class RefundService {
         refund.setStatus(RefundStatus.In_Progress);
         refund.setAction(RefundAction.Approved);
         refundRepository.save(refund);
+
+        emailService.sendRefundApprovedEmail(refund.getUser());
 
         log.info("Admin approved refund id={}", refundId);
         return getRefundDetailForAdmin(refundId);
@@ -211,6 +220,8 @@ public class RefundService {
         refundRepository.save(refund);
 
         cancelUserSubscription(refund.getUser().getId());
+
+        emailService.sendRefundFinalizedEmail(refund.getUser(), refund, refundAmount);
 
         log.info("Admin finalized refund payout id={} amount={}", refundId, refundAmount);
         return getRefundDetailForAdmin(refundId);

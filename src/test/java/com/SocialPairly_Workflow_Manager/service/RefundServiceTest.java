@@ -42,6 +42,9 @@ class RefundServiceTest {
     @Mock
     private CurrentUserService currentUserService;
 
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private RefundService refundService;
 
@@ -67,6 +70,7 @@ class RefundServiceTest {
 
         Plan plan = new Plan();
         plan.setId(5L);
+        plan.setPlanName("Pro Monthly");
 
         subscription = new Subscription();
         subscription.setId(20L);

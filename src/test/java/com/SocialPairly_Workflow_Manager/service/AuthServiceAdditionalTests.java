@@ -7,7 +7,6 @@ import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
-import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +14,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -50,7 +48,7 @@ class AuthServiceAdditionalTests {
     private UserService userService;
 
     @Mock
-    private JavaMailSender mailSender;
+    private EmailService emailService;
 
     @InjectMocks
     private AuthService authService;
@@ -80,7 +78,7 @@ class AuthServiceAdditionalTests {
     }
 
     @Test
-    void sendForgotPasswordOtpShouldUseMailSender() throws Exception {
+    void sendForgotPasswordOtpShouldUseEmailService() throws Exception {
         User user = new User();
         user.setEmail("test@example.com");
         user.setFirstName("Test");
@@ -88,13 +86,10 @@ class AuthServiceAdditionalTests {
 
         when(userService.findByIdentifier("test@example.com")).thenReturn(user);
         when(otpService.generateAndStore("test@example.com")).thenReturn("123456");
-        MimeMessage message = mock(MimeMessage.class);
-        when(mailSender.createMimeMessage()).thenReturn(message);
-        org.springframework.test.util.ReflectionTestUtils.setField(authService, "senderEmail", "noreply@example.com");
 
         authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com"));
 
-        verify(mailSender).send(message);
+        verify(emailService).sendForgotPasswordOtpEmail(user, "123456");
     }
 
     @Test

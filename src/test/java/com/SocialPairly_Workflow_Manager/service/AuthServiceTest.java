@@ -15,7 +15,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -49,7 +48,7 @@ class AuthServiceTest {
     private UserService userService;
 
     @Mock
-    private JavaMailSender mailSender;
+    private EmailService emailService;
 
     private AuthService authService;
 
@@ -57,7 +56,7 @@ class AuthServiceTest {
     void setUp() {
         jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000);
         authService = new AuthService(userRepository, passwordEncoder, authenticationManager,
-                jwtUtil, otpService, userService, mailSender);
+                jwtUtil, otpService, userService, emailService);
     }
 
     @Test
