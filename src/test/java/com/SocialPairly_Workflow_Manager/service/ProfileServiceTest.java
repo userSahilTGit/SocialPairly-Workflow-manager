@@ -53,6 +53,8 @@ class ProfileServiceTest {
                 -74.0060,
                 LocalDate.of(1990, 1, 1),
                 "Female",
+                "Hinduism",
+                "Open to all",
                 Set.of("music", "travel"),
                 List.of(new ProfileRequest.EducationDto("University", "BS", "CS", 2010, 2014))
         );
@@ -71,6 +73,8 @@ class ProfileServiceTest {
         ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
         verify(profileRepository).save(captor.capture());
         assertEquals("USA", captor.getValue().getLocationCountry());
+        assertEquals("Hinduism", captor.getValue().getReligion());
+        assertEquals("Open to all", captor.getValue().getPreferredReligion());
         verify(userRepository).save(user);
     }
 

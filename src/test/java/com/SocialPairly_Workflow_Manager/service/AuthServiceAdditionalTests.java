@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +32,9 @@ class AuthServiceAdditionalTests {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private com.SocialPairly_Workflow_Manager.repository.UserProfileRepository userProfileRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -53,9 +57,14 @@ class AuthServiceAdditionalTests {
     @InjectMocks
     private AuthService authService;
 
+    @BeforeEach
+    void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
+    }
+
     @Test
     void registerShouldThrowWhenEmailTaken() {
-        RegisterRequest request = new RegisterRequest("A", "B", "test@example.com", "1234567", "pass123", "addr");
+        RegisterRequest request = new RegisterRequest("A", "B", "test@example.com", "1234567", "pass123", "pass123", "addr", true, true, true, true, false);
         when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
 
         assertThrows(BadRequestException.class, () -> authService.register(request));
@@ -63,7 +72,7 @@ class AuthServiceAdditionalTests {
 
     @Test
     void loginShouldThrowWhenIdentifierMissing() {
-        LoginRequest request = new LoginRequest("missing@example.com", "pass123");
+        LoginRequest request = new LoginRequest("missing@example.com", "pass123", null);
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByPhoneNumber("missing@example.com")).thenReturn(Optional.empty());
 
@@ -85,7 +94,7 @@ class AuthServiceAdditionalTests {
         user.setLastName("User");
 
         when(userService.findByIdentifier("test@example.com")).thenReturn(user);
-        when(otpService.generateAndStore("test@example.com")).thenReturn("123456");
+        when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("test@example.com"))).thenReturn("123456");
 
         authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com"));
 
@@ -95,7 +104,7 @@ class AuthServiceAdditionalTests {
     @Test
     void verifyForgotPasswordOtpShouldReturnSuccessMessage() {
         when(userService.findByIdentifier("test@example.com")).thenReturn(new User());
-        doNothing().when(otpService).verify("test@example.com", "123456");
+        doNothing().when(otpService).verify(eq("PASSWORD_RESET"), eq("test@example.com"), eq("123456"));
 
         Map<String, String> result = authService.verifyForgotPasswordOtp(new ForgotPasswordVerifyOtpRequest("test@example.com", "123456"));
 

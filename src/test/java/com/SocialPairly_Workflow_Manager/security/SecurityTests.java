@@ -49,7 +49,7 @@ class SecurityTests {
 
     @Test
     void jwtUtilShouldGenerateAndValidateToken() {
-        JwtUtil jwtUtil = new JwtUtil("this-is-a-very-long-secret-key-for-jwt-123456", 60000L);
+        JwtUtil jwtUtil = new JwtUtil("this-is-a-very-long-secret-key-for-jwt-123456", 60000L, 120000L);
 
         String token = jwtUtil.generateToken("demo@example.com");
 

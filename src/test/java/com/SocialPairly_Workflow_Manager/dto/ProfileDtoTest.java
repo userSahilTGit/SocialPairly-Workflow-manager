@@ -27,6 +27,8 @@ class ProfileDtoTest {
         profile.setLongitude(12.4964);
         profile.setDateOfBirth(LocalDate.of(1988, 12, 1));
         profile.setGender("Female");
+        profile.setReligion("Buddhism");
+        profile.setPreferredReligion("Open to all");
         profile.setInterests(Set.of("art", "travel"));
         profile.setCreatedAt(LocalDateTime.of(2024, 1, 2, 10, 15));
         profile.setUpdatedAt(LocalDateTime.of(2024, 2, 3, 12, 30));
@@ -56,6 +58,8 @@ class ProfileDtoTest {
         assertEquals(12.4964, dto.longitude());
         assertEquals(LocalDate.of(1988, 12, 1), dto.dateOfBirth());
         assertEquals("Female", dto.gender());
+        assertEquals("Buddhism", dto.religion());
+        assertEquals("Open to all", dto.preferredReligion());
         assertEquals(Set.of("art", "travel"), dto.interests());
         assertNotNull(dto.educations());
         assertEquals(1, dto.educations().size());

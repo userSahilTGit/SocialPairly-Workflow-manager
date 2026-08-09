@@ -61,6 +61,8 @@ class ProfileControllerTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -99,6 +101,8 @@ class ProfileControllerTest {
                 2.3522,
                 null,
                 "Male",
+                null,
+                null,
                 null,
                 null
         );

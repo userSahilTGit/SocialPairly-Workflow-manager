@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.controller;
 import com.SocialPairly_Workflow_Manager.dto.*;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.service.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
@@ -18,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +29,12 @@ class ControllerTests {
 
     @Mock
     private AuthService authService;
+
+    @Mock
+    private CurrentUserService currentUserService;
+
+    @Mock
+    private AuthRateLimitService authRateLimitService;
 
     @Mock
     private AdminService adminService;
@@ -42,9 +52,6 @@ class ControllerTests {
     private ProfileService profileService;
 
     @Mock
-    private CurrentUserService currentUserService;
-
-    @Mock
     private FileStorageService fileStorageService;
 
     @Mock
@@ -55,6 +62,9 @@ class ControllerTests {
 
     @Mock
     private UserService userService;
+
+    @Mock
+    private UserProfileRepository userProfileRepository;
 
     @InjectMocks
     private AuthController authController;
@@ -73,20 +83,21 @@ class ControllerTests {
 
     @Test
     void authControllerShouldDelegateRegistrationAndLogin() {
-        RegisterRequest registerRequest = new RegisterRequest("A", "B", "a@example.com", "1234567", "password", "addr");
-        LoginRequest loginRequest = new LoginRequest("a@example.com", "password");
-        UserDto userDto = new UserDto(1L, "A", "B", "a@example.com", "1234567", "addr", null, false, "");
+        RegisterRequest registerRequest = new RegisterRequest("A", "B", "a@example.com", "1234567", "password", "password", "addr", true, true, true, true, false);
+        LoginRequest loginRequest = new LoginRequest("a@example.com", "password", null);
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "");
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
         when(authService.register(registerRequest)).thenReturn(authResponse);
         when(authService.login(loginRequest)).thenReturn(authResponse);
 
         ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest);
-        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest);
+        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest());
 
         assertEquals(200, registerResponse.getStatusCode().value());
         assertSame(authResponse, registerResponse.getBody());
         assertSame(authResponse, loginResponse.getBody());
+        verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_LOGIN), any(), eq("a@example.com"));
     }
 
     @Test
@@ -103,7 +114,7 @@ class ControllerTests {
                 List.<AdminStatsDto.CountByLabel>of(),
                 Map.of()
         );
-        UserDto userDto = new UserDto(1L, "A", "B", "a@example.com", "123", "addr", null, false, "");
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "123", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "");
         Question question = new Question();
         QuestionRequest request = new QuestionRequest("q", null, "cat", true, true, List.of());
 
@@ -139,7 +150,7 @@ class ControllerTests {
         com.SocialPairly_Workflow_Manager.entity.UserProfile profile = new com.SocialPairly_Workflow_Manager.entity.UserProfile();
         profile.setAboutMe("about");
         profile.setOccupation("job");
-        ProfileRequest request = new ProfileRequest("about", "job", "life", "city", "country", 1.2, 2.3, null, "M", null, null);
+        ProfileRequest request = new ProfileRequest("about", "job", "life", "city", "country", 1.2, 2.3, null, "M", null, null, null, null);
         MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", "data".getBytes());
 
         when(currentUserService.getCurrentUser()).thenReturn(user);

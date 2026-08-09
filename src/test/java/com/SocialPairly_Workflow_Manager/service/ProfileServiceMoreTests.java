@@ -51,6 +51,8 @@ class ProfileServiceMoreTests {
                 LocalDate.of(1990, 1, 1),
                 "Other",
                 null,
+                null,
+                null,
                 List.of(new ProfileRequest.EducationDto("", "BSc", "CS", 2010, 2014))
         );
 

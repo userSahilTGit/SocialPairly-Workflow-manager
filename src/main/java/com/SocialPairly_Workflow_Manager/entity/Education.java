@@ -31,6 +31,27 @@ public class Education {
     @Column(name = "end_year")
     private Integer endYear;
 
+    @Column(name = "education_level", length = 40)
+    private String educationLevel;
+
+    @Column(name = "city", length = 120)
+    private String city;
+
+    @Column(name = "country_code", length = 2)
+    private String countryCode;
+
+    @Column(name = "currently_studying", nullable = false)
+    private Boolean currentlyStudying = false;
+
+    @Column(name = "honors", length = 255)
+    private String honors;
+
+    @Column(name = "show_institution_publicly", nullable = false)
+    private Boolean showInstitutionPublicly = false;
+
+    @Column(name = "verification_document_id")
+    private Long verificationDocumentId;
+
     // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -52,4 +73,25 @@ public class Education {
 
     public Integer getEndYear() { return endYear; }
     public void setEndYear(Integer endYear) { this.endYear = endYear; }
+
+    public String getEducationLevel() { return educationLevel; }
+    public void setEducationLevel(String educationLevel) { this.educationLevel = educationLevel; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+
+    public Boolean getCurrentlyStudying() { return currentlyStudying; }
+    public void setCurrentlyStudying(Boolean currentlyStudying) { this.currentlyStudying = currentlyStudying; }
+
+    public String getHonors() { return honors; }
+    public void setHonors(String honors) { this.honors = honors; }
+
+    public Boolean getShowInstitutionPublicly() { return showInstitutionPublicly; }
+    public void setShowInstitutionPublicly(Boolean showInstitutionPublicly) { this.showInstitutionPublicly = showInstitutionPublicly; }
+
+    public Long getVerificationDocumentId() { return verificationDocumentId; }
+    public void setVerificationDocumentId(Long verificationDocumentId) { this.verificationDocumentId = verificationDocumentId; }
 }

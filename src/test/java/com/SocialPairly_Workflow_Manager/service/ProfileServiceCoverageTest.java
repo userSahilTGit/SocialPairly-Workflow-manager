@@ -57,6 +57,8 @@ class ProfileServiceCoverageTest {
                 LocalDate.of(1992, 9, 17),
                 "Male",
                 null,
+                null,
+                null,
                 java.util.List.of(educationDto)
         );
 

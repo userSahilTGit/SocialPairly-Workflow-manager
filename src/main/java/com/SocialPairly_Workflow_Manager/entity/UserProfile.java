@@ -2,6 +2,9 @@ package com.SocialPairly_Workflow_Manager.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -50,9 +53,50 @@ public class UserProfile {
     @Column(length = 30)
     private String gender;
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "user_interests", joinColumns = @JoinColumn(name = "profile_id"))
-    @Column(name = "interest")
+    @Column(name = "religion", length = 60)
+    private String religion;
+
+    @Column(name = "preferred_religion", length = 60)
+    private String preferredReligion;
+
+    @Column(name = "pronouns", length = 40)
+    private String pronouns;
+
+    @Column(name = "gender_shown_to_matches", length = 20)
+    private String genderShownToMatches = "MATCHES";
+
+    @Column(name = "identity_verification_status", length = 50)
+    private String identityVerificationStatus = "PENDING";
+
+    @Column(name = "background_screening_status", length = 50)
+    private String backgroundScreeningStatus = "NOT_STARTED";
+
+    @Column(name = "onboarding_step", length = 50)
+    private String onboardingStep = "STEP_1_ACCOUNT";
+
+    @Column(name = "identity_page1_completed_at")
+    private LocalDateTime identityPage1CompletedAt;
+
+    @Column(name = "identity_name_verification_status", length = 30)
+    private String identityNameVerificationStatus = "NOT_STARTED";
+
+    @Column(name = "identity_age_verification_status", length = 30)
+    private String identityAgeVerificationStatus = "NOT_STARTED";
+
+    @Column(name = "identity_photo_verification_status", length = 30)
+    private String identityPhotoVerificationStatus = "NOT_STARTED";
+
+    @Column(name = "show_verification_badge", nullable = false)
+    private Boolean showVerificationBadge = false;
+
+    @Column(name = "employer_name_publicly_allowed", nullable = false)
+    private Boolean employerNamePubliclyAllowed = false;
+
+    @Column(name = "income_range_share_preference", length = 20)
+    private String incomeRangeSharePreference = "PRIVATE";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "interests", columnDefinition = "json")
     private Set<String> interests = new HashSet<>();
 
     @OneToMany(mappedBy = "profile", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
@@ -112,8 +156,54 @@ public class UserProfile {
     public String getGender() { return gender; }
     public void setGender(String gender) { this.gender = gender; }
 
-    public Set<String> getInterests() { return interests; }
-    public void setInterests(Set<String> interests) { this.interests = interests; }
+    public String getReligion() { return religion; }
+    public void setReligion(String religion) { this.religion = religion; }
+
+    public String getPreferredReligion() { return preferredReligion; }
+    public void setPreferredReligion(String preferredReligion) { this.preferredReligion = preferredReligion; }
+
+    public String getPronouns() { return pronouns; }
+    public void setPronouns(String pronouns) { this.pronouns = pronouns; }
+
+    public String getGenderShownToMatches() { return genderShownToMatches; }
+    public void setGenderShownToMatches(String genderShownToMatches) { this.genderShownToMatches = genderShownToMatches; }
+
+    public String getIdentityVerificationStatus() { return identityVerificationStatus; }
+    public void setIdentityVerificationStatus(String identityVerificationStatus) { this.identityVerificationStatus = identityVerificationStatus; }
+
+    public String getBackgroundScreeningStatus() { return backgroundScreeningStatus; }
+    public void setBackgroundScreeningStatus(String backgroundScreeningStatus) { this.backgroundScreeningStatus = backgroundScreeningStatus; }
+
+    public String getOnboardingStep() { return onboardingStep; }
+    public void setOnboardingStep(String onboardingStep) { this.onboardingStep = onboardingStep; }
+
+    public LocalDateTime getIdentityPage1CompletedAt() { return identityPage1CompletedAt; }
+    public void setIdentityPage1CompletedAt(LocalDateTime identityPage1CompletedAt) { this.identityPage1CompletedAt = identityPage1CompletedAt; }
+
+    public String getIdentityNameVerificationStatus() { return identityNameVerificationStatus; }
+    public void setIdentityNameVerificationStatus(String identityNameVerificationStatus) { this.identityNameVerificationStatus = identityNameVerificationStatus; }
+
+    public String getIdentityAgeVerificationStatus() { return identityAgeVerificationStatus; }
+    public void setIdentityAgeVerificationStatus(String identityAgeVerificationStatus) { this.identityAgeVerificationStatus = identityAgeVerificationStatus; }
+
+    public String getIdentityPhotoVerificationStatus() { return identityPhotoVerificationStatus; }
+    public void setIdentityPhotoVerificationStatus(String identityPhotoVerificationStatus) { this.identityPhotoVerificationStatus = identityPhotoVerificationStatus; }
+
+    public Boolean getShowVerificationBadge() { return showVerificationBadge; }
+    public void setShowVerificationBadge(Boolean showVerificationBadge) { this.showVerificationBadge = showVerificationBadge; }
+
+    public Boolean getEmployerNamePubliclyAllowed() { return employerNamePubliclyAllowed; }
+    public void setEmployerNamePubliclyAllowed(Boolean employerNamePubliclyAllowed) { this.employerNamePubliclyAllowed = employerNamePubliclyAllowed; }
+
+    public String getIncomeRangeSharePreference() { return incomeRangeSharePreference; }
+    public void setIncomeRangeSharePreference(String incomeRangeSharePreference) { this.incomeRangeSharePreference = incomeRangeSharePreference; }
+
+    public Set<String> getInterests() {
+        return interests == null ? new HashSet<>() : interests;
+    }
+    public void setInterests(Set<String> interests) {
+        this.interests = interests == null ? new HashSet<>() : interests;
+    }
 
     public List<Education> getEducations() { return educations; }
     public void setEducations(List<Education> educations) { this.educations = educations; }
