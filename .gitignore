@@ -32,3 +32,8 @@ build/
 ### VS Code ###
 .vscode/
 /uploads
+
+### Secrets / local crash dumps ###
+src/main/resources/firebase-service-account.json
+hs_err_pid*.log
+*.mdmp

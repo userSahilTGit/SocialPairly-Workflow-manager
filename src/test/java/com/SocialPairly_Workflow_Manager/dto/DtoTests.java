@@ -16,14 +16,14 @@ class DtoTests {
 
     @Test
     void recordsShouldExposeSubmittedValues() {
-        RegisterRequest register = new RegisterRequest("Ada", "Lovelace", "ada@example.com", "1234567", "secret", "London");
-        LoginRequest login = new LoginRequest("ada@example.com", "secret");
+        RegisterRequest register = new RegisterRequest("Ada", "Lovelace", "ada@example.com", "1234567", "secret", "secret", "London", true, true, true, true, false);
+        LoginRequest login = new LoginRequest("ada@example.com", "secret", null);
         AnswerRequest answer = new AnswerRequest(10L, "yes");
         DeleteAccountRequest deleteAccount = new DeleteAccountRequest("secret");
         ForgotPasswordSendOtpRequest sendOtp = new ForgotPasswordSendOtpRequest("ada@example.com");
         ForgotPasswordVerifyOtpRequest verifyOtp = new ForgotPasswordVerifyOtpRequest("ada@example.com", "222222");
         ForgotPasswordResetRequest reset = new ForgotPasswordResetRequest("ada@example.com", "222222", "newSecret", "newSecret");
-        ProfileRequest profile = new ProfileRequest("about", "Engineer", "balanced", "Berlin", "Germany", 52.5, 13.4, LocalDate.of(1990, 1, 1), "F", Set.of("music"), List.of(new ProfileRequest.EducationDto("MIT", "BSc", "CS", 2010, 2014)));
+        ProfileRequest profile = new ProfileRequest("about", "Engineer", "balanced", "Berlin", "Germany", 52.5, 13.4, LocalDate.of(1990, 1, 1), "F", null, null, Set.of("music"), List.of(new ProfileRequest.EducationDto("MIT", "BSc", "CS", 2010, 2014)));
         QuestionRequest questionRequest = new QuestionRequest("Question", QuestionType.SINGLE_CHOICE, "Lifestyle", true, true, List.of("A", "B"));
 
         assertEquals("Ada", register.firstName());

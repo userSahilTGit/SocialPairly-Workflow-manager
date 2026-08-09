@@ -1,8 +1,11 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
+import com.SocialPairly_Workflow_Manager.dto.UpdatePhoneRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.entity.UserProfile;
+import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.UserService;
 import jakarta.validation.Valid;
@@ -20,17 +23,31 @@ public class UserController {
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
     private final CurrentUserService currentUserService;
     private final UserService userService;
+    private final UserProfileRepository userProfileRepository;
 
-    public UserController(CurrentUserService currentUserService, UserService userService) {
+    public UserController(
+            CurrentUserService currentUserService,
+            UserService userService,
+            UserProfileRepository userProfileRepository
+    ) {
         this.currentUserService = currentUserService;
         this.userService = userService;
+        this.userProfileRepository = userProfileRepository;
     }
 
     @GetMapping("/me")
     public ResponseEntity<UserDto> me() {
         User user = currentUserService.getCurrentUser();
         log.debug("Fetching current user profile for userId={}", user.getId());
-        return ResponseEntity.ok(UserDto.from(user));
+        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
+        return ResponseEntity.ok(UserDto.from(user, profile));
+    }
+
+    @PutMapping("/me/phone")
+    public ResponseEntity<Map<String, Object>> updatePhone(@Valid @RequestBody UpdatePhoneRequest request) {
+        User user = currentUserService.getCurrentUser();
+        log.info("Update phone request for userId={}", user.getId());
+        return ResponseEntity.ok(userService.updatePhone(user, request.phoneNumber()));
     }
 
     @DeleteMapping("/me")

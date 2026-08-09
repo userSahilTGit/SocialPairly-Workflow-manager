@@ -14,6 +14,8 @@ public record ProfileRequest(
     Double longitude,
     LocalDate dateOfBirth,
     String gender,
+    String religion,
+    String preferredReligion,
     Set<String> interests,
     List<EducationDto> educations
 ) {

@@ -313,6 +313,30 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    public void sendEmailVerificationOtpEmail(User user, String otp) throws MessagingException {
+        if (!hasValidEmail(user)) {
+            throw new MessagingException("User does not have a valid email address");
+        }
+
+        String userName = formatUserName(user);
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph("Use this code to verify your Socialpairly account:")
+                + """
+                <div style="text-align:center;margin:24px 0;">
+                  <span style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#4c31df;display:inline-block;">%s</span>
+                </div>
+                """.formatted(otp)
+                + EmailTemplateBuilder.paragraph("This code expires in 10 minutes.");
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(senderEmail);
+        helper.setTo(user.getEmail());
+        helper.setSubject("Verify your Socialpairly email");
+        helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
+        mailSender.send(message);
+    }
+
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

@@ -16,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByPhoneNumber(String phoneNumber);
 
+    boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
+
     long countByProfileCompleted(boolean profileCompleted);
 
     long countByCreatedAtAfter(LocalDateTime dateTime);

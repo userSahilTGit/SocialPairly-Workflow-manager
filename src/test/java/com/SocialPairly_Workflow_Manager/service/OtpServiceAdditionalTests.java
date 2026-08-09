@@ -1,49 +1,79 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.entity.AuthOtpCode;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.exception.TooManyRequestsException;
+import com.SocialPairly_Workflow_Manager.repository.AuthOtpCodeRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.lang.reflect.Field;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class OtpServiceAdditionalTests {
+
+    @Mock
+    private AuthOtpCodeRepository authOtpCodeRepository;
+
+    private OtpService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new OtpService(authOtpCodeRepository, new BCryptPasswordEncoder());
+    }
 
     @Test
     void shouldRejectMissingOtpWhenVerifying() {
-        OtpService service = new OtpService();
-
+        when(authOtpCodeRepository.findLatestActive(any(), any(), any())).thenReturn(Optional.empty());
         assertThrows(BadRequestException.class, () -> service.verify("missing@example.com", "0000"));
     }
 
     @Test
     void shouldRejectExpiredOtp() {
-        OtpService service = new OtpService();
-        String otp = service.generateAndStore("user@example.com");
-
-        Object store = ReflectionTestUtils.getField(service, "store");
-        assertNotNull(store);
-
-        Map<?, ?> storeMap = (Map<?, ?>) store;
-        Object entry = storeMap.get("user@example.com");
-        assertNotNull(entry);
-
-        ReflectionTestUtils.setField(entry, "expiresAt", 0L);
+        AuthOtpCode stored = new AuthOtpCode();
+        stored.setPurpose(AuthOtpCode.PURPOSE_EMAIL_VERIFY);
+        stored.setIdentifier("user@example.com");
+        stored.setCodeHash(new BCryptPasswordEncoder().encode("1234"));
+        stored.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        stored.setAttemptCount(0);
+        when(authOtpCodeRepository.findLatestActive(any(), any(), any())).thenReturn(Optional.of(stored));
+        when(authOtpCodeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> service.verify("user@example.com", otp));
+                () -> service.verify("user@example.com", "1234"));
         assertTrue(ex.getMessage().contains("expired"));
     }
 
     @Test
     void shouldRejectAssertVerifiedWhenOtpNotVerified() {
-        OtpService service = new OtpService();
-        String otp = service.generateAndStore("user@example.com");
+        AuthOtpCode stored = new AuthOtpCode();
+        stored.setPurpose(AuthOtpCode.PURPOSE_PASSWORD_RESET);
+        stored.setIdentifier("user@example.com");
+        stored.setCodeHash(new BCryptPasswordEncoder().encode("1234"));
+        stored.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        stored.setVerified(false);
+        when(authOtpCodeRepository.findLatestActive(any(), any(), any())).thenReturn(Optional.of(stored));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> service.assertVerified("user@example.com", otp));
+                () -> service.assertVerified(AuthOtpCode.PURPOSE_PASSWORD_RESET, "user@example.com", "1234"));
         assertTrue(ex.getMessage().contains("OTP verification required"));
+    }
+
+    @Test
+    void rateLimitThrowsAfterThreshold() {
+        AuthRateLimitService limiter = new AuthRateLimitService(900_000, 2, 5, 10, 10, 5);
+        limiter.check(AuthRateLimitService.ACTION_LOGIN, "127.0.0.1", "a@b.com");
+        limiter.check(AuthRateLimitService.ACTION_LOGIN, "127.0.0.1", "a@b.com");
+        assertThrows(TooManyRequestsException.class,
+                () -> limiter.check(AuthRateLimitService.ACTION_LOGIN, "127.0.0.1", "a@b.com"));
     }
 }

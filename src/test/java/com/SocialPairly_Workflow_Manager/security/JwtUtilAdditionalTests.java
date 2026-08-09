@@ -8,7 +8,7 @@ class JwtUtilAdditionalTests {
 
     @Test
     void shouldRejectInvalidToken() {
-        JwtUtil jwtUtil = new JwtUtil("this-is-a-very-long-secret-key-for-jwt-123456", 1000L);
+        JwtUtil jwtUtil = new JwtUtil("this-is-a-very-long-secret-key-for-jwt-123456", 1000L, 2000L);
         assertFalse(jwtUtil.isTokenValid("invalid-token"));
     }
 }

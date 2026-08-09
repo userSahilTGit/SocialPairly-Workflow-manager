@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
+import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
@@ -13,11 +14,15 @@ import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.repository.VideoAccessRequestRepository;
+import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -33,6 +38,9 @@ public class UserService {
     private final PaymentRepository paymentRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.sms.default-country-code:+91}")
+    private String defaultCountryCode;
 
     public UserService(UserRepository userRepository,
                        UserProfileRepository profileRepository,
@@ -86,11 +94,54 @@ public class UserService {
         userRepository.delete(currentUser);
     }
 
+    /**
+     * Save/change the authenticated user's phone number and mark it unverified.
+     * SMS OTP is sent by Firebase on the client.
+     */
+    @Transactional
+    public Map<String, Object> updatePhone(User currentUser, String rawPhone) {
+        String phoneE164 = normalizePhoneOrThrow(rawPhone);
+        log.info("Updating phone for userId={} to {}", currentUser.getId(), phoneE164);
+
+        if (userRepository.existsByPhoneNumberAndIdNot(phoneE164, currentUser.getId())) {
+            throw new BadRequestException("This phone number is already registered to another account");
+        }
+
+        currentUser.setPhoneNumber(phoneE164);
+        currentUser.setPhoneVerified(false);
+        userRepository.save(currentUser);
+
+        return Map.of(
+                "message", "Phone number saved. Complete Firebase SMS verification to confirm it.",
+                "user", UserDto.from(currentUser)
+        );
+    }
+
     public User findByIdentifier(String identifier) {
         String trimmed = identifier.trim();
         log.debug("Finding user by identifier={}", trimmed);
-        return userRepository.findByEmail(trimmed.toLowerCase())
-                .or(() -> userRepository.findByPhoneNumber(trimmed))
+        return resolveByIdentifier(trimmed)
                 .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+    }
+
+    private String normalizePhoneOrThrow(String raw) {
+        try {
+            return PhoneNumberNormalizer.toE164(raw, defaultCountryCode);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Invalid phone number: " + ex.getMessage());
+        }
+    }
+
+    private java.util.Optional<User> resolveByIdentifier(String identifier) {
+        return userRepository.findByEmail(identifier.toLowerCase())
+                .or(() -> userRepository.findByPhoneNumber(identifier))
+                .or(() -> {
+                    try {
+                        return userRepository.findByPhoneNumber(
+                                PhoneNumberNormalizer.toE164(identifier, defaultCountryCode));
+                    } catch (IllegalArgumentException ex) {
+                        return java.util.Optional.empty();
+                    }
+                });
     }
 }

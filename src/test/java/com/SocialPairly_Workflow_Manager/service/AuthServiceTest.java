@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,9 @@ class AuthServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private UserProfileRepository userProfileRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -42,7 +46,8 @@ class AuthServiceTest {
 
     private JwtUtil jwtUtil;
 
-    private final OtpService otpService = new OtpService();
+    @Mock
+    private OtpService otpService;
 
     @Mock
     private UserService userService;
@@ -54,9 +59,10 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000);
-        authService = new AuthService(userRepository, passwordEncoder, authenticationManager,
+        jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000, 2592000000L);
+        authService = new AuthService(userRepository, userProfileRepository, passwordEncoder, authenticationManager,
                 jwtUtil, otpService, userService, emailService);
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
     }
 
     @Test
@@ -67,13 +73,20 @@ class AuthServiceTest {
                 "jane@example.com",
                 "+12025550123",
                 "secret123",
-                "123 Main St"
+                "secret123",
+                "123 Main St",
+                true,
+                true,
+                true,
+                true,
+                false
         );
 
         when(userRepository.existsByEmail(eq("jane@example.com"))).thenReturn(false);
         when(userRepository.existsByPhoneNumber(eq("+12025550123"))).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(otpService.generateAndStore(any(), any())).thenReturn("1234");
 
         AuthResponse response = authService.register(request);
 
@@ -90,6 +103,13 @@ class AuthServiceTest {
         assertEquals("+12025550123", savedUser.getPhoneNumber());
         assertEquals("encoded-password", savedUser.getPassword());
         assertFalse(savedUser.isProfileCompleted());
+        assertTrue(savedUser.is18OrOlder());
+        assertTrue(savedUser.isTermsAccepted());
+        assertTrue(savedUser.isPrivacyAccepted());
+        assertTrue(savedUser.isIdentityConsent());
+        assertFalse(savedUser.isMarketingConsent());
+        assertNotNull(savedUser.getProfile());
+        assertEquals("STEP_1_ACCOUNT", savedUser.getProfile().getOnboardingStep());
     }
 
     @Test
@@ -100,7 +120,13 @@ class AuthServiceTest {
                 "jane@example.com",
                 "+12025550123",
                 "secret123",
-                "123 Main St"
+                "secret123",
+                "123 Main St",
+                true,
+                true,
+                true,
+                true,
+                false
         );
 
         when(userRepository.existsByEmail(eq("jane@example.com"))).thenReturn(true);
@@ -111,7 +137,7 @@ class AuthServiceTest {
 
     @Test
     void shouldLoginWithEmail() {
-        LoginRequest request = new LoginRequest("jane@example.com", "secret123");
+        LoginRequest request = new LoginRequest("jane@example.com", "secret123", null);
         User user = new User();
         user.setEmail("jane@example.com");
         user.setPassword("encoded-password");
@@ -129,7 +155,7 @@ class AuthServiceTest {
 
     @Test
     void shouldLoginWithPhoneNumber() {
-        LoginRequest request = new LoginRequest("+12025550123", "secret123");
+        LoginRequest request = new LoginRequest("+12025550123", "secret123", true);
         User user = new User();
         user.setEmail("jane@example.com");
         user.setPassword("encoded-password");
@@ -142,6 +168,26 @@ class AuthServiceTest {
 
         assertNotNull(response);
         assertEquals("jane@example.com", response.user().email());
+        // rememberMe true → longer TTL than session token
+        long sessionTtl = jwtUtil.resolveExpirationMs(false);
+        long rememberTtl = jwtUtil.resolveExpirationMs(true);
+        assertTrue(rememberTtl > sessionTtl);
+        assertTrue(jwtUtil.extractExpiration(response.token()).getTime() - System.currentTimeMillis()
+                > sessionTtl - 60_000);
+    }
+
+    @Test
+    void shouldLoginWithEmailCaseInsensitive() {
+        LoginRequest request = new LoginRequest("Jane@Example.com", "secret123", false);
+        User user = new User();
+        user.setEmail("jane@example.com");
+        user.setPassword("encoded-password");
+
+        when(userRepository.findByEmail(eq("jane@example.com"))).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(mock(Authentication.class));
+
+        AuthResponse response = authService.login(request);
+        assertEquals("jane@example.com", response.user().email());
     }
 
     @Test
@@ -150,15 +196,14 @@ class AuthServiceTest {
         user.setEmail("jane@example.com");
         user.setPassword("old-password");
 
-        String otp = otpService.generateAndStore("jane@example.com");
-        otpService.verify("jane@example.com", otp);
-
+        doNothing().when(otpService).assertVerified(any(), eq("jane@example.com"), eq("1234"));
+        doNothing().when(otpService).clear(any(), eq("jane@example.com"));
         when(userService.findByIdentifier("jane@example.com")).thenReturn(user);
         when(passwordEncoder.encode("newpass")).thenReturn("encoded-newpass");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
         Map<String, String> result = authService.resetPassword(
-                new ForgotPasswordResetRequest("jane@example.com", otp, "newpass", "newpass"));
+                new ForgotPasswordResetRequest("jane@example.com", "1234", "newpass", "newpass"));
 
         assertEquals("Password reset successfully", result.get("message"));
         assertEquals("encoded-newpass", user.getPassword());

@@ -1,9 +1,11 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.constants.ReligionOptions;
 import com.SocialPairly_Workflow_Manager.dto.ProfileRequest;
 import com.SocialPairly_Workflow_Manager.entity.Education;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import org.slf4j.Logger;
@@ -12,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
-import java.util.Optional;
 
 @Service
 public class ProfileService {
@@ -53,6 +54,8 @@ public class ProfileService {
         profile.setLongitude(request.longitude());
         profile.setDateOfBirth(request.dateOfBirth());
         profile.setGender(request.gender());
+        profile.setReligion(normalizeReligion(request.religion(), false));
+        profile.setPreferredReligion(normalizeReligion(request.preferredReligion(), true));
         profile.setInterests(request.interests() == null ? new HashSet<>() : new HashSet<>(request.interests()));
 
         // Rebuild educations
@@ -102,5 +105,20 @@ public class ProfileService {
         user.setProfile(saved);
         userRepository.save(user);
         return saved;
+    }
+
+    private static String normalizeReligion(String raw, boolean preferred) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String value = raw.trim();
+        if (preferred) {
+            if (!ReligionOptions.PREFERRED_RELIGION_SET.contains(value)) {
+                throw new BadRequestException("Invalid preferred religion");
+            }
+        } else if (!ReligionOptions.RELIGION_SET.contains(value)) {
+            throw new BadRequestException("Invalid religion");
+        }
+        return value;
     }
 }

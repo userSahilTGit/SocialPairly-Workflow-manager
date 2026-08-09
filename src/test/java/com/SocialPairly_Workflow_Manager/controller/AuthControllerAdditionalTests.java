@@ -1,13 +1,11 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
-import com.SocialPairly_Workflow_Manager.dto.AuthResponse;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordSendOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordVerifyOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
-import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
-import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
-import com.SocialPairly_Workflow_Manager.dto.UserDto;
+import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
+import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.Map;
 
@@ -27,6 +26,12 @@ class AuthControllerAdditionalTests {
     @Mock
     private AuthService authService;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
+    @Mock
+    private AuthRateLimitService authRateLimitService;
+
     @InjectMocks
     private AuthController authController;
 
@@ -35,9 +40,10 @@ class AuthControllerAdditionalTests {
         ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
         doThrow(new MessagingException("fail")).when(authService).sendForgotPasswordOtp(request);
 
-        ResponseEntity<Map<String, String>> response = authController.sendForgotPasswordOtp(request);
+        ResponseEntity<Map<String, String>> response =
+                authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
 
-        assertEquals(500, response.getStatusCodeValue());
+        assertEquals(500, response.getStatusCode().value());
         assertTrue(response.getBody().get("error").contains("Failed to send OTP"));
     }
 
@@ -46,9 +52,10 @@ class AuthControllerAdditionalTests {
         ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
         doNothing().when(authService).sendForgotPasswordOtp(request);
 
-        ResponseEntity<Map<String, String>> response = authController.sendForgotPasswordOtp(request);
+        ResponseEntity<Map<String, String>> response =
+                authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
 
-        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(200, response.getStatusCode().value());
         assertEquals("OTP sent successfully to your Registered email or Phone number", response.getBody().get("message"));
     }
 
@@ -57,9 +64,10 @@ class AuthControllerAdditionalTests {
         ForgotPasswordVerifyOtpRequest request = new ForgotPasswordVerifyOtpRequest("test@example.com", "123456");
         when(authService.verifyForgotPasswordOtp(request)).thenReturn(Map.of("message", "OTP verified successfully"));
 
-        ResponseEntity<Map<String, String>> response = authController.verifyForgotPasswordOtp(request);
+        ResponseEntity<Map<String, String>> response =
+                authController.verifyForgotPasswordOtp(request, new MockHttpServletRequest());
 
-        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(200, response.getStatusCode().value());
         assertEquals("OTP verified successfully", response.getBody().get("message"));
     }
 
@@ -70,7 +78,7 @@ class AuthControllerAdditionalTests {
 
         ResponseEntity<Map<String, String>> response = authController.resetPassword(request);
 
-        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(200, response.getStatusCode().value());
         assertEquals("Password reset successfully", response.getBody().get("message"));
     }
 }
