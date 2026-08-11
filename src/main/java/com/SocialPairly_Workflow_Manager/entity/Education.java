@@ -37,7 +37,7 @@ public class Education {
     @Column(name = "city", length = 120)
     private String city;
 
-    @Column(name = "country_code", length = 2)
+    @Column(name = "country_code", columnDefinition = "char(2)")
     private String countryCode;
 
     @Column(name = "currently_studying", nullable = false)

@@ -57,6 +57,9 @@ class CheckoutFulfillmentServiceTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private UserTokenService userTokenService;
+
     @InjectMocks
     private CheckoutFulfillmentService checkoutFulfillmentService;
 
@@ -277,7 +280,7 @@ class CheckoutFulfillmentServiceTest {
 
         assertEquals(10L, result.subscription().id());
         verify(subscriptionRepository, never()).save(any());
-        verify(paymentRepository, never()).save(any());
+        verify(userTokenService).creditTokensForPaymentIfNeeded(user, plan, existingPayment);
     }
 
     @Test

@@ -27,7 +27,8 @@ public record UserDto(
     boolean marketingConsent,
     String onboardingStep,
     boolean identityPage1Complete,
-    String subscriptionDetails
+    String subscriptionDetails,
+    int userTokens
 ) {
     public static UserDto from(User u) {
         UserProfile profile = null;
@@ -72,7 +73,8 @@ public record UserDto(
             u.isMarketingConsent(),
             onboardingStep,
             identityComplete,
-            ""
+            "",
+            u.getUserTokens()
         );
     }
 
@@ -99,7 +101,8 @@ public record UserDto(
             base.marketingConsent(),
             base.onboardingStep(),
             base.identityPage1Complete(),
-            subscribed ? "Subscribed" : "Unsubscribed"
+            subscribed ? "Subscribed" : "Unsubscribed",
+            base.userTokens()
         );
     }
 }

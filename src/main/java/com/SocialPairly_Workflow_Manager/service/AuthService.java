@@ -107,6 +107,7 @@ public class AuthService {
         user.setMarketingConsent(request.marketingConsent());
         user.setEmailVerified(false);
         user.setPhoneVerified(false);
+        user.setUserTokens(UserTokenService.DEFAULT_NEW_USER_TOKENS);
 
         UserProfile profile = new UserProfile();
         profile.setUser(user);
@@ -295,6 +296,7 @@ public class AuthService {
                     newUser.setPassword("");
                     newUser.setEmailVerified(emailVerifiedClaim);
                     newUser.setPhoneVerified(false);
+                    newUser.setUserTokens(UserTokenService.DEFAULT_NEW_USER_TOKENS);
                     User saved = userRepository.save(newUser);
                     try {
                         emailService.sendWelcomeEmail(saved);

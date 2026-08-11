@@ -35,6 +35,9 @@ class SubscriptionServiceTest {
     @Mock
     private CurrentUserService currentUserService;
 
+    @Mock
+    private UserTokenService userTokenService;
+
     @InjectMocks
     private SubscriptionService subscriptionService;
 
@@ -90,6 +93,7 @@ class SubscriptionServiceTest {
         assertTrue(result.isPresent());
         assertEquals(10L, result.get().id());
         assertEquals("Pro", result.get().planName());
+        verify(userTokenService).ensureSubscriptionTokensCredited(user, subscription);
     }
 
     @Test

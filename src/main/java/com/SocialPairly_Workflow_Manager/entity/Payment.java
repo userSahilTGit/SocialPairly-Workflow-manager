@@ -47,6 +47,9 @@ public class Payment {
     @Column(name = "method", length = 100)
     private String method;
 
+    @Column(name = "tokens_credited", nullable = false)
+    private boolean tokensCredited = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -158,6 +161,14 @@ public class Payment {
 
     public void setMethod(String method) {
         this.method = method;
+    }
+
+    public boolean isTokensCredited() {
+        return tokensCredited;
+    }
+
+    public void setTokensCredited(boolean tokensCredited) {
+        this.tokensCredited = tokensCredited;
     }
 
     public LocalDateTime getCreatedAt() {

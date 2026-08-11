@@ -7,7 +7,7 @@ import jakarta.persistence.*;
 public class RefCountry {
 
     @Id
-    @Column(name = "code", length = 2, nullable = false)
+    @Column(name = "code", columnDefinition = "char(2)", nullable = false)
     private String code;
 
     @Column(name = "name", nullable = false, length = 120)
