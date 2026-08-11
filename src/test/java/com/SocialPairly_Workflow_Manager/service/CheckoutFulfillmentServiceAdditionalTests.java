@@ -52,6 +52,9 @@ class CheckoutFulfillmentServiceAdditionalTests {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private UserTokenService userTokenService;
+
     @InjectMocks
     private CheckoutFulfillmentService checkoutFulfillmentService;
 

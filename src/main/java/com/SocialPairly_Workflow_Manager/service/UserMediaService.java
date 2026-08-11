@@ -126,10 +126,17 @@ public class UserMediaService {
     // Returns only media that `viewerId` is allowed to see on `targetUserId`'s profile.
     // Supports PUBLIC, MUTUAL_ONLY, VERIFIED_ONLY, and EVENT_ONLY privacy modes.
     public List<MediaUploadResponseDto> getVisibleMediaForViewer(Long targetUserId, Long viewerId) {
+        return getVisibleMediaForViewer(targetUserId, viewerId, false);
+    }
+
+    public List<MediaUploadResponseDto> getVisibleMediaForEventParticipant(Long targetUserId, Long viewerId) {
+        return getVisibleMediaForViewer(targetUserId, viewerId, true);
+    }
+
+    public List<MediaUploadResponseDto> getVisibleMediaForViewer(Long targetUserId, Long viewerId, boolean isEventActive) {
         boolean isMutual = isMutual(targetUserId, viewerId);
         User viewer = userRepository.findById(viewerId).orElse(null);
         boolean isVerified = viewer != null && viewer.isVerified();
-        boolean isEventActive = false; // TODO: Integrate with event service when available
         return userMediaRepository.findVisibleMediaForViewer(targetUserId, isMutual, isVerified, isEventActive).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());

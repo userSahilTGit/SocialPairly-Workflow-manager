@@ -41,7 +41,7 @@ public class UserIdentityBackground {
     @Column(name = "postal_code", length = 20)
     private String postalCode;
 
-    @Column(name = "country_code", length = 2)
+    @Column(name = "country_code", columnDefinition = "char(2)")
     private String countryCode;
 
     @Column(name = "residence_type", length = 40)
@@ -59,16 +59,16 @@ public class UserIdentityBackground {
     @Column(name = "event_travel_radius_km")
     private Integer eventTravelRadiusKm;
 
-    @Column(name = "country_of_birth", length = 2)
+    @Column(name = "country_of_birth", columnDefinition = "char(2)")
     private String countryOfBirth;
 
-    @Column(name = "primary_nationality", length = 2)
+    @Column(name = "primary_nationality", columnDefinition = "char(2)")
     private String primaryNationality;
 
-    @Column(name = "country_of_citizenship", length = 2)
+    @Column(name = "country_of_citizenship", columnDefinition = "char(2)")
     private String countryOfCitizenship;
 
-    @Column(name = "current_country_of_residence", length = 2)
+    @Column(name = "current_country_of_residence", columnDefinition = "char(2)")
     private String currentCountryOfResidence;
 
     @Column(name = "residency_category", length = 40)

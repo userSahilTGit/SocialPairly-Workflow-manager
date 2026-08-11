@@ -1,6 +1,8 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.entity.EventDetail;
 import com.SocialPairly_Workflow_Manager.entity.Payment;
+import com.SocialPairly_Workflow_Manager.entity.ReactionType;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
@@ -31,6 +33,7 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter EVENT_DATETIME_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy 'at' HH:mm", Locale.ENGLISH);
 
     private final JavaMailSender mailSender;
     private final PlanRepository planRepository;
@@ -46,6 +49,9 @@ public class EmailService {
 
     @Value("${app.email.base-url:https://socialpairly.com}")
     private String appBaseUrl;
+
+    @Value("${app.frontend.url:http://localhost:3001}")
+    private String frontendUrl;
 
     public EmailService(JavaMailSender mailSender, PlanRepository planRepository) {
         this.mailSender = mailSender;
@@ -75,6 +81,146 @@ public class EmailService {
         sendHtmlEmail(
                 user.getEmail(),
                 "Welcome to " + appName + "! Let's get you set up",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
+    @Async
+    public void sendEventInvitationEmail(User user, EventDetail event) {
+        if (!hasValidEmail(user)) {
+            return;
+        }
+
+        String userName = formatUserName(user);
+        String dashboardUrl = frontendUrl + "/";
+        String eventDateTime = event.getEventDate().atTime(event.getEventTime()).format(EVENT_DATETIME_FORMAT);
+        String locationLine = event.getVenueName() + ", " + event.getLocation();
+
+        String eventDetails = EmailTemplateBuilder.infoBox("Event Details", List.of(
+                "Event: " + event.getTitle(),
+                "Date & Time: " + eventDateTime,
+                "Location: " + locationLine,
+                "Event Code: " + event.getEventCode()
+        ));
+
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "You've been selected to join an exclusive upcoming event: " + event.getTitle() + "!")
+                + eventDetails
+                + EmailTemplateBuilder.paragraph(
+                "Log in to your account now to view full details, accept your invitation, and connect with other attendees!")
+                + EmailTemplateBuilder.button("View Invitation on Dashboard", dashboardUrl)
+                + EmailTemplateBuilder.paragraph("Best regards,")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                user.getEmail(),
+                "You're Invited! Exclusive access to " + event.getTitle() + " 🎟️",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
+    @Async
+    public void sendEventUpdateEmail(User user, EventDetail event) {
+        if (!hasValidEmail(user)) {
+            return;
+        }
+
+        String userName = formatUserName(user);
+        String dashboardUrl = frontendUrl + "/";
+        String eventDateTime = event.getEventDate().atTime(event.getEventTime()).format(EVENT_DATETIME_FORMAT);
+        String locationLine = event.getVenueName() + ", " + event.getLocation();
+
+        String eventDetails = EmailTemplateBuilder.infoBox("Updated Event Details", List.of(
+                "Event: " + event.getTitle(),
+                "Date & Time: " + eventDateTime,
+                "Location: " + locationLine,
+                "Event Code: " + event.getEventCode()
+        ));
+
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "Important update: details for " + event.getTitle() + " have recently changed.")
+                + eventDetails
+                + EmailTemplateBuilder.paragraph(
+                "Please log in to your dashboard to review the latest event information and confirm your plans.")
+                + EmailTemplateBuilder.button("View Updated Event on Dashboard", dashboardUrl)
+                + EmailTemplateBuilder.paragraph("Best regards,")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                user.getEmail(),
+                "Update: " + event.getTitle() + " details have changed 📢",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
+    @Async
+    public void sendInvitationAcceptedEmail(User user, EventDetail event, String entryCode) {
+        if (!hasValidEmail(user)) {
+            return;
+        }
+
+        String userName = formatUserName(user);
+        String dashboardUrl = frontendUrl + "/events/" + event.getId();
+        String eventDate = event.getEventDate().format(DATE_FORMAT);
+        String locationLine = event.getVenueName() + ", " + event.getLocation();
+
+        String passCodeBox = EmailTemplateBuilder.highlightBox(
+                "<p style=\"margin:0 0 8px;font-size:14px;font-weight:600;color:#6366f1;\">Your Pass Code</p>"
+                        + "<p style=\"margin:0;font-size:22px;font-weight:800;color:#111827;letter-spacing:1px;\">"
+                        + entryCode + "</p>"
+        );
+
+        String summary = EmailTemplateBuilder.infoBox("Quick Event Summary", List.of(
+                "Event Name: " + event.getTitle(),
+                "Date: " + eventDate,
+                "Venue: " + locationLine
+        ));
+
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph("Thanks for confirming your presence at " + event.getTitle() + "!")
+                + EmailTemplateBuilder.paragraph(
+                "Please save this code or keep this email handy. You will need to show this code to the event admin at entry for verification:")
+                + passCodeBox
+                + summary
+                + EmailTemplateBuilder.paragraph(
+                "You can now log into your dashboard to browse profiles of other participants and interact before the event begins!")
+                + EmailTemplateBuilder.button("Open Event Dashboard", dashboardUrl)
+                + EmailTemplateBuilder.paragraph("See you there!")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                user.getEmail(),
+                "You're In! Here is your entry pass for " + event.getTitle() + " 🎫",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
+    @Async
+    public void sendProfileReactionEmail(User recipient, User reactingUser, EventDetail event, ReactionType reactionType) {
+        if (!hasValidEmail(recipient)) {
+            return;
+        }
+
+        String recipientName = formatUserName(recipient);
+        String reactingName = formatUserName(reactingUser);
+        String dashboardUrl = frontendUrl + "/events/" + event.getId();
+        String reactionLabel = formatReactionLabel(reactionType);
+
+        String body = EmailTemplateBuilder.paragraph("Hi " + recipientName + ",")
+                + EmailTemplateBuilder.paragraph(
+                reactingName + " just reacted with a " + reactionLabel + " on your profile inside the "
+                        + event.getTitle() + " event workspace!")
+                + EmailTemplateBuilder.paragraph(
+                "Want to see who's attending and react back? Head over to your dashboard now.")
+                + EmailTemplateBuilder.button("View Profile & React Back", dashboardUrl)
+                + EmailTemplateBuilder.paragraph("Best regards,")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                recipient.getEmail(),
+                "Someone noticed you on " + event.getTitle() + "! 👀",
                 EmailTemplateBuilder.build(appName, supportEmail, body)
         );
     }
@@ -444,5 +590,15 @@ public class EmailService {
         return user.getEmail() != null
                 && user.getEmail().contains("@")
                 && !user.getEmail().isBlank();
+    }
+
+    private String formatReactionLabel(ReactionType reactionType) {
+        return switch (reactionType) {
+            case Wave -> "👋 Wave";
+            case Spark -> "⭐ Spark";
+            case Heart -> "❤️ Heart";
+            case Coffee -> "☕ Coffee";
+            case Priority -> "💎 Priority";
+        };
     }
 }

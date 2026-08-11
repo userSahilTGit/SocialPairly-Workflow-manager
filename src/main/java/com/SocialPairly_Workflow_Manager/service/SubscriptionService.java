@@ -22,19 +22,24 @@ public class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentRepository paymentRepository;
     private final CurrentUserService currentUserService;
+    private final UserTokenService userTokenService;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PaymentRepository paymentRepository,
-                               CurrentUserService currentUserService) {
+                               CurrentUserService currentUserService,
+                               UserTokenService userTokenService) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.currentUserService = currentUserService;
+        this.userTokenService = userTokenService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<SubscriptionDto> getCurrentSubscription() {
         User user = currentUserService.getCurrentUser();
-        return findPrimaryActiveSubscription(user.getId()).map(SubscriptionDto::from);
+        Optional<Subscription> subscription = findPrimaryActiveSubscription(user.getId());
+        subscription.ifPresent(sub -> userTokenService.ensureSubscriptionTokensCredited(user, sub));
+        return subscription.map(SubscriptionDto::from);
     }
 
     @Transactional(readOnly = true)

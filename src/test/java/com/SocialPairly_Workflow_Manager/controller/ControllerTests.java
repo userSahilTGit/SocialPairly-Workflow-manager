@@ -66,6 +66,9 @@ class ControllerTests {
     @Mock
     private UserProfileRepository userProfileRepository;
 
+    @Mock
+    private UserTokenService userTokenService;
+
     @InjectMocks
     private AuthController authController;
 
@@ -85,7 +88,7 @@ class ControllerTests {
     void authControllerShouldDelegateRegistrationAndLogin() {
         RegisterRequest registerRequest = new RegisterRequest("A", "B", "a@example.com", "1234567", "password", "password", "addr", true, true, true, true, false);
         LoginRequest loginRequest = new LoginRequest("a@example.com", "password", null);
-        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "");
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0);
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
         when(authService.register(registerRequest)).thenReturn(authResponse);
@@ -114,7 +117,7 @@ class ControllerTests {
                 List.<AdminStatsDto.CountByLabel>of(),
                 Map.of()
         );
-        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "123", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "");
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "123", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0);
         Question question = new Question();
         QuestionRequest request = new QuestionRequest("q", null, "cat", true, true, List.of());
 
@@ -202,6 +205,8 @@ class ControllerTests {
         DeleteAccountRequest deleteRequest = new DeleteAccountRequest("password");
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(subscriptionService.findPrimaryActiveSubscription(2L)).thenReturn(java.util.Optional.empty());
+        when(userProfileRepository.findByUserId(2L)).thenReturn(java.util.Optional.empty());
 
         ResponseEntity<UserDto> meResponse = userController.me();
         ResponseEntity<Map<String, String>> deleteResponse = userController.deleteAccount(deleteRequest);
