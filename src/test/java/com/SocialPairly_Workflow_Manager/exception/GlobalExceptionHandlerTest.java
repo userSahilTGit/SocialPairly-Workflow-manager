@@ -18,6 +18,26 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
+    @DisplayName("TooManyRequestsException -> 429 with message")
+    void tooManyRequests() {
+        ResponseEntity<Map<String, Object>> resp =
+                handler.handleTooManyRequests(new TooManyRequestsException("Slow down"));
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, resp.getStatusCode());
+        assertEquals("Slow down", resp.getBody().get("message"));
+        assertEquals(429, resp.getBody().get("status"));
+    }
+
+    @Test
+    @DisplayName("UnprocessableEntityException -> 422 with message")
+    void unprocessable() {
+        ResponseEntity<Map<String, Object>> resp =
+                handler.handleUnprocessable(new UnprocessableEntityException("Cannot continue"));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, resp.getStatusCode());
+        assertEquals("Cannot continue", resp.getBody().get("message"));
+        assertEquals(422, resp.getBody().get("status"));
+    }
+
+    @Test
     @DisplayName("BadRequestException -> 400 with message")
     void badRequest() {
         ResponseEntity<Map<String, Object>> resp = handler.handleBadRequest(new BadRequestException("Invalid file."));

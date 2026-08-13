@@ -553,6 +553,46 @@ class UserMediaServiceTest {
         assertNull(dto.getRejectionReason());
     }
 
+    @Test
+    @DisplayName("uploadProfilePhoto - rejects non-image")
+    void uploadProfilePhoto_rejectsNonImage() {
+        MockMultipartFile file = new MockMultipartFile("file", "clip.mp4", "video/mp4", new byte[]{1, 2});
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.uploadProfilePhoto(owner, file));
+        assertEquals("Only image files are allowed for the profile photo.", ex.getMessage());
+        verifyNoInteractions(userMediaRepository);
+    }
+
+    @Test
+    @DisplayName("uploadProfilePhoto - stores BLOB and returns stream URL")
+    void uploadProfilePhoto_createsBlobStreamUrl() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{9, 8, 7});
+        when(userMediaRepository.findByUserId(1L)).thenReturn(List.of());
+        when(userMediaRepository.save(any(UserMedia.class))).thenAnswer(inv -> {
+            UserMedia saved = inv.getArgument(0);
+            saved.setId(42L);
+            return saved;
+        });
+
+        MediaUploadResponseDto dto = service.uploadProfilePhoto(owner, file);
+        assertEquals("/api/media/42/stream", dto.getMediaUrl());
+        assertEquals("PRIMARY", dto.getMediaCategory());
+        assertTrue(dto.getIsCover());
+        assertEquals(MediaStatus.APPROVED, dto.getStatus());
+    }
+
+    @Test
+    @DisplayName("uploadProfilePhoto - replaces existing PRIMARY photo bytes")
+    void uploadProfilePhoto_replacesExistingPrimary() {
+        UserMedia existing = photo(7L, "PRIMARY", true, MediaStatus.APPROVED);
+        when(userMediaRepository.findByUserId(1L)).thenReturn(List.of(existing));
+        when(userMediaRepository.save(any(UserMedia.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile("file", "new.jpg", "image/jpeg", new byte[]{3, 4, 5});
+        MediaUploadResponseDto dto = service.uploadProfilePhoto(owner, file);
+        assertEquals("/api/media/7/stream", dto.getMediaUrl());
+        assertArrayEquals(new byte[]{3, 4, 5}, existing.getMediaData());
+    }
+
     // ==================== helpers ====================
 
     private UserMedia media(Long id, MediaType type, MediaStatus status) {

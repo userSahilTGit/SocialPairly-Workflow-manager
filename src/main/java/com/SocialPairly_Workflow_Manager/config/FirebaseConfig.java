@@ -44,6 +44,13 @@ public class FirebaseConfig {
 
         Resource credentials = resourceLoader.getResource(credentialsLocation);
         if (!credentials.exists()) {
+            Resource classpathFallback = resourceLoader.getResource("classpath:firebase-service-account.json");
+            if (classpathFallback.exists()) {
+                credentials = classpathFallback;
+                log.info("Firebase credentials file path missed; using classpath fallback");
+            }
+        }
+        if (!credentials.exists()) {
             log.warn(
                     "Firebase credentials not found at {}. Skipping Firebase Admin init; "
                             + "phone verification via Firebase will be unavailable until the file is added.",

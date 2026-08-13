@@ -111,6 +111,56 @@ public class UserMediaService {
         }
     }
 
+    /**
+     * Profile avatar: store image bytes in MySQL (LONGBLOB) and return a stream URL.
+     * Replaces an existing PRIMARY/cover photo so this does not consume a gallery slot.
+     */
+    public MediaUploadResponseDto uploadProfilePhoto(User user, MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BadRequestException("Only image files are allowed for the profile photo.");
+        }
+
+        try {
+            byte[] fileBytes = file.getBytes();
+            double fileSizeKb = file.getSize() / 1024.0;
+
+            List<UserMedia> existing = userMediaRepository.findByUserId(user.getId());
+            UserMedia avatar = existing.stream()
+                    .filter(m -> m.getMediaType() == MediaType.PHOTO)
+                    .filter(m -> Boolean.TRUE.equals(m.getIsCover()) || "PRIMARY".equalsIgnoreCase(m.getMediaCategory()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (avatar != null) {
+                avatar.setMediaData(fileBytes);
+                avatar.setFileSizeKb(fileSizeKb);
+                avatar.setStatus(MediaStatus.APPROVED);
+                avatar.setRejectionReason(null);
+                avatar.setIsCover(true);
+                avatar.setMediaCategory("PRIMARY");
+                avatar.setPrivacyMode(avatar.getPrivacyMode() == null ? "PUBLIC" : avatar.getPrivacyMode());
+                avatar.setRequiresAccessApproval(false);
+                return mapToDto(userMediaRepository.save(avatar));
+            }
+
+            UserMedia created = UserMedia.builder()
+                    .user(user)
+                    .mediaData(fileBytes)
+                    .mediaType(MediaType.PHOTO)
+                    .fileSizeKb(fileSizeKb)
+                    .status(MediaStatus.APPROVED)
+                    .isCover(true)
+                    .mediaCategory("PRIMARY")
+                    .privacyMode("PUBLIC")
+                    .requiresAccessApproval(false)
+                    .build();
+            return mapToDto(userMediaRepository.save(created));
+        } catch (IOException e) {
+            throw new BadRequestException("Failed to read file bytes: " + e.getMessage());
+        }
+    }
+
     public UserMedia getMediaEntityById(Long mediaId) {
         return userMediaRepository.findById(mediaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found with id: " + mediaId));

@@ -303,7 +303,7 @@ public class IdentityOnboardingService {
     }
 
     @Transactional
-    public Map<String, Object> submitSelfie(User user, Long documentId) {
+    public Map<String, Object> submitSelfie(User user, Long documentId, boolean faceMatchConfirmed) {
         UserIdentityCompliance compliance = complianceRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new BadRequestException("Verification session not started"));
 
@@ -313,7 +313,13 @@ public class IdentityOnboardingService {
             if (!blob.getCompliance().getUser().getId().equals(user.getId())) {
                 throw new BadRequestException("documentId does not belong to current user");
             }
-            compliance.setPhotoStatus("VERIFIED");
+            if (!"SELFIE".equalsIgnoreCase(blob.getDocPurpose())) {
+                throw new BadRequestException("documentId must be a selfie upload");
+            }
+            if (compliance.getDlFrontBlobId() == null) {
+                throw new BadRequestException("Upload driver license front before verifying selfie");
+            }
+            compliance.setPhotoStatus(faceMatchConfirmed ? "VERIFIED" : "MISMATCH");
         } else {
             compliance.setPhotoStatus("IN_PROGRESS");
         }

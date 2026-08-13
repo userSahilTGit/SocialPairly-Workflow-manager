@@ -52,7 +52,7 @@ class ControllerTests {
     private ProfileService profileService;
 
     @Mock
-    private FileStorageService fileStorageService;
+    private UserMediaService userMediaService;
 
     @Mock
     private ProfileCompletionService profileCompletionService;
@@ -160,7 +160,8 @@ class ControllerTests {
         when(profileService.getProfile(user)).thenReturn(profile);
         when(profileService.updateProfile(user, request)).thenReturn(profile);
         when(profileCompletionService.calculate(user, profile)).thenReturn(Map.of("percent", 100));
-        when(fileStorageService.store(file)).thenReturn("/uploads/photo.png");
+        when(userMediaService.uploadProfilePhoto(user, file)).thenReturn(
+                MediaUploadResponseDto.builder().id(9L).mediaUrl("/api/media/9/stream").build());
 
         ResponseEntity<Map<String, Object>> profileResponse = profileController.getProfile();
         ResponseEntity<Map<String, Object>> completionResponse = profileController.getProfileCompletion();
@@ -174,8 +175,8 @@ class ControllerTests {
         assertNotNull(updateResponse.getBody());
         assertEquals("about", updateResponse.getBody().aboutMe());
         assertEquals("job", updateResponse.getBody().occupation());
-        assertEquals("/uploads/photo.png", uploadResponse.getBody().get("url"));
-        verify(profileService).setProfilePhoto(user, "/uploads/photo.png");
+        assertEquals("/api/media/9/stream", uploadResponse.getBody().get("url"));
+        verify(profileService).setProfilePhoto(user, "/api/media/9/stream");
     }
 
     @Test

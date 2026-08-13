@@ -35,5 +35,6 @@ build/
 
 ### Secrets / local crash dumps ###
 src/main/resources/firebase-service-account.json
+config/firebase-service-account.json
 hs_err_pid*.log
 *.mdmp

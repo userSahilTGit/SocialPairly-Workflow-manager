@@ -53,6 +53,8 @@ public class UserMediaController {
         return ResponseEntity.ok()
                 .contentType(org.springframework.http.MediaType.parseMediaType(contentType)) // Fully qualified to avoid collision
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes") // 👈 Enables video seeking/playhead support
                 .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(media.getMediaData().length))
                 .body(media.getMediaData());
