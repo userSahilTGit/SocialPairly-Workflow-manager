@@ -87,6 +87,7 @@ public class IdentityOnboardingController {
     public ResponseEntity<Map<String, Object>> submitSelfie(@RequestBody(required = false) Map<String, Object> body) {
         User user = currentUserService.getCurrentUser();
         Long documentId = null;
+        boolean faceMatchConfirmed = false;
         if (body != null && body.get("documentId") != null) {
             Object raw = body.get("documentId");
             if (raw instanceof Number number) {
@@ -95,7 +96,15 @@ public class IdentityOnboardingController {
                 documentId = Long.parseLong(raw.toString());
             }
         }
-        return ResponseEntity.ok(identityOnboardingService.submitSelfie(user, documentId));
+        if (body != null && body.get("faceMatchConfirmed") != null) {
+            Object raw = body.get("faceMatchConfirmed");
+            if (raw instanceof Boolean b) {
+                faceMatchConfirmed = b;
+            } else {
+                faceMatchConfirmed = Boolean.parseBoolean(raw.toString());
+            }
+        }
+        return ResponseEntity.ok(identityOnboardingService.submitSelfie(user, documentId, faceMatchConfirmed));
     }
 
     @PostMapping("/verification/webhook")

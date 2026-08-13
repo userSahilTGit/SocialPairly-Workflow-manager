@@ -1,13 +1,14 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.MediaUploadResponseDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
-import com.SocialPairly_Workflow_Manager.service.FileStorageService;
 import com.SocialPairly_Workflow_Manager.service.ProfileCompletionService;
 import com.SocialPairly_Workflow_Manager.service.ProfileService;
+import com.SocialPairly_Workflow_Manager.service.UserMediaService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,7 +33,7 @@ class ProfileControllerTest {
     private CurrentUserService currentUserService;
 
     @Mock
-    private FileStorageService fileStorageService;
+    private UserMediaService userMediaService;
 
     @Mock
     private ProfileCompletionService profileCompletionService;
@@ -121,7 +122,8 @@ class ProfileControllerTest {
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(profileService.updateProfile(user, request)).thenReturn(savedProfile);
-        when(fileStorageService.store(file)).thenReturn("/uploads/photo.png");
+        when(userMediaService.uploadProfilePhoto(user, file)).thenReturn(
+                MediaUploadResponseDto.builder().id(42L).mediaUrl("/api/media/42/stream").build());
 
         ResponseEntity<com.SocialPairly_Workflow_Manager.dto.ProfileDto> updateResponse = profileController.updateProfile(request);
         ResponseEntity<Map<String, String>> uploadResponse = profileController.uploadPhoto(file);
@@ -134,9 +136,9 @@ class ProfileControllerTest {
         assertEquals("Paris", updateResponse.getBody().locationCity());
         assertEquals("France", updateResponse.getBody().locationCountry());
         assertEquals("Male", updateResponse.getBody().gender());
-        assertEquals("/uploads/photo.png", uploadResponse.getBody().get("url"));
+        assertEquals("/api/media/42/stream", uploadResponse.getBody().get("url"));
 
         verify(profileService).updateProfile(user, request);
-        verify(profileService).setProfilePhoto(user, "/uploads/photo.png");
+        verify(profileService).setProfilePhoto(user, "/api/media/42/stream");
     }
 }

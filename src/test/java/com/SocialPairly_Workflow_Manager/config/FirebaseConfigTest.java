@@ -62,7 +62,7 @@ class FirebaseConfigTest {
 
     @Test
     void initShouldSkipWhenCredentialsMissing() throws IOException {
-        when(resourceLoader.getResource("classpath:missing-firebase.json")).thenReturn(resource);
+        when(resourceLoader.getResource(anyString())).thenReturn(resource);
         when(resource.exists()).thenReturn(false);
 
         FirebaseConfig config = new FirebaseConfig(resourceLoader);
@@ -71,6 +71,35 @@ class FirebaseConfigTest {
 
         assertDoesNotThrow(config::init);
         verify(resource, never()).getInputStream();
+    }
+
+    @Test
+    void initShouldUseClasspathFallbackWhenConfiguredFileMissing() throws Exception {
+        Resource missing = mock(Resource.class);
+        Resource fallback = mock(Resource.class);
+        when(resourceLoader.getResource("file:config/firebase-service-account.json")).thenReturn(missing);
+        when(missing.exists()).thenReturn(false);
+        when(resourceLoader.getResource("classpath:firebase-service-account.json")).thenReturn(fallback);
+        when(fallback.exists()).thenReturn(true);
+        when(fallback.getInputStream()).thenReturn(new ByteArrayInputStream("{}".getBytes()));
+
+        GoogleCredentials credentials = mock(GoogleCredentials.class);
+        try (org.mockito.MockedStatic<GoogleCredentials> googleCredentials =
+                     org.mockito.Mockito.mockStatic(GoogleCredentials.class);
+             org.mockito.MockedStatic<FirebaseApp> firebaseApp = org.mockito.Mockito.mockStatic(FirebaseApp.class)) {
+            firebaseApp.when(FirebaseApp::getApps).thenReturn(List.of());
+            googleCredentials.when(() -> GoogleCredentials.fromStream(any(InputStream.class)))
+                    .thenReturn(credentials);
+            firebaseApp.when(() -> FirebaseApp.initializeApp(any(FirebaseOptions.class)))
+                    .thenReturn(mock(FirebaseApp.class));
+
+            FirebaseConfig config = new FirebaseConfig(resourceLoader);
+            ReflectionTestUtils.setField(config, "enabled", true);
+            ReflectionTestUtils.setField(config, "credentialsLocation", "file:config/firebase-service-account.json");
+
+            assertDoesNotThrow(config::init);
+            firebaseApp.verify(() -> FirebaseApp.initializeApp(any(FirebaseOptions.class)));
+        }
     }
 
     @Test

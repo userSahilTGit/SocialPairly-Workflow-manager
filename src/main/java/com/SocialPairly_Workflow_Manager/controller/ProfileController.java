@@ -1,14 +1,15 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.MediaUploadResponseDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
-import com.SocialPairly_Workflow_Manager.service.FileStorageService;
 import com.SocialPairly_Workflow_Manager.service.ProfileCompletionService;
 import com.SocialPairly_Workflow_Manager.service.ProfileService;
+import com.SocialPairly_Workflow_Manager.service.UserMediaService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,16 +27,16 @@ public class ProfileController {
     private static final Logger log = LoggerFactory.getLogger(ProfileController.class);
     private final ProfileService profileService;
     private final CurrentUserService currentUserService;
-    private final FileStorageService fileStorageService;
+    private final UserMediaService userMediaService;
     private final ProfileCompletionService profileCompletionService;
 
     public ProfileController(ProfileService profileService,
                              CurrentUserService currentUserService,
-                             FileStorageService fileStorageService,
+                             UserMediaService userMediaService,
                              ProfileCompletionService profileCompletionService) {
         this.profileService = profileService;
         this.currentUserService = currentUserService;
-        this.fileStorageService = fileStorageService;
+        this.userMediaService = userMediaService;
         this.profileCompletionService = profileCompletionService;
     }
 
@@ -69,9 +70,9 @@ public class ProfileController {
     @PostMapping("/photo")
     public ResponseEntity<Map<String, String>> uploadPhoto(@RequestParam("file") MultipartFile file) {
         User user = currentUserService.getCurrentUser();
-        log.info("Uploading profile photo for userId={}", user.getId());
-        String url = fileStorageService.store(file);
-        profileService.setProfilePhoto(user, url);
-        return ResponseEntity.ok(Map.of("url", url));
+        log.info("Uploading profile photo (BLOB) for userId={}", user.getId());
+        MediaUploadResponseDto saved = userMediaService.uploadProfilePhoto(user, file);
+        profileService.setProfilePhoto(user, saved.getMediaUrl());
+        return ResponseEntity.ok(Map.of("url", saved.getMediaUrl()));
     }
 }
