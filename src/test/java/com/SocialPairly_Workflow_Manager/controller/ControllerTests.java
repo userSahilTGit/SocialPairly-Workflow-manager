@@ -49,6 +49,9 @@ class ControllerTests {
     private RefundService refundService;
 
     @Mock
+    private PlanUpgradeService planUpgradeService;
+
+    @Mock
     private ProfileService profileService;
 
     @Mock

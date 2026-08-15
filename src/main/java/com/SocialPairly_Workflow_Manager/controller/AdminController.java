@@ -1,6 +1,8 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.AdminPaymentDto;
+import com.SocialPairly_Workflow_Manager.dto.AdminPlanUpgradeDetailDto;
+import com.SocialPairly_Workflow_Manager.dto.AdminPlanUpgradeListDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminRefundDetailDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminRefundListDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto;
@@ -9,6 +11,7 @@ import com.SocialPairly_Workflow_Manager.dto.QuestionRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.service.AdminService;
+import com.SocialPairly_Workflow_Manager.service.PlanUpgradeService;
 import com.SocialPairly_Workflow_Manager.service.QuestionService;
 import com.SocialPairly_Workflow_Manager.service.RefundService;
 import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
@@ -30,15 +33,18 @@ public class AdminController {
     private final QuestionService questionService;
     private final SubscriptionService subscriptionService;
     private final RefundService refundService;
+    private final PlanUpgradeService planUpgradeService;
 
     public AdminController(AdminService adminService,
                             QuestionService questionService,
                             SubscriptionService subscriptionService,
-                            RefundService refundService) {
+                            RefundService refundService,
+                            PlanUpgradeService planUpgradeService) {
         this.adminService = adminService;
         this.questionService = questionService;
         this.subscriptionService = subscriptionService;
         this.refundService = refundService;
+        this.planUpgradeService = planUpgradeService;
     }
 
     @GetMapping("/stats")
@@ -106,6 +112,31 @@ public class AdminController {
     public ResponseEntity<AdminRefundDetailDto> completeRefund(@PathVariable Long id) {
         log.info("Admin completing refund payout id={}", id);
         return ResponseEntity.ok(refundService.adminCompletePayout(id));
+    }
+
+    // ----- Plan upgrade management -----
+
+    @GetMapping("/upgrades")
+    public ResponseEntity<List<AdminPlanUpgradeListDto>> getUpgrades() {
+        log.info("Admin upgrade requests list requested");
+        return ResponseEntity.ok(planUpgradeService.listUpgradesForAdmin());
+    }
+
+    @GetMapping("/upgrades/{id}")
+    public ResponseEntity<AdminPlanUpgradeDetailDto> getUpgradeDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(planUpgradeService.getUpgradeDetailForAdmin(id));
+    }
+
+    @PostMapping("/upgrades/{id}/approve")
+    public ResponseEntity<AdminPlanUpgradeDetailDto> approveUpgrade(@PathVariable Long id) {
+        log.info("Admin approving upgrade id={}", id);
+        return ResponseEntity.ok(planUpgradeService.adminApprove(id));
+    }
+
+    @PostMapping("/upgrades/{id}/close")
+    public ResponseEntity<AdminPlanUpgradeDetailDto> closeUpgrade(@PathVariable Long id) {
+        log.info("Admin rejecting upgrade id={}", id);
+        return ResponseEntity.ok(planUpgradeService.adminReject(id));
     }
 
     // ----- Question management -----

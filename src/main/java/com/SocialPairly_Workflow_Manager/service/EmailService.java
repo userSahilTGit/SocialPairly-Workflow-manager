@@ -7,6 +7,7 @@ import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.SocialPairly_Workflow_Manager.util.EmailTemplateBuilder;
 import jakarta.mail.MessagingException;
@@ -400,19 +401,58 @@ public class EmailService {
 
     @Async
     public void sendRefundFinalizedEmail(User user, Refund refund, BigDecimal netRefundAmount) {
+        sendRefundFinalizedEmail(user, refund, netRefundAmount, null);
+    }
+
+    @Async
+    public void sendRefundFinalizedEmail(User user,
+                                         Refund refund,
+                                         BigDecimal netRefundAmount,
+                                         RefundTokenAdjustment tokenAdjustment) {
         if (!hasValidEmail(user)) {
             return;
         }
 
         BigDecimal originalAmount = refund.getPayment().getAmount();
-        BigDecimal deductedAmount = originalAmount.subtract(netRefundAmount).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal processingFee = originalAmount.multiply(new BigDecimal("0.05")).setScale(2, RoundingMode.HALF_UP);
+        String currency = refund.getPayment().getCurrency();
         String userName = formatUserName(user);
 
+        boolean hasTokenDeduction = tokenAdjustment != null && tokenAdjustment.hasTokenUsageDeduction();
+        String tokenUsageFormatted = hasTokenDeduction
+                ? formatCurrency(tokenAdjustment.tokenUsageCost(), currency)
+                : null;
+
+        String deductionNote;
+        if (hasTokenDeduction) {
+            deductionNote = "As per our terms of service, a processing fee of "
+                    + formatCurrency(processingFee, currency)
+                    + " (5% as per app policy) was applied. Additionally, "
+                    + tokenAdjustment.excessTokensUsed()
+                    + " plan token"
+                    + (tokenAdjustment.excessTokensUsed() == 1 ? "" : "s")
+                    + " had already been used, so "
+                    + tokenUsageFormatted
+                    + " was deducted from your refund for that usage. Your token balance has been set to 0.";
+        } else {
+            deductionNote = "As per our terms of service, a deduction of "
+                    + formatCurrency(processingFee, currency)
+                    + " was applied for standard payment processing gateway fees (5% as per app policy).";
+            if (tokenAdjustment != null && tokenAdjustment.tokensRemoved() > 0) {
+                deductionNote += " The "
+                        + tokenAdjustment.tokensRemoved()
+                        + " token"
+                        + (tokenAdjustment.tokensRemoved() == 1 ? "" : "s")
+                        + " included with your plan have also been removed from your available balance.";
+            }
+        }
+
         String summaryTable = EmailTemplateBuilder.refundSummaryTable(
-                formatCurrency(originalAmount, refund.getPayment().getCurrency()),
-                formatCurrency(deductedAmount, refund.getPayment().getCurrency()),
-                formatCurrency(netRefundAmount, refund.getPayment().getCurrency()),
-                "standard payment processing gateway fees (5% as per app policy)"
+                formatCurrency(originalAmount, currency),
+                formatCurrency(processingFee, currency),
+                tokenUsageFormatted,
+                formatCurrency(netRefundAmount, currency),
+                deductionNote
         );
 
         String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")

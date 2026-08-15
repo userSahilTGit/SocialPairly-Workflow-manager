@@ -43,6 +43,7 @@ public class CheckoutFulfillmentService {
     private final PlanRepository planRepository;
     private final EmailService emailService;
     private final UserTokenService userTokenService;
+    private final PlanUpgradeService planUpgradeService;
 
     @Value("${stripe.secretKey}")
     private String secretKey;
@@ -58,13 +59,15 @@ public class CheckoutFulfillmentService {
                                       UserRepository userRepository,
                                       PlanRepository planRepository,
                                       EmailService emailService,
-                                      UserTokenService userTokenService) {
+                                      UserTokenService userTokenService,
+                                      PlanUpgradeService planUpgradeService) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.planRepository = planRepository;
         this.emailService = emailService;
         this.userTokenService = userTokenService;
+        this.planUpgradeService = planUpgradeService;
     }
 
     @Transactional(noRollbackFor = DataIntegrityViolationException.class)
@@ -89,8 +92,12 @@ public class CheckoutFulfillmentService {
         }
 
         Map<String, String> metadata = session.getMetadata();
-        Long userId = parseLong(metadata.get("userId"), "userId");
-        Long planId = parseLong(metadata.get("planId"), "planId");
+        if (metadata != null && "upgrade".equals(metadata.get("checkoutType"))) {
+            return planUpgradeService.fulfillUpgradeCheckout(session, expectedUserId);
+        }
+
+        Long userId = parseLong(metadata != null ? metadata.get("userId") : null, "userId");
+        Long planId = parseLong(metadata != null ? metadata.get("planId") : null, "planId");
 
         if (expectedUserId != null && !expectedUserId.equals(userId)) {
             throw new BadRequestException("Checkout session does not belong to the current user");

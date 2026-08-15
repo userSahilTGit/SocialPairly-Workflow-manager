@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
@@ -42,9 +43,13 @@ public class PaymentServiceTest {
     @Mock
     private SubscriptionService subscriptionService;
 
+    @Mock
+    private PlanUpgradeRequestRepository planUpgradeRequestRepository;
+
     @BeforeEach
     public void setUp() {
-        paymentService = new PaymentService(currentUserService, planRepository, subscriptionService);
+        paymentService = new PaymentService(
+                currentUserService, planRepository, subscriptionService, planUpgradeRequestRepository);
         ReflectionTestUtils.setField(paymentService, "secretKey", "test-secret");
         ReflectionTestUtils.setField(paymentService, "frontendUrl", "http://localhost:3000");
         stripeStatic = mockStatic(Stripe.class);

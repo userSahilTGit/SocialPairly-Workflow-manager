@@ -29,7 +29,9 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
 
     @Query("""
             SELECT r FROM Refund r
-            JOIN FETCH r.payment
+            JOIN FETCH r.payment p
+            LEFT JOIN FETCH p.subscription s
+            LEFT JOIN FETCH s.plan
             JOIN FETCH r.user
             WHERE r.refundId = :refundId
             """)

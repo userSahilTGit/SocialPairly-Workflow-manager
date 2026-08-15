@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.AdminPlanUpgradeDetailDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminRefundDetailDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminStatsDto;
 import com.SocialPairly_Workflow_Manager.dto.QuestionRequest;
@@ -7,6 +8,7 @@ import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.QuestionType;
 import com.SocialPairly_Workflow_Manager.service.AdminService;
+import com.SocialPairly_Workflow_Manager.service.PlanUpgradeService;
 import com.SocialPairly_Workflow_Manager.service.QuestionService;
 import com.SocialPairly_Workflow_Manager.service.RefundService;
 import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
@@ -29,12 +31,14 @@ class AdminControllerTest {
     @Mock private QuestionService questionService;
     @Mock private SubscriptionService subscriptionService;
     @Mock private RefundService refundService;
+    @Mock private PlanUpgradeService planUpgradeService;
 
     private AdminController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new AdminController(adminService, questionService, subscriptionService, refundService);
+        controller = new AdminController(
+                adminService, questionService, subscriptionService, refundService, planUpgradeService);
     }
 
     @Test
@@ -85,6 +89,20 @@ class AdminControllerTest {
         assertSame(detail, controller.approveRefund(1L).getBody());
         assertSame(detail, controller.closeRefund(1L).getBody());
         assertSame(detail, controller.completeRefund(1L).getBody());
+    }
+
+    @Test
+    void upgradeEndpointsDelegate() {
+        AdminPlanUpgradeDetailDto detail = mock(AdminPlanUpgradeDetailDto.class);
+        when(planUpgradeService.listUpgradesForAdmin()).thenReturn(List.of());
+        when(planUpgradeService.getUpgradeDetailForAdmin(1L)).thenReturn(detail);
+        when(planUpgradeService.adminApprove(1L)).thenReturn(detail);
+        when(planUpgradeService.adminReject(1L)).thenReturn(detail);
+
+        assertEquals(HttpStatus.OK, controller.getUpgrades().getStatusCode());
+        assertSame(detail, controller.getUpgradeDetail(1L).getBody());
+        assertSame(detail, controller.approveUpgrade(1L).getBody());
+        assertSame(detail, controller.closeUpgrade(1L).getBody());
     }
 
     @Test

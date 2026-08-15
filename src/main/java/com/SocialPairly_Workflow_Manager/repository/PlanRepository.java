@@ -12,5 +12,7 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
 
     Optional<Plan> findById(Long id);
 
+    Optional<Plan> findFirstByPlanNameIgnoreCase(String planName);
+
     List<Plan> findAllByOrderByDurationDaysAsc();
 }
