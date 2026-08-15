@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
 import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,10 +41,16 @@ class RefundServiceTest {
     private SubscriptionRepository subscriptionRepository;
 
     @Mock
+    private PlanUpgradeRequestRepository planUpgradeRequestRepository;
+
+    @Mock
     private CurrentUserService currentUserService;
 
     @Mock
     private EmailService emailService;
+
+    @Mock
+    private UserTokenService userTokenService;
 
     @InjectMocks
     private RefundService refundService;
@@ -121,6 +128,7 @@ class RefundServiceTest {
     void submitRefundRequestShouldThrowWhenNoActiveSubscription() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
+        when(planUpgradeRequestRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
         when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of());
 
         RefundRequestDto request = new RefundRequestDto("reason");
@@ -136,6 +144,7 @@ class RefundServiceTest {
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
+        when(planUpgradeRequestRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
         when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of(subscription));
         when(paymentRepository.findBySubscription_Id(20L)).thenReturn(List.of(payment));
 
@@ -150,6 +159,7 @@ class RefundServiceTest {
     void submitRefundRequestShouldCreateRefundWhenValid() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
+        when(planUpgradeRequestRepository.existsByUser_IdAndStatusNotIn(eq(1L), anyList())).thenReturn(false);
         when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any())).thenReturn(List.of(subscription));
         when(paymentRepository.findBySubscription_Id(20L)).thenReturn(List.of(payment));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> {
@@ -348,12 +358,16 @@ class RefundServiceTest {
     @Test
     void adminCompletePayoutShouldFinalizeRefundAndCancelSubscription() {
         refund.setAction(RefundAction.Provided_Bank_Details);
+        user.setUserTokens(150);
+        subscription.getPlan().setTokensIncluded("100");
 
         when(refundRepository.findByIdWithDetails(99L)).thenReturn(Optional.of(refund));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
         when(bankDetailsRepository.findByRefund_RefundId(99L)).thenReturn(Optional.empty());
         when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
                 .thenReturn(List.of(subscription));
+        when(userTokenService.applyPlanTokenClawbackOnRefund(eq(user), eq(subscription.getPlan()), eq(payment.getAmount())))
+                .thenReturn(new RefundTokenAdjustment(150, 50, 100, 100, 0, BigDecimal.ZERO));
 
         AdminRefundDetailDto result = refundService.adminCompletePayout(99L);
 
@@ -363,6 +377,32 @@ class RefundServiceTest {
         assertEquals("cancelled", subscription.getStatus());
         assertNotNull(subscription.getCanceledAt());
         assertEquals(new BigDecimal("95.00"), payment.getAmountRefunded());
+        verify(userTokenService).applyPlanTokenClawbackOnRefund(user, subscription.getPlan(), payment.getAmount());
+        verify(emailService).sendRefundFinalizedEmail(eq(user), eq(refund), eq(new BigDecimal("95.00")), any());
+    }
+
+    @Test
+    void adminCompletePayoutShouldDeductTokenUsageCostWhenBalanceBelowPlanTokens() {
+        refund.setAction(RefundAction.Provided_Bank_Details);
+        user.setUserTokens(30);
+        subscription.getPlan().setTokensIncluded("100");
+
+        when(refundRepository.findByIdWithDetails(99L)).thenReturn(Optional.of(refund));
+        when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bankDetailsRepository.findByRefund_RefundId(99L)).thenReturn(Optional.empty());
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(1L), any()))
+                .thenReturn(List.of(subscription));
+        // 70 excess tokens at $100/100 = $70.00
+        when(userTokenService.applyPlanTokenClawbackOnRefund(eq(user), eq(subscription.getPlan()), eq(payment.getAmount())))
+                .thenReturn(new RefundTokenAdjustment(30, 0, 100, 30, 70, new BigDecimal("70.00")));
+
+        AdminRefundDetailDto result = refundService.adminCompletePayout(99L);
+
+        assertEquals("Completed", result.status());
+        // 95.00 fee-adjusted - 70.00 token usage = 25.00
+        assertEquals(new BigDecimal("25.00"), payment.getAmountRefunded());
+        verify(emailService).sendRefundFinalizedEmail(
+                eq(user), eq(refund), eq(new BigDecimal("25.00")), any(RefundTokenAdjustment.class));
     }
 
     @Test
@@ -405,7 +445,7 @@ class RefundServiceTest {
     void getCurrentUserRefundShouldIncludeNetRefundForCompletedStatus() {
         refund.setStatus(RefundStatus.Completed);
         refund.setAction(RefundAction.Provided_Bank_Details);
-        payment.setAmountRefunded(BigDecimal.ZERO);
+        payment.setAmountRefunded(new BigDecimal("95.00"));
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(refundRepository.findFirstByUser_IdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(refund));

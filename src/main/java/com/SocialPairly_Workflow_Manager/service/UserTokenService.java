@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
 import com.SocialPairly_Workflow_Manager.entity.Payment;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
@@ -11,6 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 public class UserTokenService {
@@ -97,6 +101,59 @@ public class UserTokenService {
         payment.setTokensCredited(true);
         paymentRepository.save(payment);
         log.info("Marked paymentId={} tokens credited for userId={}", payment.getId(), user.getId());
+    }
+
+    /**
+     * Claws back plan tokens when a refund payout is finalized.
+     * <ul>
+     *   <li>If {@code user_token >= plan_token}: subtract plan tokens; no refund amount change.</li>
+     *   <li>If {@code user_token < plan_token}: charge for excess tokens used
+     *       ({@code plan_token - user_token}) at {@code planPaymentAmount / plan_token},
+     *       and set {@code user_token = 0}.</li>
+     * </ul>
+     * Non-numeric / UNLIMITED plans are skipped (no clawback).
+     */
+    @Transactional
+    public RefundTokenAdjustment applyPlanTokenClawbackOnRefund(User user, Plan plan, BigDecimal planPaymentAmount) {
+        if (user == null) {
+            return RefundTokenAdjustment.none(0);
+        }
+
+        int planTokens = parsePlanTokens(plan != null ? plan.getTokensIncluded() : null);
+        int previousBalance = user.getUserTokens();
+        if (planTokens <= 0) {
+            log.info("Skipping plan token clawback for userId={} (no finite plan tokens)", user.getId());
+            return RefundTokenAdjustment.none(previousBalance);
+        }
+
+        if (previousBalance >= planTokens) {
+            int newBalance = previousBalance - planTokens;
+            user.setUserTokens(newBalance);
+            userRepository.save(user);
+            log.info("Refund clawback: removed {} plan tokens from userId={}, balance {} -> {}",
+                    planTokens, user.getId(), previousBalance, newBalance);
+            return new RefundTokenAdjustment(
+                    previousBalance, newBalance, planTokens, planTokens, 0, BigDecimal.ZERO);
+        }
+
+        int excessTokensUsed = planTokens - previousBalance;
+        BigDecimal paymentAmount = planPaymentAmount != null ? planPaymentAmount : BigDecimal.ZERO;
+        BigDecimal tokenUsageCost = BigDecimal.ZERO;
+        if (paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal costPerToken = paymentAmount.divide(
+                    BigDecimal.valueOf(planTokens), 6, RoundingMode.HALF_UP);
+            tokenUsageCost = costPerToken
+                    .multiply(BigDecimal.valueOf(excessTokensUsed))
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        user.setUserTokens(0);
+        userRepository.save(user);
+        log.info(
+                "Refund clawback: userId={} balance {} < planTokens {}; excessUsed={}, tokenCost={}, balance set to 0",
+                user.getId(), previousBalance, planTokens, excessTokensUsed, tokenUsageCost);
+        return new RefundTokenAdjustment(
+                previousBalance, 0, planTokens, previousBalance, excessTokensUsed, tokenUsageCost);
     }
 
     /**

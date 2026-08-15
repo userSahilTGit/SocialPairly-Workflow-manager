@@ -204,4 +204,50 @@ class UserTokenServiceAdditionalTest {
         assertEquals(0, UserTokenService.parsePlanTokens("abc"));
         assertEquals(123, UserTokenService.parsePlanTokens("123 tokens"));
     }
+
+    @Test
+    void applyPlanTokenClawbackShouldReduceBalanceWhenSufficientTokens() {
+        user.setUserTokens(150);
+        plan.setTokensIncluded("100");
+        when(userRepository.save(user)).thenReturn(user);
+
+        var result = userTokenService.applyPlanTokenClawbackOnRefund(
+                user, plan, new java.math.BigDecimal("100.00"));
+
+        assertEquals(50, user.getUserTokens());
+        assertEquals(150, result.previousBalance());
+        assertEquals(50, result.newBalance());
+        assertEquals(100, result.tokensRemoved());
+        assertEquals(0, result.excessTokensUsed());
+        assertEquals(java.math.BigDecimal.ZERO, result.tokenUsageCost());
+        assertFalse(result.hasTokenUsageDeduction());
+    }
+
+    @Test
+    void applyPlanTokenClawbackShouldChargeAndZeroBalanceWhenInsufficientTokens() {
+        user.setUserTokens(30);
+        plan.setTokensIncluded("100");
+        when(userRepository.save(user)).thenReturn(user);
+
+        var result = userTokenService.applyPlanTokenClawbackOnRefund(
+                user, plan, new java.math.BigDecimal("100.00"));
+
+        assertEquals(0, user.getUserTokens());
+        assertEquals(70, result.excessTokensUsed());
+        assertEquals(new java.math.BigDecimal("70.00"), result.tokenUsageCost());
+        assertTrue(result.hasTokenUsageDeduction());
+    }
+
+    @Test
+    void applyPlanTokenClawbackShouldSkipUnlimitedPlans() {
+        user.setUserTokens(200);
+        plan.setTokensIncluded("UNLIMITED");
+
+        var result = userTokenService.applyPlanTokenClawbackOnRefund(
+                user, plan, new java.math.BigDecimal("100.00"));
+
+        assertEquals(200, user.getUserTokens());
+        assertEquals(0, result.tokensRemoved());
+        verify(userRepository, never()).save(any());
+    }
 }

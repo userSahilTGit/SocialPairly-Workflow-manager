@@ -60,6 +60,9 @@ class CheckoutFulfillmentServiceTest {
     @Mock
     private UserTokenService userTokenService;
 
+    @Mock
+    private PlanUpgradeService planUpgradeService;
+
     @InjectMocks
     private CheckoutFulfillmentService checkoutFulfillmentService;
 

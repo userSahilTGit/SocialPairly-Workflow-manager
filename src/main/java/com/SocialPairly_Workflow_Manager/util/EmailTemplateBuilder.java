@@ -119,6 +119,23 @@ public final class EmailTemplateBuilder {
     }
 
     public static String refundSummaryTable(String originalAmount, String deductedAmount, String finalAmount, String deductionReason) {
+        return refundSummaryTable(originalAmount, deductedAmount, null, finalAmount, deductionReason);
+    }
+
+    public static String refundSummaryTable(String originalAmount,
+                                            String processingFeeAmount,
+                                            String tokenUsageDeductionAmount,
+                                            String finalAmount,
+                                            String deductionReason) {
+        String tokenRow = "";
+        if (tokenUsageDeductionAmount != null && !tokenUsageDeductionAmount.isBlank()) {
+            tokenRow = """
+                  <tr>
+                    <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;">Plan Token Usage Deduction</td>
+                    <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;text-align:right;color:#dc2626;">-%s</td>
+                  </tr>
+                """.formatted(tokenUsageDeductionAmount);
+        }
         return """
                 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="margin:20px 0;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
                   <tr style="background-color:#6366f1;">
@@ -133,15 +150,16 @@ public final class EmailTemplateBuilder {
                     <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;">Deductions (Processing/Policy Fees)</td>
                     <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;text-align:right;color:#dc2626;">-%s</td>
                   </tr>
+                  %s
                   <tr style="background-color:#f0fdf4;">
                     <td style="padding:14px 16px;font-weight:700;">Total Refund Amount</td>
                     <td style="padding:14px 16px;text-align:right;font-weight:700;color:#059669;">%s</td>
                   </tr>
                 </table>
                 <p style="margin:0 0 16px;font-size:14px;color:#6b7280;line-height:1.5;">
-                  <strong>Note:</strong> As per our terms of service, a deduction of %s was applied for %s.
+                  <strong>Note:</strong> %s
                 </p>
-                """.formatted(originalAmount, deductedAmount, finalAmount, deductedAmount, escape(deductionReason));
+                """.formatted(originalAmount, processingFeeAmount, tokenRow, finalAmount, escape(deductionReason));
     }
 
     private static String escape(String value) {

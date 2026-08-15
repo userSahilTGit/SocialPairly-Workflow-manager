@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
 import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import org.slf4j.Logger;
@@ -29,21 +30,27 @@ public class RefundService {
     private final BankDetailsRepository bankDetailsRepository;
     private final PaymentRepository paymentRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final PlanUpgradeRequestRepository planUpgradeRequestRepository;
     private final CurrentUserService currentUserService;
     private final EmailService emailService;
+    private final UserTokenService userTokenService;
 
     public RefundService(RefundRepository refundRepository,
                          BankDetailsRepository bankDetailsRepository,
                          PaymentRepository paymentRepository,
                          SubscriptionRepository subscriptionRepository,
+                         PlanUpgradeRequestRepository planUpgradeRequestRepository,
                          CurrentUserService currentUserService,
-                         EmailService emailService) {
+                         EmailService emailService,
+                         UserTokenService userTokenService) {
         this.refundRepository = refundRepository;
         this.bankDetailsRepository = bankDetailsRepository;
         this.paymentRepository = paymentRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.planUpgradeRequestRepository = planUpgradeRequestRepository;
         this.currentUserService = currentUserService;
         this.emailService = emailService;
+        this.userTokenService = userTokenService;
     }
 
     @Transactional(readOnly = true)
@@ -60,6 +67,12 @@ public class RefundService {
         List<RefundStatus> terminalStatuses = List.of(RefundStatus.Completed, RefundStatus.Rejected);
         if (refundRepository.existsByUser_IdAndStatusNotIn(user.getId(), terminalStatuses)) {
             throw new BadRequestException("You already have an active refund request in progress");
+        }
+
+        List<PlanUpgradeStatus> upgradeTerminalStatuses =
+                List.of(PlanUpgradeStatus.Completed, PlanUpgradeStatus.Rejected);
+        if (planUpgradeRequestRepository.existsByUser_IdAndStatusNotIn(user.getId(), upgradeTerminalStatuses)) {
+            throw new BadRequestException("You cannot request a refund while a plan upgrade request is active");
         }
 
         Subscription subscription = subscriptionRepository
@@ -211,7 +224,20 @@ public class RefundService {
         }
 
         Payment payment = refund.getPayment();
+        User user = refund.getUser();
+        List<Subscription> activeSubscriptions =
+                subscriptionRepository.findActiveSubscriptionsForUser(user.getId(), LocalDateTime.now());
+        Plan plan = resolvePlanForRefund(payment, activeSubscriptions);
+
         BigDecimal refundAmount = calculateNetRefundAmount(payment.getAmount());
+        RefundTokenAdjustment tokenAdjustment =
+                userTokenService.applyPlanTokenClawbackOnRefund(user, plan, payment.getAmount());
+
+        if (tokenAdjustment.hasTokenUsageDeduction()) {
+            refundAmount = refundAmount.subtract(tokenAdjustment.tokenUsageCost())
+                    .max(BigDecimal.ZERO)
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
 
         payment.setAmountRefunded(refundAmount);
         paymentRepository.save(payment);
@@ -219,19 +245,28 @@ public class RefundService {
         refund.setStatus(RefundStatus.Completed);
         refundRepository.save(refund);
 
-        cancelUserSubscription(refund.getUser().getId());
+        cancelSubscriptions(activeSubscriptions);
 
-        emailService.sendRefundFinalizedEmail(refund.getUser(), refund, refundAmount);
+        emailService.sendRefundFinalizedEmail(user, refund, refundAmount, tokenAdjustment);
 
-        log.info("Admin finalized refund payout id={} amount={}", refundId, refundAmount);
+        log.info("Admin finalized refund payout id={} amount={} tokenAdjustment={}",
+                refundId, refundAmount, tokenAdjustment);
         return getRefundDetailForAdmin(refundId);
     }
 
-    private void cancelUserSubscription(Long userId) {
-        List<Subscription> activeSubscriptions =
-                subscriptionRepository.findActiveSubscriptionsForUser(userId, LocalDateTime.now());
+    private Plan resolvePlanForRefund(Payment payment, List<Subscription> activeSubscriptions) {
+        if (payment != null && payment.getSubscription() != null && payment.getSubscription().getPlan() != null) {
+            return payment.getSubscription().getPlan();
+        }
+        return activeSubscriptions.stream()
+                .map(Subscription::getPlan)
+                .filter(p -> p != null)
+                .findFirst()
+                .orElse(null);
+    }
 
-        for (Subscription subscription : activeSubscriptions) {
+    private void cancelSubscriptions(List<Subscription> subscriptions) {
+        for (Subscription subscription : subscriptions) {
             subscription.setStatus("cancelled");
             subscription.setCanceledAt(LocalDateTime.now());
             subscription.setCancelAtPeriodEnd(false);
@@ -248,7 +283,9 @@ public class RefundService {
         BigDecimal netRefund = null;
         if (refund.getStatus() == RefundStatus.Completed) {
             netRefund = refund.getPayment().getAmountRefunded();
-            if (netRefund == null || netRefund.compareTo(BigDecimal.ZERO) == 0) {
+            // Legacy fallback only when amount was never written (null). Zero is a valid
+            // payout after plan-token usage deductions.
+            if (netRefund == null) {
                 netRefund = calculateNetRefundAmount(refund.getPayment().getAmount());
             }
         }
