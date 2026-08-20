@@ -1030,7 +1030,7 @@ public class IdentityOnboardingService {
             return null;
         }
         try {
-            return PhoneNumberNormalizer.toE164(trimmed, defaultCountryCode);
+            return PhoneNumberNormalizer.toStorageFormat(trimmed, defaultCountryCode);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException(ex.getMessage());
         }

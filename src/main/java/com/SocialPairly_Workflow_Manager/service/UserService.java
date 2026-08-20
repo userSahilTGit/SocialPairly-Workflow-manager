@@ -100,14 +100,14 @@ public class UserService {
      */
     @Transactional
     public Map<String, Object> updatePhone(User currentUser, String rawPhone) {
-        String phoneE164 = normalizePhoneOrThrow(rawPhone);
-        log.info("Updating phone for userId={} to {}", currentUser.getId(), phoneE164);
+        String phoneStorage = normalizePhoneStorageOrThrow(rawPhone);
+        log.info("Updating phone for userId={} to {}", currentUser.getId(), phoneStorage);
 
-        if (userRepository.existsByPhoneNumberAndIdNot(phoneE164, currentUser.getId())) {
+        if (phoneNumberExistsForOtherUser(rawPhone, currentUser.getId())) {
             throw new BadRequestException("This phone number is already registered to another account");
         }
 
-        currentUser.setPhoneNumber(phoneE164);
+        currentUser.setPhoneNumber(phoneStorage);
         currentUser.setPhoneVerified(false);
         userRepository.save(currentUser);
 
@@ -117,31 +117,35 @@ public class UserService {
         );
     }
 
-    public User findByIdentifier(String identifier) {
-        String trimmed = identifier.trim();
-        log.debug("Finding user by identifier={}", trimmed);
-        return resolveByIdentifier(trimmed)
-                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
-    }
-
-    private String normalizePhoneOrThrow(String raw) {
+    private String normalizePhoneStorageOrThrow(String raw) {
         try {
-            return PhoneNumberNormalizer.toE164(raw, defaultCountryCode);
+            return PhoneNumberNormalizer.toStorageFormat(raw, defaultCountryCode);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException("Invalid phone number: " + ex.getMessage());
         }
     }
 
-    private java.util.Optional<User> resolveByIdentifier(String identifier) {
-        return userRepository.findByEmail(identifier.toLowerCase())
-                .or(() -> userRepository.findByPhoneNumber(identifier))
-                .or(() -> {
-                    try {
-                        return userRepository.findByPhoneNumber(
-                                PhoneNumberNormalizer.toE164(identifier, defaultCountryCode));
-                    } catch (IllegalArgumentException ex) {
-                        return java.util.Optional.empty();
-                    }
-                });
+    public User findByIdentifier(String identifier) {
+        String trimmed = identifier.trim();
+        log.debug("Finding user by identifier={}", trimmed);
+        return userRepository.findByEmail(trimmed.toLowerCase())
+                .or(() -> findOptionalByPhoneIdentifier(trimmed))
+                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+    }
+
+    /** Resolve a phone login / forgot-password identifier to a user (storage + legacy E.164). */
+    public java.util.Optional<User> findOptionalByPhoneIdentifier(String identifier) {
+        for (String key : PhoneNumberNormalizer.lookupKeys(identifier, defaultCountryCode)) {
+            java.util.Optional<User> found = userRepository.findByPhoneNumber(key);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    private boolean phoneNumberExistsForOtherUser(String raw, Long userId) {
+        return PhoneNumberNormalizer.lookupKeys(raw, defaultCountryCode).stream()
+                .anyMatch(key -> userRepository.existsByPhoneNumberAndIdNot(key, userId));
     }
 }
