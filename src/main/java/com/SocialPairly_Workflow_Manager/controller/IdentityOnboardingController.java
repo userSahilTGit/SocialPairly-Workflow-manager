@@ -5,6 +5,7 @@ import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundResponse;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.IdentityOnboardingService;
+import com.SocialPairly_Workflow_Manager.util.IdentityPerf;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +37,8 @@ public class IdentityOnboardingController {
     public ResponseEntity<IdentityBackgroundResponse> getIdentity() {
         User user = currentUserService.getCurrentUser();
         log.info("Loading identity onboarding for userId={}", user.getId());
-        return ResponseEntity.ok(identityOnboardingService.getIdentity(user));
+        return IdentityPerf.timed("getIdentity", user.getId(),
+                () -> ResponseEntity.ok(identityOnboardingService.getIdentity(user)));
     }
 
     @PutMapping
@@ -45,13 +47,16 @@ public class IdentityOnboardingController {
     ) {
         User user = currentUserService.getCurrentUser();
         log.info("Saving identity onboarding for userId={} action={}", user.getId(), request.action());
-        return ResponseEntity.ok(identityOnboardingService.saveIdentity(user, request));
+        String op = request.action() == null ? "saveIdentity" : "saveIdentity:" + request.action().trim();
+        return IdentityPerf.timed(op, user.getId(),
+                () -> ResponseEntity.ok(identityOnboardingService.saveIdentity(user, request)));
     }
 
     @GetMapping("/reference-data")
     public ResponseEntity<Map<String, Object>> getReferenceData() {
-        currentUserService.getCurrentUser();
-        return ResponseEntity.ok(identityOnboardingService.getReferenceData());
+        User user = currentUserService.getCurrentUser();
+        return IdentityPerf.timed("getReferenceData", user.getId(),
+                () -> ResponseEntity.ok(identityOnboardingService.getReferenceData()));
     }
 
     @PostMapping(value = "/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

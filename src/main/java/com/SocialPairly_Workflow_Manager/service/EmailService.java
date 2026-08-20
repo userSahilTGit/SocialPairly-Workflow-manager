@@ -51,7 +51,7 @@ public class EmailService {
     @Value("${app.email.base-url:https://socialpairly.com}")
     private String appBaseUrl;
 
-    @Value("${app.frontend.url:http://localhost:3001}")
+    @Value("${app.frontend.url:http://localhost:3002}")
     private String frontendUrl;
 
     public EmailService(JavaMailSender mailSender, PlanRepository planRepository) {
