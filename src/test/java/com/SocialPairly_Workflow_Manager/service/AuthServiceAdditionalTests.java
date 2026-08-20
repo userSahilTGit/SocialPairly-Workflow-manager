@@ -93,7 +93,7 @@ class AuthServiceAdditionalTests {
         user.setFirstName("Test");
         user.setLastName("User");
 
-        when(userService.findByIdentifier("test@example.com")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(user));
         when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("test@example.com"))).thenReturn("123456");
 
         authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com"));
@@ -103,11 +103,41 @@ class AuthServiceAdditionalTests {
 
     @Test
     void verifyForgotPasswordOtpShouldReturnSuccessMessage() {
-        when(userService.findByIdentifier("test@example.com")).thenReturn(new User());
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(new User()));
         doNothing().when(otpService).verify(eq("PASSWORD_RESET"), eq("test@example.com"), eq("123456"));
 
         Map<String, String> result = authService.verifyForgotPasswordOtp(new ForgotPasswordVerifyOtpRequest("test@example.com", "123456"));
 
         assertEquals("OTP verified successfully", result.get("message"));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldRejectWhenAccountMissing() throws Exception {
+        when(userService.findOptionalByIdentifier("missing@example.com")).thenReturn(Optional.empty());
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> {
+            try {
+                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("missing@example.com"));
+            } catch (jakarta.mail.MessagingException e) {
+                throw new AssertionError("Unexpected MessagingException", e);
+            }
+        });
+
+        assertEquals(AuthService.UNREGISTERED_IDENTIFIER_MESSAGE, ex.getMessage());
+        verify(otpService, never()).generateAndStore(any(), any());
+        verify(emailService, never()).sendForgotPasswordOtpEmail(any(), any());
+    }
+
+    @Test
+    void verifyForgotPasswordOtpShouldThrowInvalidOtpWhenAccountMissing() {
+        when(userService.findOptionalByIdentifier("missing@example.com")).thenReturn(Optional.empty());
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.verifyForgotPasswordOtp(
+                        new ForgotPasswordVerifyOtpRequest("missing@example.com", "1234")));
+
+        assertEquals("Invalid OTP", ex.getMessage());
+        verify(otpService, never()).verify(any(), any(), any());
     }
 }

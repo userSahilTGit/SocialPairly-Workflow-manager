@@ -126,11 +126,19 @@ public class UserService {
     }
 
     public User findByIdentifier(String identifier) {
+        return findOptionalByIdentifier(identifier)
+                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+    }
+
+    /** Soft lookup for flows that must not reveal whether an account exists. */
+    public java.util.Optional<User> findOptionalByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            return java.util.Optional.empty();
+        }
         String trimmed = identifier.trim();
         log.debug("Finding user by identifier={}", trimmed);
         return userRepository.findByEmail(trimmed.toLowerCase())
-                .or(() -> findOptionalByPhoneIdentifier(trimmed))
-                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+                .or(() -> findOptionalByPhoneIdentifier(trimmed));
     }
 
     /** Resolve a phone login / forgot-password identifier to a user (storage + legacy E.164). */

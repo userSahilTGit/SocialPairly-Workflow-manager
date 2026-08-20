@@ -162,7 +162,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(
-                "OTP sent successfully to your Registered email or Phone number",
+                "OTP sent successfully to your registered email or phone number",
                 response.getBody().get("message"));
     }
 

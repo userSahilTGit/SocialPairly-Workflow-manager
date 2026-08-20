@@ -328,9 +328,16 @@ public class AuthService {
         return value.length() <= 20 ? value : value.substring(0, 20);
     }
 
+    public static final String UNREGISTERED_IDENTIFIER_MESSAGE =
+            "This is not your registered Email ID. Please try with your registered Email ID.";
+
+    /**
+     * Starts forgot-password OTP delivery. Unknown identifiers are rejected with a clear message.
+     */
     public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) throws MessagingException {
         log.info("Sending forgot password OTP for identifier={}", request.identifier());
-        User user = userService.findByIdentifier(request.identifier());
+        User user = userService.findOptionalByIdentifier(request.identifier())
+                .orElseThrow(() -> new BadRequestException(UNREGISTERED_IDENTIFIER_MESSAGE));
         String otp = otpService.generateAndStore(
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
                 request.identifier());
@@ -344,7 +351,10 @@ public class AuthService {
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {
         log.info("Verifying forgot password OTP for identifier={}", request.identifier());
-        userService.findByIdentifier(request.identifier());
+        if (userService.findOptionalByIdentifier(request.identifier()).isEmpty()) {
+            // Same client-facing signal as a wrong OTP — do not reveal account existence.
+            throw new BadRequestException("Invalid OTP");
+        }
         otpService.verify(
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
                 request.identifier(),
@@ -362,7 +372,9 @@ public class AuthService {
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
                 request.identifier(),
                 request.otp());
-        User user = userService.findByIdentifier(request.identifier());
+        User user = userService.findOptionalByIdentifier(request.identifier())
+                .orElseThrow(() -> new BadRequestException(
+                        "Unable to reset password. Please request a new OTP and try again."));
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
         otpService.clear(

@@ -160,10 +160,12 @@ public class AuthController {
                 request.identifier());
         try {
             authService.sendForgotPasswordOtp(request);
-            return ResponseEntity.ok(Map.of("message", "OTP sent successfully to your Registered email or Phone number"));
-        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                    "message", "OTP sent successfully to your registered email or phone number"));
+        } catch (jakarta.mail.MessagingException e) {
             log.error("Failed to send forgot password OTP for identifier={}", request.identifier(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to send OTP. Please try again later."));
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Failed to send OTP. Please try again later."));
         }
     }
 

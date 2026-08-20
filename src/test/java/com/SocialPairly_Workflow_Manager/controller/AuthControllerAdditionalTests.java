@@ -68,7 +68,9 @@ class AuthControllerAdditionalTests {
                 authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
 
         assertEquals(200, response.getStatusCode().value());
-        assertEquals("OTP sent successfully to your Registered email or Phone number", response.getBody().get("message"));
+        assertEquals(
+                "OTP sent successfully to your registered email or phone number",
+                response.getBody().get("message"));
     }
 
     @Test

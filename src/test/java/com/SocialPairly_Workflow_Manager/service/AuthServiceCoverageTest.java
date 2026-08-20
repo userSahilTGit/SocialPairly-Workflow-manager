@@ -158,7 +158,7 @@ class AuthServiceCoverageTest {
         user.setEmail("not-an-email");
         user.setPhoneNumber("+15551234567");
 
-        when(userService.findByIdentifier("not-an-email")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("not-an-email")).thenReturn(Optional.of(user));
         when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("not-an-email"))).thenReturn("654321");
 
         authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("not-an-email"));
@@ -172,7 +172,7 @@ class AuthServiceCoverageTest {
         user.setEmail("reset@example.com");
         user.setPassword("old");
 
-        when(userService.findByIdentifier("reset@example.com")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("reset@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("newpass")).thenReturn("encoded-new");
         when(userRepository.save(user)).thenReturn(user);
 
@@ -188,7 +188,7 @@ class AuthServiceCoverageTest {
     @Test
     void verifyForgotPasswordOtpShouldDelegateToOtpService() {
         User user = new User();
-        when(userService.findByIdentifier("verify@example.com")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("verify@example.com")).thenReturn(Optional.of(user));
 
         Map<String, String> result = authService.verifyForgotPasswordOtp(
                 new ForgotPasswordVerifyOtpRequest("verify@example.com", "111111"));
