@@ -83,7 +83,7 @@ class AuthServiceTest {
         );
 
         when(userRepository.existsByEmail(eq("jane@example.com"))).thenReturn(false);
-        when(userRepository.existsByPhoneNumber(eq("+12025550123"))).thenReturn(false);
+        when(userRepository.existsByPhoneNumber(any())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded-password");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
         when(otpService.generateAndStore(any(), any())).thenReturn("1234");
@@ -100,7 +100,7 @@ class AuthServiceTest {
         assertEquals("Jane", savedUser.getFirstName());
         assertEquals("Doe", savedUser.getLastName());
         assertEquals("jane@example.com", savedUser.getEmail());
-        assertEquals("+12025550123", savedUser.getPhoneNumber());
+        assertEquals("+1-2025550123", savedUser.getPhoneNumber());
         assertEquals("encoded-password", savedUser.getPassword());
         assertFalse(savedUser.isProfileCompleted());
         assertTrue(savedUser.is18OrOlder());
@@ -155,13 +155,13 @@ class AuthServiceTest {
 
     @Test
     void shouldLoginWithPhoneNumber() {
-        LoginRequest request = new LoginRequest("+12025550123", "secret123", true);
+        LoginRequest request = new LoginRequest("+1-2025550123", "secret123", true);
         User user = new User();
         user.setEmail("jane@example.com");
         user.setPassword("encoded-password");
 
-        when(userRepository.findByEmail(eq("+12025550123"))).thenReturn(Optional.empty());
-        when(userRepository.findByPhoneNumber(eq("+12025550123"))).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail(eq("+1-2025550123"))).thenReturn(Optional.empty());
+        when(userService.findOptionalByPhoneIdentifier(eq("+1-2025550123"))).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any())).thenReturn(mock(org.springframework.security.core.Authentication.class));
 
         AuthResponse response = authService.login(request);

@@ -13,7 +13,18 @@ public class ConsoleSmsService implements SmsService {
 
     @Override
     public void sendOtp(String phoneNumber, String otp) {
-        log.info("[SMS-CONSOLE] OTP {} would be sent to {} (phone verification uses Firebase Auth).",
-                otp, phoneNumber);
+        log.info("[SMS-CONSOLE] OTP would be sent (redacted) to {} (phone verification uses Firebase Auth).",
+                maskPhone(phoneNumber));
+    }
+
+    private static String maskPhone(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return "[unknown]";
+        }
+        String digits = phoneNumber.replaceAll("\\D", "");
+        if (digits.length() <= 4) {
+            return "****";
+        }
+        return "****" + digits.substring(digits.length() - 4);
     }
 }

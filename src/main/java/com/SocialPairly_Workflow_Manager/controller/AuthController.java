@@ -112,7 +112,7 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("message", "OTP sent successfully to your Registered email or Phone number"));
         } catch (Exception e) {
             log.error("Failed to send forgot password OTP for identifier={}", request.identifier(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to send OTP: " + e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to send OTP. Please try again later."));
         }
     }
 
@@ -225,9 +225,8 @@ public class AuthController {
                     "error", "Invalid Google Identity Token."));
         } catch (Exception e) {
             log.error("Google Sign-In failed", e);
-            String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Authentication processing exception: " + detail));
+                    .body(Map.of("error", "Google Sign-In failed. Please try again."));
         }
     }
 

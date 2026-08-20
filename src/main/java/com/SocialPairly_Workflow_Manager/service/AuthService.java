@@ -80,14 +80,14 @@ public class AuthService {
             throw new BadRequestException("Email is already registered");
         }
 
-        String phoneE164;
+        String phoneStorage;
         try {
-            phoneE164 = PhoneNumberNormalizer.toE164(request.phoneNumber(), defaultCountryCode);
+            phoneStorage = PhoneNumberNormalizer.toStorageFormat(request.phoneNumber(), defaultCountryCode);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException("Invalid phone number: " + ex.getMessage());
         }
 
-        if (userRepository.existsByPhoneNumber(phoneE164)) {
+        if (phoneNumberExists(request.phoneNumber())) {
             throw new BadRequestException("Phone number is already registered");
         }
 
@@ -95,7 +95,7 @@ public class AuthService {
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
         user.setEmail(request.email().toLowerCase().trim());
-        user.setPhoneNumber(phoneE164);
+        user.setPhoneNumber(phoneStorage);
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setAddress(request.address());
         user.setRole(Role.USER);
@@ -170,13 +170,14 @@ public class AuthService {
             if (phoneClaim == null || phoneClaim.toString().isBlank()) {
                 throw new BadRequestException("Firebase token does not contain a verified phone number");
             }
-            String phoneE164 = normalizePhoneOrThrow(phoneClaim.toString());
+            String phoneE164 = normalizePhoneE164OrThrow(phoneClaim.toString());
+            String phoneStorage = PhoneNumberNormalizer.toStorageFormat(phoneE164, defaultCountryCode);
 
-            if (userRepository.existsByPhoneNumberAndIdNot(phoneE164, currentUser.getId())) {
+            if (phoneNumberExistsForOtherUser(phoneStorage, currentUser.getId())) {
                 throw new BadRequestException("This phone number is already registered to another account");
             }
 
-            currentUser.setPhoneNumber(phoneE164);
+            currentUser.setPhoneNumber(phoneStorage);
             currentUser.setPhoneVerified(true);
             UserProfile profile = ensureProfile(currentUser);
             if (currentUser.isEmailVerified()) {
@@ -193,7 +194,7 @@ public class AuthService {
             );
         } catch (FirebaseAuthException e) {
             log.warn("Firebase idToken verification failed: {}", e.getMessage());
-            throw new BadRequestException("Invalid Firebase token: " + e.getMessage());
+            throw new BadRequestException("Invalid Firebase token. Please try again.");
         }
     }
 
@@ -215,12 +216,22 @@ public class AuthService {
         return Map.of("message", "Verification code sent");
     }
 
-    private String normalizePhoneOrThrow(String raw) {
+    private String normalizePhoneE164OrThrow(String raw) {
         try {
             return PhoneNumberNormalizer.toE164(raw, defaultCountryCode);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException("Invalid phone number: " + ex.getMessage());
         }
+    }
+
+    private boolean phoneNumberExists(String raw) {
+        return PhoneNumberNormalizer.lookupKeys(raw, defaultCountryCode).stream()
+                .anyMatch(userRepository::existsByPhoneNumber);
+    }
+
+    private boolean phoneNumberExistsForOtherUser(String raw, Long userId) {
+        return PhoneNumberNormalizer.lookupKeys(raw, defaultCountryCode).stream()
+                .anyMatch(key -> userRepository.existsByPhoneNumberAndIdNot(key, userId));
     }
 
     private UserProfile ensureProfile(User user) {
@@ -240,15 +251,7 @@ public class AuthService {
         String identifier = request.identifier().trim();
         log.info("Authenticating login request for identifier={}", identifier);
         User user = userRepository.findByEmail(identifier.toLowerCase())
-                .or(() -> userRepository.findByPhoneNumber(identifier))
-                .or(() -> {
-                    try {
-                        String e164 = PhoneNumberNormalizer.toE164(identifier, defaultCountryCode);
-                        return userRepository.findByPhoneNumber(e164);
-                    } catch (IllegalArgumentException ex) {
-                        return java.util.Optional.empty();
-                    }
-                })
+                .or(() -> userService.findOptionalByPhoneIdentifier(identifier))
                 .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
 
         // Authenticate by email (the UserDetails username) + raw password

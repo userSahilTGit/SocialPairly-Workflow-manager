@@ -86,7 +86,7 @@ class GlobalExceptionHandlerTest {
     void generic() {
         ResponseEntity<Map<String, Object>> resp = handler.handleGeneric(new RuntimeException("boom"));
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp.getStatusCode());
-        assertEquals("boom", resp.getBody().get("message"));
+        assertEquals("An unexpected error occurred. Please try again.", resp.getBody().get("message"));
         assertEquals(500, resp.getBody().get("status"));
     }
 

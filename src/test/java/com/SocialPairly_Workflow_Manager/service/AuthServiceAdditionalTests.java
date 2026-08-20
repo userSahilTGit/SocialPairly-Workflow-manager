@@ -74,7 +74,7 @@ class AuthServiceAdditionalTests {
     void loginShouldThrowWhenIdentifierMissing() {
         LoginRequest request = new LoginRequest("missing@example.com", "pass123", null);
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
-        when(userRepository.findByPhoneNumber("missing@example.com")).thenReturn(Optional.empty());
+        when(userService.findOptionalByPhoneIdentifier("missing@example.com")).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> authService.login(request));
     }
