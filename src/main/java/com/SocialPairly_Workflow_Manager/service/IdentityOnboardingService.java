@@ -48,6 +48,10 @@ public class IdentityOnboardingService {
             "image/jpeg", "image/jpg", "image/png", "image/webp"
     );
     private static final Set<String> PREFIXES = Set.of("", "Mr.", "Ms.", "Mrs.", "Dr.", "Other");
+    /** Cache reference enums + countries to keep identity dropdown loads snappy (US-025). */
+    private static final long REFERENCE_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private volatile Map<String, Object> referenceDataCache;
+    private volatile long referenceDataCachedAtMs;
     private static final Set<String> SUFFIXES = Set.of("", "None", "Jr.", "Sr.", "II", "III");
     private static final Set<String> PRONOUNS = Set.of(
             "", "She/Her", "He/Him", "They/Them", "She/They", "He/They", "Prefer not to say", "Self-describe"
@@ -100,18 +104,32 @@ public class IdentityOnboardingService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> getReferenceData() {
-        List<Map<String, String>> countries = refCountryRepository.findByActiveTrue().stream()
-                .map(c -> {
-                    Map<String, String> m = new LinkedHashMap<>();
-                    m.put("code", c.getCode());
-                    m.put("name", c.getName());
-                    if (c.getPostalRegex() != null) {
-                        m.put("postalRegex", c.getPostalRegex());
-                    }
-                    return m;
-                })
-                .toList();
-        return IdentityReferenceEnums.asReferencePayload(countries);
+        long now = System.currentTimeMillis();
+        Map<String, Object> cached = referenceDataCache;
+        if (cached != null && (now - referenceDataCachedAtMs) < REFERENCE_CACHE_TTL_MS) {
+            return cached;
+        }
+        synchronized (this) {
+            cached = referenceDataCache;
+            if (cached != null && (now - referenceDataCachedAtMs) < REFERENCE_CACHE_TTL_MS) {
+                return cached;
+            }
+            List<Map<String, String>> countries = refCountryRepository.findByActiveTrue().stream()
+                    .map(c -> {
+                        Map<String, String> m = new LinkedHashMap<>();
+                        m.put("code", c.getCode());
+                        m.put("name", c.getName());
+                        if (c.getPostalRegex() != null) {
+                            m.put("postalRegex", c.getPostalRegex());
+                        }
+                        return m;
+                    })
+                    .toList();
+            Map<String, Object> payload = IdentityReferenceEnums.asReferencePayload(countries);
+            referenceDataCache = payload;
+            referenceDataCachedAtMs = System.currentTimeMillis();
+            return payload;
+        }
     }
 
     @Transactional
