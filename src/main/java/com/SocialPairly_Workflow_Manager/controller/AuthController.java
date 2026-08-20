@@ -11,6 +11,9 @@ import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.dto.TokenDto;
 import com.SocialPairly_Workflow_Manager.dto.VerifyContactRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
@@ -20,6 +23,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +32,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 
 @RestController
@@ -38,6 +43,9 @@ public class AuthController {
     private final AuthService authService;
     private final CurrentUserService currentUserService;
     private final AuthRateLimitService authRateLimitService;
+    private final AuthCookieService authCookieService;
+    private final JwtUtil jwtUtil;
+    private final JwtTokenBlacklistService tokenBlacklistService;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
     // Replace with your actual Google Client ID from the Google Developer Console
@@ -47,9 +55,13 @@ public class AuthController {
     public AuthController(
             AuthService authService,
             CurrentUserService currentUserService,
-            AuthRateLimitService authRateLimitService
+            AuthRateLimitService authRateLimitService,
+            AuthCookieService authCookieService,
+            JwtUtil jwtUtil,
+            JwtTokenBlacklistService tokenBlacklistService
     ) {
-        this(authService, currentUserService, authRateLimitService, createDefaultVerifier());
+        this(authService, currentUserService, authRateLimitService, authCookieService, jwtUtil,
+                tokenBlacklistService, createDefaultVerifier());
     }
 
     // Constructor for testability — allows injecting a mock GoogleIdTokenVerifier (not used by Spring)
@@ -57,11 +69,17 @@ public class AuthController {
             AuthService authService,
             CurrentUserService currentUserService,
             AuthRateLimitService authRateLimitService,
+            AuthCookieService authCookieService,
+            JwtUtil jwtUtil,
+            JwtTokenBlacklistService tokenBlacklistService,
             GoogleIdTokenVerifier googleIdTokenVerifier
     ) {
         this.authService = authService;
         this.currentUserService = currentUserService;
         this.authRateLimitService = authRateLimitService;
+        this.authCookieService = authCookieService;
+        this.jwtUtil = jwtUtil;
+        this.tokenBlacklistService = tokenBlacklistService;
         this.googleIdTokenVerifier = googleIdTokenVerifier;
     }
 
@@ -79,22 +97,55 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletResponse httpResponse
+    ) {
         log.info("Register request received for email={}", request.email());
-        return ResponseEntity.ok(authService.register(request));
+        AuthResponse authResponse = authService.register(request);
+        authCookieService.writeAuthCookie(httpResponse, authResponse.token(), false);
+        return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
     ) {
         log.info("Login request received for identifier={}", request.identifier());
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_LOGIN,
                 clientIp(httpRequest),
                 request.identifier());
-        return ResponseEntity.ok(authService.login(request));
+        AuthResponse authResponse = authService.login(request);
+        boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
+        authCookieService.writeAuthCookie(httpResponse, authResponse.token(), rememberMe);
+        return ResponseEntity.ok(authResponse);
+    }
+
+    /**
+     * Clears the auth cookie and revokes the current JWT so Remember Me / stolen tokens
+     * cannot be reused after logout.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        String token = authCookieService.resolveToken(httpRequest);
+        if (token != null && !token.isBlank()) {
+            try {
+                if (jwtUtil.isTokenValid(token)) {
+                    Date expiresAt = jwtUtil.extractExpiration(token);
+                    tokenBlacklistService.revoke(token, expiresAt);
+                }
+            } catch (Exception e) {
+                log.debug("Logout token revoke skipped: {}", e.toString());
+            }
+        }
+        authCookieService.clearAuthCookie(httpResponse);
+        return ResponseEntity.ok(Map.of("message", "Logged out"));
     }
 
     @PostMapping("/forgot-password/send-otp")
@@ -191,7 +242,10 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ResponseEntity<?> verifyGoogleToken(@RequestBody TokenDto tokenDto) {
+    public ResponseEntity<?> verifyGoogleToken(
+            @RequestBody TokenDto tokenDto,
+            HttpServletResponse httpResponse
+    ) {
         try {
             if (tokenDto == null || tokenDto.getIdToken() == null || tokenDto.getIdToken().isBlank()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
@@ -211,6 +265,7 @@ public class AuthController {
 
                 AuthResponse authResponse = authService.loginOrRegisterGoogleUser(
                         email, firstName, lastName, rememberMe, emailVerified);
+                authCookieService.writeAuthCookie(httpResponse, authResponse.token(), rememberMe);
 
                 return ResponseEntity.ok(authResponse);
             } else {

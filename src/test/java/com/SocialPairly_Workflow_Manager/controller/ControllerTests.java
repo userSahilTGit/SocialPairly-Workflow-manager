@@ -4,6 +4,9 @@ import com.SocialPairly_Workflow_Manager.dto.*;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
@@ -35,6 +39,15 @@ class ControllerTests {
 
     @Mock
     private AuthRateLimitService authRateLimitService;
+
+    @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenBlacklistService tokenBlacklistService;
 
     @Mock
     private AdminService adminService;
@@ -97,8 +110,8 @@ class ControllerTests {
         when(authService.register(registerRequest)).thenReturn(authResponse);
         when(authService.login(loginRequest)).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest);
-        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest());
+        ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest, new MockHttpServletResponse());
+        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
 
         assertEquals(200, registerResponse.getStatusCode().value());
         assertSame(authResponse, registerResponse.getBody());

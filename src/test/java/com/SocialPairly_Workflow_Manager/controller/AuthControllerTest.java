@@ -8,6 +8,9 @@ import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.dto.TokenDto;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
@@ -22,8 +25,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,17 +48,29 @@ class AuthControllerTest {
     private AuthRateLimitService authRateLimitService;
 
     @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenBlacklistService tokenBlacklistService;
+
+    @Mock
     private GoogleIdTokenVerifier googleIdTokenVerifier;
 
     private AuthController authController;
 
     private MockHttpServletRequest httpRequest;
+    private MockHttpServletResponse httpResponse;
 
     @BeforeEach
     void setUp() {
         authController = new AuthController(
-                authService, currentUserService, authRateLimitService, googleIdTokenVerifier);
+                authService, currentUserService, authRateLimitService,
+                authCookieService, jwtUtil, tokenBlacklistService, googleIdTokenVerifier);
         httpRequest = new MockHttpServletRequest();
+        httpResponse = new MockHttpServletResponse();
     }
 
     private static UserDto sampleUserDto(long id, String firstName, String lastName, String email) {
@@ -72,10 +89,11 @@ class AuthControllerTest {
 
         when(authService.register(request)).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> response = authController.register(request);
+        ResponseEntity<AuthResponse> response = authController.register(request, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(authResponse, response.getBody());
+        verify(authCookieService).writeAuthCookie(httpResponse, "token", false);
     }
 
     @Test
@@ -86,12 +104,52 @@ class AuthControllerTest {
 
         when(authService.login(request)).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> response = authController.login(request, httpRequest);
+        ResponseEntity<AuthResponse> response = authController.login(request, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(authResponse, response.getBody());
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), any(), eq("ada@example.com"));
+        verify(authCookieService).writeAuthCookie(httpResponse, "token", false);
+    }
+
+    @Test
+    void loginShouldWriteRememberMeCookieWhenRequested() {
+        LoginRequest request = new LoginRequest("ada@example.com", "secret", true);
+        UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
+        AuthResponse authResponse = new AuthResponse("remember-token", userDto);
+
+        when(authService.login(request)).thenReturn(authResponse);
+
+        authController.login(request, httpRequest, httpResponse);
+
+        verify(authCookieService).writeAuthCookie(httpResponse, "remember-token", true);
+    }
+
+    @Test
+    void logoutShouldRevokeTokenAndClearCookie() {
+        when(authCookieService.resolveToken(httpRequest)).thenReturn("jwt-token");
+        when(jwtUtil.isTokenValid("jwt-token")).thenReturn(true);
+        Date expiry = new Date(System.currentTimeMillis() + 60_000);
+        when(jwtUtil.extractExpiration("jwt-token")).thenReturn(expiry);
+
+        ResponseEntity<Map<String, String>> response = authController.logout(httpRequest, httpResponse);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Logged out", response.getBody().get("message"));
+        verify(tokenBlacklistService).revoke("jwt-token", expiry);
+        verify(authCookieService).clearAuthCookie(httpResponse);
+    }
+
+    @Test
+    void logoutShouldClearCookieEvenWithoutToken() {
+        when(authCookieService.resolveToken(httpRequest)).thenReturn(null);
+
+        ResponseEntity<Map<String, String>> response = authController.logout(httpRequest, httpResponse);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(tokenBlacklistService, never()).revoke(any(), any());
+        verify(authCookieService).clearAuthCookie(httpResponse);
     }
 
     @Test
@@ -166,10 +224,11 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser(
                 "john@gmail.com", "John", "Doe", false, true)).thenReturn(authResponse);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(authResponse, response.getBody());
+        verify(authCookieService).writeAuthCookie(httpResponse, "google-token", false);
     }
 
     @Test
@@ -179,7 +238,7 @@ class AuthControllerTest {
 
         when(googleIdTokenVerifier.verify("invalid-token")).thenReturn(null);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -195,7 +254,7 @@ class AuthControllerTest {
 
         when(googleIdTokenVerifier.verify("error-token")).thenThrow(new IOException("network error"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -208,7 +267,7 @@ class AuthControllerTest {
         TokenDto tokenDto = new TokenDto();
         tokenDto.setIdToken("  ");
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -224,7 +283,7 @@ class AuthControllerTest {
         when(googleIdTokenVerifier.verify("bad-token"))
                 .thenThrow(new java.security.GeneralSecurityException("bad sig"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -249,7 +308,7 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser("", null, null, false, false))
                 .thenThrow(new com.SocialPairly_Workflow_Manager.exception.BadRequestException("Email is required"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -277,10 +336,11 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser(
                 "jane@gmail.com", "Jane", "Doe", true, true)).thenReturn(authResponse);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(authService).loginOrRegisterGoogleUser("jane@gmail.com", "Jane", "Doe", true, true);
+        verify(authCookieService).writeAuthCookie(httpResponse, "tok", true);
     }
 
     @Test
@@ -304,7 +364,7 @@ class AuthControllerTest {
         when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
         httpRequest.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.1");
 
-        authController.login(request, httpRequest);
+        authController.login(request, httpRequest, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("203.0.113.10"), eq("ada@example.com"));
@@ -318,7 +378,7 @@ class AuthControllerTest {
         httpRequest.addHeader("X-Forwarded-For", "   ");
         httpRequest.setRemoteAddr("198.51.100.7");
 
-        authController.login(request, httpRequest);
+        authController.login(request, httpRequest, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("198.51.100.7"), eq("ada@example.com"));
@@ -330,7 +390,7 @@ class AuthControllerTest {
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
         when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
 
-        authController.login(request, null);
+        authController.login(request, null, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("unknown"), eq("ada@example.com"));
@@ -343,7 +403,7 @@ class AuthControllerTest {
         when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
         httpRequest.setRemoteAddr(null);
 
-        authController.login(request, httpRequest);
+        authController.login(request, httpRequest, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("unknown"), eq("ada@example.com"));
@@ -351,7 +411,7 @@ class AuthControllerTest {
 
     @Test
     void verifyGoogleTokenShouldReturnBadRequestWhenTokenDtoNull() {
-        ResponseEntity<?> response = authController.verifyGoogleToken(null);
+        ResponseEntity<?> response = authController.verifyGoogleToken(null, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
@@ -359,7 +419,7 @@ class AuthControllerTest {
     @Test
     void verifyGoogleTokenShouldReturnBadRequestWhenIdTokenNull() {
         TokenDto tokenDto = new TokenDto();
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }

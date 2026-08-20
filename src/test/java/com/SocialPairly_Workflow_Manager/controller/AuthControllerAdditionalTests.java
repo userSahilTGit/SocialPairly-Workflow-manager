@@ -3,6 +3,9 @@ package com.SocialPairly_Workflow_Manager.controller;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordSendOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordVerifyOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
@@ -31,6 +34,15 @@ class AuthControllerAdditionalTests {
 
     @Mock
     private AuthRateLimitService authRateLimitService;
+
+    @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenBlacklistService tokenBlacklistService;
 
     @InjectMocks
     private AuthController authController;
