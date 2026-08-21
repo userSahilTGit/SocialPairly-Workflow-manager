@@ -84,7 +84,8 @@ class ConfigTests {
                 false,
                 31_536_000L,
                 true,
-                false);
+                false,
+                "");
 
         CorsConfigurationSource source = securityConfig.corsConfigurationSource();
         assertNotNull(source);

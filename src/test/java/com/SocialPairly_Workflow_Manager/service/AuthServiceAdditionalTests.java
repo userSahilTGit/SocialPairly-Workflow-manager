@@ -114,18 +114,26 @@ class AuthServiceAdditionalTests {
     }
 
     @Test
-    void sendForgotPasswordOtpShouldRejectWhenAccountMissing() throws Exception {
+    void sendForgotPasswordOtpShouldSwallowMailFailure() throws Exception {
+        User user = new User();
+        user.setEmail("test@example.com");
+
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(user));
+        when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("test@example.com"))).thenReturn("123456");
+        doThrow(new jakarta.mail.MessagingException("smtp down"))
+                .when(emailService).sendForgotPasswordOtpEmail(user, "123456");
+
+        assertDoesNotThrow(() ->
+                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com")));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldNoOpWhenAccountMissing() throws Exception {
         when(userService.findOptionalByIdentifier("missing@example.com")).thenReturn(Optional.empty());
 
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> {
-            try {
-                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("missing@example.com"));
-            } catch (jakarta.mail.MessagingException e) {
-                throw new AssertionError("Unexpected MessagingException", e);
-            }
-        });
+        assertDoesNotThrow(() ->
+                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("missing@example.com")));
 
-        assertEquals(AuthService.UNREGISTERED_IDENTIFIER_MESSAGE, ex.getMessage());
         verify(otpService, never()).generateAndStore(any(), any());
         verify(emailService, never()).sendForgotPasswordOtpEmail(any(), any());
     }

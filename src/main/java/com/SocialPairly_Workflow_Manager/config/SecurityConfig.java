@@ -22,7 +22,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -36,6 +39,7 @@ public class SecurityConfig {
     private final long hstsMaxAgeSeconds;
     private final boolean csrfEnabled;
     private final boolean authCookieSecure;
+    private final String additionalCorsOrigins;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -44,7 +48,8 @@ public class SecurityConfig {
             @Value("${app.security.hsts-enabled:false}") boolean hstsEnabled,
             @Value("${app.security.hsts-max-age-seconds:31536000}") long hstsMaxAgeSeconds,
             @Value("${app.security.csrf.enabled:true}") boolean csrfEnabled,
-            @Value("${app.auth.cookie.secure:false}") boolean authCookieSecure
+            @Value("${app.auth.cookie.secure:false}") boolean authCookieSecure,
+            @Value("${app.security.cors.additional-origins:}") String additionalCorsOrigins
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authCookieName = authCookieName;
@@ -53,6 +58,7 @@ public class SecurityConfig {
         this.hstsMaxAgeSeconds = hstsMaxAgeSeconds;
         this.csrfEnabled = csrfEnabled;
         this.authCookieSecure = authCookieSecure;
+        this.additionalCorsOrigins = additionalCorsOrigins == null ? "" : additionalCorsOrigins;
     }
 
     @Bean
@@ -86,7 +92,8 @@ public class SecurityConfig {
         }
         CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         repository.setCookiePath("/");
-        repository.setSecure(authCookieSecure);
+        // When HTTPS is required, CSRF cookie must be Secure as well.
+        repository.setSecure(authCookieSecure || requireHttps);
         http.csrf(csrf -> csrf
                 .csrfTokenRepository(repository)
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
@@ -97,8 +104,10 @@ public class SecurityConfig {
     }
 
     private void configureTransportSecurity(HttpSecurity http) throws Exception {
+        // HSTS is meaningful with HTTPS; enable when either flag is on for prod safety.
+        boolean applyHsts = hstsEnabled || requireHttps;
         http.headers(headers -> {
-            if (hstsEnabled) {
+            if (applyHsts) {
                 headers.httpStrictTransportSecurity(hsts -> hsts
                         .maxAgeInSeconds(Math.max(0L, hstsMaxAgeSeconds))
                         .includeSubDomains(true));
@@ -114,13 +123,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
+        List<String> origins = new ArrayList<>(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
                 "http://localhost:8081",
                 "http://3.151.77.90"));
+        origins.addAll(parseAdditionalOrigins(additionalCorsOrigins));
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -129,6 +140,16 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    static List<String> parseAdditionalOrigins(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Bean

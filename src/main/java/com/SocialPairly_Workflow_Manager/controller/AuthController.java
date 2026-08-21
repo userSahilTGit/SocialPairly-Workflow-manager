@@ -130,15 +130,9 @@ public class AuthController {
                 AuthRateLimitService.ACTION_FORGOT_SEND,
                 clientIp(httpRequest),
                 request.identifier());
-        try {
-            authService.sendForgotPasswordOtp(request);
-            return ResponseEntity.ok(Map.of(
-                    "message", "OTP sent successfully to your registered email or phone number"));
-        } catch (jakarta.mail.MessagingException e) {
-            log.error("Failed to send forgot password OTP for identifier={}", request.identifier(), e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                    "error", "Failed to send OTP. Please try again later."));
-        }
+        authService.sendForgotPasswordOtp(request);
+        // Always the same body — service no-ops for unknown identifiers (AC11).
+        return ResponseEntity.ok(Map.of("message", AuthService.FORGOT_PASSWORD_DISPATCH_MESSAGE));
     }
 
     @PostMapping("/forgot-password/verify-otp")

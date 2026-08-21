@@ -81,7 +81,8 @@ public class AuthService {
             throw new BadRequestException("Required consents must be accepted");
         }
         if (userRepository.existsByEmail(request.email().toLowerCase().trim())) {
-            throw new BadRequestException("Email is already registered");
+            // Same client-facing signal for email or phone conflict — do not reveal which.
+            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
         }
 
         String phoneStorage;
@@ -92,7 +93,7 @@ public class AuthService {
         }
 
         if (phoneNumberExists(request.phoneNumber())) {
-            throw new BadRequestException("Phone number is already registered");
+            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
         }
 
         User user = new User();
@@ -347,25 +348,44 @@ public class AuthService {
         return value.length() <= 20 ? value : value.substring(0, 20);
     }
 
-    public static final String UNREGISTERED_IDENTIFIER_MESSAGE =
-            "This is not your registered Email ID. Please try with your registered Email ID.";
+    /**
+     * Generic register conflict — avoids revealing whether email or phone already exists.
+     */
+    public static final String REGISTRATION_CONFLICT_MESSAGE =
+            "Unable to complete registration with the provided details. If you already have an account, please sign in.";
 
     /**
-     * Starts forgot-password OTP delivery. Unknown identifiers are rejected with a clear message.
+     * Generic forgot-password acceptance — same response whether or not the account exists.
      */
-    public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) throws MessagingException {
-        log.info("Sending forgot password OTP for identifier={}", request.identifier());
-        User user = userService.findOptionalByIdentifier(request.identifier())
-                .orElseThrow(() -> new BadRequestException(UNREGISTERED_IDENTIFIER_MESSAGE));
-        String otp = otpService.generateAndStore(
-                com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
-                request.identifier());
-        emailService.sendForgotPasswordOtpEmail(user, otp);
+    public static final String FORGOT_PASSWORD_DISPATCH_MESSAGE =
+            "If an account exists for that email or phone, a reset code has been sent.";
 
-        String destination = user.getEmail().contains("@")
-                ? user.getEmail()
-                : user.getPhoneNumber();
-        log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
+    /**
+     * Starts forgot-password OTP delivery when the identifier matches an account.
+     * Unknown identifiers and mail failures are handled silently so responses do not
+     * reveal whether an account exists (AC11).
+     */
+    public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) {
+        log.info("Sending forgot password OTP for identifier={}", request.identifier());
+        var userOpt = userService.findOptionalByIdentifier(request.identifier());
+        if (userOpt.isEmpty()) {
+            log.info("Forgot-password requested for unknown identifier (no OTP sent)");
+            return;
+        }
+        User user = userOpt.get();
+        try {
+            String otp = otpService.generateAndStore(
+                    com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
+                    request.identifier());
+            emailService.sendForgotPasswordOtpEmail(user, otp);
+            String destination = user.getEmail().contains("@")
+                    ? user.getEmail()
+                    : user.getPhoneNumber();
+            log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
+        } catch (MessagingException e) {
+            // Same client outcome as unknown identifier — do not leak account existence via 500.
+            log.warn("Forgot-password OTP email failed for {}: {}", user.getEmail(), e.getMessage());
+        }
     }
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {

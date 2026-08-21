@@ -10,7 +10,6 @@ import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,9 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthForgotPasswordApiTest {
 
     private static final String SUCCESS_MESSAGE =
-            "OTP sent successfully to your registered email or phone number";
-    private static final String UNREGISTERED_MESSAGE =
-            "This is not your registered Email ID. Please try with your registered Email ID.";
+            AuthService.FORGOT_PASSWORD_DISPATCH_MESSAGE;
 
     @Mock
     private AuthService authService;
@@ -106,32 +103,19 @@ class AuthForgotPasswordApiTest {
     }
 
     @Test
-    @DisplayName("POST /forgot-password/send-otp returns 500 when mail delivery fails")
-    void sendOtpReturnsErrorWhenServiceThrows() throws Exception {
-        doThrow(new MessagingException("smtp down")).when(authService).sendForgotPasswordOtp(any());
-
-        mockMvc.perform(post("/api/auth/forgot-password/send-otp")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"identifier":"member@example.com"}
-                                """))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("Failed to send OTP. Please try again later."));
-    }
-
-    @Test
-    @DisplayName("POST /forgot-password/send-otp returns 400 for unregistered identifier")
-    void sendOtpRejectsUnregisteredIdentifier() throws Exception {
-        doThrow(new BadRequestException(UNREGISTERED_MESSAGE))
-                .when(authService).sendForgotPasswordOtp(any());
+    @DisplayName("POST /forgot-password/send-otp returns same 200 for unknown account (AC11)")
+    void sendOtpDoesNotRevealUnregisteredIdentifier() throws Exception {
+        doNothing().when(authService).sendForgotPasswordOtp(any());
 
         mockMvc.perform(post("/api/auth/forgot-password/send-otp")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"identifier":"missing@example.com"}
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(UNREGISTERED_MESSAGE));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(SUCCESS_MESSAGE));
+
+        verify(authService).sendForgotPasswordOtp(any());
     }
 
     @Test

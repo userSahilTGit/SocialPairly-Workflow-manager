@@ -16,7 +16,6 @@ import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -154,7 +153,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void sendForgotPasswordOtpShouldReturnSuccessResponse() throws Exception {
+    void sendForgotPasswordOtpShouldReturnGenericSuccessResponse() {
         ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
         doNothing().when(authService).sendForgotPasswordOtp(request);
 
@@ -162,21 +161,8 @@ class AuthControllerTest {
                 authController.sendForgotPasswordOtp(request, httpRequest);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(
-                "OTP sent successfully to your registered email or phone number",
-                response.getBody().get("message"));
-    }
-
-    @Test
-    void sendForgotPasswordOtpShouldReturnErrorResponseWhenExceptionThrown() throws Exception {
-        ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
-        doThrow(new MessagingException("mail server down")).when(authService).sendForgotPasswordOtp(request);
-
-        ResponseEntity<Map<String, String>> response =
-                authController.sendForgotPasswordOtp(request, httpRequest);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("Failed to send OTP. Please try again later.", response.getBody().get("error"));
+        assertEquals(AuthService.FORGOT_PASSWORD_DISPATCH_MESSAGE, response.getBody().get("message"));
+        verify(authService).sendForgotPasswordOtp(request);
     }
 
     @Test
