@@ -20,8 +20,6 @@ import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -31,7 +29,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
@@ -48,24 +45,7 @@ public class AuthController {
     private final JwtTokenBlacklistService tokenBlacklistService;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
-    // Replace with your actual Google Client ID from the Google Developer Console
-    private static final String GOOGLE_CLIENT_ID = "1043168194153-i82qfvqg1jsk804qaa7ipkkov67b8pt4.apps.googleusercontent.com";
-
-    @org.springframework.beans.factory.annotation.Autowired
     public AuthController(
-            AuthService authService,
-            CurrentUserService currentUserService,
-            AuthRateLimitService authRateLimitService,
-            AuthCookieService authCookieService,
-            JwtUtil jwtUtil,
-            JwtTokenBlacklistService tokenBlacklistService
-    ) {
-        this(authService, currentUserService, authRateLimitService, authCookieService, jwtUtil,
-                tokenBlacklistService, createDefaultVerifier());
-    }
-
-    // Constructor for testability — allows injecting a mock GoogleIdTokenVerifier (not used by Spring)
-    AuthController(
             AuthService authService,
             CurrentUserService currentUserService,
             AuthRateLimitService authRateLimitService,
@@ -81,19 +61,6 @@ public class AuthController {
         this.jwtUtil = jwtUtil;
         this.tokenBlacklistService = tokenBlacklistService;
         this.googleIdTokenVerifier = googleIdTokenVerifier;
-    }
-
-    private static GoogleIdTokenVerifier createDefaultVerifier() {
-        try {
-            return new GoogleIdTokenVerifier.Builder(
-                    GoogleNetHttpTransport.newTrustedTransport(),
-                    new GsonFactory()
-            )
-            .setAudience(Collections.singletonList(GOOGLE_CLIENT_ID))
-            .build();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create GoogleIdTokenVerifier", e);
-        }
     }
 
     @PostMapping("/register")

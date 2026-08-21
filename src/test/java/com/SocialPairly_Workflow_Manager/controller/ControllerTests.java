@@ -8,6 +8,7 @@ import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
 import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.*;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,6 +49,9 @@ class ControllerTests {
 
     @Mock
     private JwtTokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private GoogleIdTokenVerifier googleIdTokenVerifier;
 
     @Mock
     private AdminService adminService;

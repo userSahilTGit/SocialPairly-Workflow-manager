@@ -9,6 +9,7 @@ import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class AuthControllerAdditionalTests {
 
     @Mock
     private JwtTokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private GoogleIdTokenVerifier googleIdTokenVerifier;
 
     @InjectMocks
     private AuthController authController;
