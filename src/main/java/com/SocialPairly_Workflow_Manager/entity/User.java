@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -53,6 +54,7 @@ public class User {
     @Column(name = "best_time_to_contact", length = 40)
     private String bestTimeToContact;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
