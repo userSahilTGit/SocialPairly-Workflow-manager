@@ -62,12 +62,17 @@ class AuthServiceCoverageTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private LoginAccountSecurityService loginAccountSecurityService;
+
     @InjectMocks
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
+        lenient().doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
+        lenient().doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
     }
 
     @Test

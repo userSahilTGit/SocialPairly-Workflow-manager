@@ -4,7 +4,6 @@ import com.SocialPairly_Workflow_Manager.dto.*;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
-import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +53,9 @@ class AuthServiceAdditionalTests {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private LoginAccountSecurityService loginAccountSecurityService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -76,7 +78,7 @@ class AuthServiceAdditionalTests {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
         when(userService.findOptionalByPhoneIdentifier("missing@example.com")).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> authService.login(request));
+        assertThrows(BadCredentialsException.class, () -> authService.login(request));
     }
 
     @Test

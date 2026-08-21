@@ -118,7 +118,7 @@ public class AuthController {
                 AuthRateLimitService.ACTION_LOGIN,
                 clientIp(httpRequest),
                 request.identifier());
-        AuthResponse authResponse = authService.login(request);
+        AuthResponse authResponse = authService.login(request, clientIp(httpRequest));
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
         authCookieService.writeAuthCookie(httpResponse, authResponse.token(), rememberMe);
         return ResponseEntity.ok(authResponse);

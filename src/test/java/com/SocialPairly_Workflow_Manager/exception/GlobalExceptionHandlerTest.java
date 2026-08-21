@@ -57,6 +57,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("AccountSecurityException -> status + code + message")
+    void accountSecurity() {
+        AccountSecurityException ex = new AccountSecurityException(
+                HttpStatus.FORBIDDEN, "ACCOUNT_DISABLED", "Disabled msg");
+        ResponseEntity<Map<String, Object>> resp = handler.handleAccountSecurity(ex);
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
+        assertEquals("Disabled msg", resp.getBody().get("message"));
+        assertEquals("ACCOUNT_DISABLED", resp.getBody().get("code"));
+        assertEquals(403, resp.getBody().get("status"));
+    }
+
+    @Test
     @DisplayName("BadCredentialsException -> 401 with generic message")
     void badCredentials() {
         ResponseEntity<Map<String, Object>> resp =

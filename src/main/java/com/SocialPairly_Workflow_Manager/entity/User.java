@@ -96,6 +96,20 @@ public class User {
     @Column(name = "user_tokens", nullable = false)
     private int userTokens = 50;
 
+    /** Temporary lock expiry after repeated failed password logins; null when not locked. */
+    @Column(name = "account_locked_until")
+    private LocalDateTime accountLockedUntil;
+
+    /** Permanent disable after repeated lock events (admin reactivation required). */
+    @Column(name = "account_disabled", nullable = false)
+    private boolean accountDisabled = false;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "disabled_at")
+    private LocalDateTime disabledAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -200,6 +214,18 @@ public class User {
 
     public int getUserTokens() { return userTokens; }
     public void setUserTokens(int userTokens) { this.userTokens = userTokens; }
+
+    public LocalDateTime getAccountLockedUntil() { return accountLockedUntil; }
+    public void setAccountLockedUntil(LocalDateTime accountLockedUntil) { this.accountLockedUntil = accountLockedUntil; }
+
+    public boolean isAccountDisabled() { return accountDisabled; }
+    public void setAccountDisabled(boolean accountDisabled) { this.accountDisabled = accountDisabled; }
+
+    public int getFailedLoginAttempts() { return failedLoginAttempts; }
+    public void setFailedLoginAttempts(int failedLoginAttempts) { this.failedLoginAttempts = failedLoginAttempts; }
+
+    public LocalDateTime getDisabledAt() { return disabledAt; }
+    public void setDisabledAt(LocalDateTime disabledAt) { this.disabledAt = disabledAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

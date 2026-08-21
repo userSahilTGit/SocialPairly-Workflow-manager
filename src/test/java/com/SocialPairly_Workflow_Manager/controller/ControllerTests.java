@@ -108,7 +108,7 @@ class ControllerTests {
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
         when(authService.register(registerRequest)).thenReturn(authResponse);
-        when(authService.login(loginRequest)).thenReturn(authResponse);
+        when(authService.login(eq(loginRequest), any())).thenReturn(authResponse);
 
         ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest, new MockHttpServletResponse());
         ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse());

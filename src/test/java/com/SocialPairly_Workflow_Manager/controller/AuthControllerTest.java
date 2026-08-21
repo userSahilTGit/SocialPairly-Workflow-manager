@@ -102,7 +102,7 @@ class AuthControllerTest {
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
-        when(authService.login(request)).thenReturn(authResponse);
+        when(authService.login(eq(request), any())).thenReturn(authResponse);
 
         ResponseEntity<AuthResponse> response = authController.login(request, httpRequest, httpResponse);
 
@@ -119,7 +119,7 @@ class AuthControllerTest {
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
         AuthResponse authResponse = new AuthResponse("remember-token", userDto);
 
-        when(authService.login(request)).thenReturn(authResponse);
+        when(authService.login(eq(request), any())).thenReturn(authResponse);
 
         authController.login(request, httpRequest, httpResponse);
 
@@ -361,20 +361,21 @@ class AuthControllerTest {
     void loginShouldUseXForwardedForWhenPresent() {
         LoginRequest request = new LoginRequest("ada@example.com", "secret", null);
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
-        when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
+        when(authService.login(eq(request), any())).thenReturn(new AuthResponse("token", userDto));
         httpRequest.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.1");
 
         authController.login(request, httpRequest, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("203.0.113.10"), eq("ada@example.com"));
+        verify(authService).login(eq(request), eq("203.0.113.10"));
     }
 
     @Test
     void loginShouldTreatBlankForwardedForAsMissing() {
         LoginRequest request = new LoginRequest("ada@example.com", "secret", null);
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
-        when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
+        when(authService.login(eq(request), any())).thenReturn(new AuthResponse("token", userDto));
         httpRequest.addHeader("X-Forwarded-For", "   ");
         httpRequest.setRemoteAddr("198.51.100.7");
 
@@ -382,31 +383,34 @@ class AuthControllerTest {
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("198.51.100.7"), eq("ada@example.com"));
+        verify(authService).login(eq(request), eq("198.51.100.7"));
     }
 
     @Test
     void loginShouldUseUnknownWhenRequestNull() {
         LoginRequest request = new LoginRequest("ada@example.com", "secret", null);
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
-        when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
+        when(authService.login(eq(request), any())).thenReturn(new AuthResponse("token", userDto));
 
         authController.login(request, null, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("unknown"), eq("ada@example.com"));
+        verify(authService).login(eq(request), eq("unknown"));
     }
 
     @Test
     void loginShouldUseUnknownWhenRemoteAddrNull() {
         LoginRequest request = new LoginRequest("ada@example.com", "secret", null);
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
-        when(authService.login(request)).thenReturn(new AuthResponse("token", userDto));
+        when(authService.login(eq(request), any())).thenReturn(new AuthResponse("token", userDto));
         httpRequest.setRemoteAddr(null);
 
         authController.login(request, httpRequest, httpResponse);
 
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), eq("unknown"), eq("ada@example.com"));
+        verify(authService).login(eq(request), eq("unknown"));
     }
 
     @Test

@@ -523,6 +523,30 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    @Async
+    public void sendAccountDisabledEmail(User user) {
+        if (!hasValidEmail(user)) {
+            return;
+        }
+
+        String userName = formatUserName(user);
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "Your " + appName + " account has been disabled by an administrator after repeated unsuccessful "
+                        + "sign-in attempts that triggered our account protection rules.")
+                + EmailTemplateBuilder.paragraph(
+                "If you believe this was a mistake, or you need help restoring access, please contact our "
+                        + "Administrator at " + supportEmail + ".")
+                + EmailTemplateBuilder.paragraph("Best regards,")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                user.getEmail(),
+                "Your " + appName + " account has been disabled",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

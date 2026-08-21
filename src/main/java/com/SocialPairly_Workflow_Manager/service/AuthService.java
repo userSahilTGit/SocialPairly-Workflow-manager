@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class AuthService {
     private final OtpService otpService;
     private final UserService userService;
     private final EmailService emailService;
+    private final LoginAccountSecurityService loginAccountSecurityService;
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -55,7 +57,8 @@ public class AuthService {
                        JwtUtil jwtUtil,
                        OtpService otpService,
                        UserService userService,
-                       EmailService emailService) {
+                       EmailService emailService,
+                       LoginAccountSecurityService loginAccountSecurityService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.passwordEncoder = passwordEncoder;
@@ -64,6 +67,7 @@ public class AuthService {
         this.otpService = otpService;
         this.userService = userService;
         this.emailService = emailService;
+        this.loginAccountSecurityService = loginAccountSecurityService;
     }
 
     @Transactional
@@ -248,15 +252,28 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        return login(request, null);
+    }
+
+    public AuthResponse login(LoginRequest request, String clientIp) {
         String identifier = request.identifier().trim();
         log.info("Authenticating login request for identifier={}", identifier);
         User user = userRepository.findByEmail(identifier.toLowerCase())
                 .or(() -> userService.findOptionalByPhoneIdentifier(identifier))
-                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+                .orElseThrow(() -> new BadCredentialsException(
+                        LoginAccountSecurityService.GENERIC_CREDENTIALS_MESSAGE));
 
-        // Authenticate by email (the UserDetails username) + raw password
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getEmail(), request.password()));
+        loginAccountSecurityService.assertAccountAllowsLogin(user, identifier, clientIp);
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getEmail(), request.password()));
+        } catch (BadCredentialsException ex) {
+            loginAccountSecurityService.recordFailedPasswordAttempt(user, identifier, clientIp);
+            throw ex;
+        }
+
+        loginAccountSecurityService.recordSuccessfulLogin(user, identifier, clientIp);
 
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
         String token = jwtUtil.generateToken(user.getEmail(), rememberMe);
@@ -308,6 +325,8 @@ public class AuthService {
                     }
                     return saved;
                 });
+
+        loginAccountSecurityService.assertAccountAllowsLogin(user, normalizedEmail, null);
 
         if (emailVerifiedClaim && !user.isEmailVerified()) {
             user.setEmailVerified(true);
