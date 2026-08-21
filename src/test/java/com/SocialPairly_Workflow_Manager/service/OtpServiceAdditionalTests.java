@@ -70,7 +70,7 @@ class OtpServiceAdditionalTests {
 
     @Test
     void rateLimitThrowsAfterThreshold() {
-        AuthRateLimitService limiter = new AuthRateLimitService(900_000, 2, 5, 10, 10, 5);
+        AuthRateLimitService limiter = new AuthRateLimitService(900_000, 2, 5, 10, 10, 5, 5);
         limiter.check(AuthRateLimitService.ACTION_LOGIN, "127.0.0.1", "a@b.com");
         limiter.check(AuthRateLimitService.ACTION_LOGIN, "127.0.0.1", "a@b.com");
         assertThrows(TooManyRequestsException.class,

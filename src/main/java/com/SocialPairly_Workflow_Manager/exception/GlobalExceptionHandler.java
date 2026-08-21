@@ -40,6 +40,13 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(AccountSecurityException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountSecurity(AccountSecurityException ex) {
+        Map<String, Object> body = baseBody(ex.getStatus(), ex.getMessage());
+        body.put("code", ex.getCode());
+        return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         return build(HttpStatus.UNAUTHORIZED, "Invalid credentials");

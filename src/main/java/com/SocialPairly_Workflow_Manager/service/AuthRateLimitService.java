@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuthRateLimitService {
 
     public static final String ACTION_LOGIN = "login";
+    public static final String ACTION_REGISTER = "register";
     public static final String ACTION_FORGOT_SEND = "forgot-send";
     public static final String ACTION_FORGOT_VERIFY = "forgot-verify";
     public static final String ACTION_VERIFY_EMAIL = "verify-email";
@@ -32,11 +33,13 @@ public class AuthRateLimitService {
             @Value("${app.rate-limit.forgot-send-max:5}") int forgotSendMax,
             @Value("${app.rate-limit.forgot-verify-max:10}") int forgotVerifyMax,
             @Value("${app.rate-limit.verify-email-max:10}") int verifyEmailMax,
-            @Value("${app.rate-limit.resend-verification-max:5}") int resendMax
+            @Value("${app.rate-limit.resend-verification-max:5}") int resendMax,
+            @Value("${app.rate-limit.register-max:5}") int registerMax
     ) {
         this.windowMs = windowMs;
         this.limits = Map.of(
                 ACTION_LOGIN, loginMax,
+                ACTION_REGISTER, registerMax,
                 ACTION_FORGOT_SEND, forgotSendMax,
                 ACTION_FORGOT_VERIFY, forgotVerifyMax,
                 ACTION_VERIFY_EMAIL, verifyEmailMax,
