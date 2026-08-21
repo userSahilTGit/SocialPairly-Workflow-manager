@@ -26,7 +26,14 @@ class SecurityConfigTest {
 
     @BeforeEach
     void setUp() {
-        securityConfig = new SecurityConfig(mock(JwtAuthenticationFilter.class));
+        securityConfig = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                true,
+                false);
     }
 
     @Test
@@ -78,5 +85,6 @@ class SecurityConfigTest {
         assertTrue(config.getAllowCredentials());
         assertTrue(config.getAllowedMethods().contains("GET"));
         assertTrue(config.getAllowedMethods().contains("OPTIONS"));
+        assertTrue(config.getExposedHeaders().contains("X-XSRF-TOKEN"));
     }
 }

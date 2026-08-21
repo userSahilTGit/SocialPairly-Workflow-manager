@@ -114,12 +114,15 @@ class ControllerTests {
         when(authService.register(registerRequest)).thenReturn(authResponse);
         when(authService.login(eq(loginRequest), any())).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest, new MockHttpServletResponse());
-        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
+        ResponseEntity<AuthResponse> registerResponse = authController.register(
+                registerRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
+        ResponseEntity<AuthResponse> loginResponse = authController.login(
+                loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
 
         assertEquals(200, registerResponse.getStatusCode().value());
         assertSame(authResponse, registerResponse.getBody());
         assertSame(authResponse, loginResponse.getBody());
+        verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_REGISTER), any(), eq("a@example.com"));
         verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_LOGIN), any(), eq("a@example.com"));
     }
 

@@ -66,11 +66,16 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(
             @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
         log.info("Register request received for email={}", request.email());
+        authRateLimitService.check(
+                AuthRateLimitService.ACTION_REGISTER,
+                clientIp(httpRequest),
+                request.email());
         AuthResponse authResponse = authService.register(request);
-        authCookieService.writeAuthCookie(httpResponse, authResponse.token(), false);
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, authResponse.token(), false);
         return ResponseEntity.ok(authResponse);
     }
 
@@ -87,7 +92,7 @@ public class AuthController {
                 request.identifier());
         AuthResponse authResponse = authService.login(request, clientIp(httpRequest));
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
-        authCookieService.writeAuthCookie(httpResponse, authResponse.token(), rememberMe);
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, authResponse.token(), rememberMe);
         return ResponseEntity.ok(authResponse);
     }
 
@@ -111,7 +116,7 @@ public class AuthController {
                 log.debug("Logout token revoke skipped: {}", e.toString());
             }
         }
-        authCookieService.clearAuthCookie(httpResponse);
+        authCookieService.clearAuthCookie(httpRequest, httpResponse);
         return ResponseEntity.ok(Map.of("message", "Logged out"));
     }
 
@@ -213,6 +218,7 @@ public class AuthController {
     @PostMapping("/google")
     public ResponseEntity<?> verifyGoogleToken(
             @RequestBody TokenDto tokenDto,
+            HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
         try {
@@ -234,7 +240,7 @@ public class AuthController {
 
                 AuthResponse authResponse = authService.loginOrRegisterGoogleUser(
                         email, firstName, lastName, rememberMe, emailVerified);
-                authCookieService.writeAuthCookie(httpResponse, authResponse.token(), rememberMe);
+                authCookieService.writeAuthCookie(httpRequest, httpResponse, authResponse.token(), rememberMe);
 
                 return ResponseEntity.ok(authResponse);
             } else {

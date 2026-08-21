@@ -30,6 +30,33 @@ class AuthCookieServiceTest {
         assertTrue(header.toLowerCase().contains("httponly"));
         assertTrue(header.contains("Max-Age=2592000") || header.contains("Max-Age=2592000;"));
         assertTrue(header.contains("SameSite=Lax") || header.toLowerCase().contains("samesite=lax"));
+        assertFalse(header.toLowerCase().contains("secure"));
+    }
+
+    @Test
+    void writeAuthCookieShouldSetSecureWhenForwardedProtoIsHttps() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Forwarded-Proto", "https");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        cookieService.writeAuthCookie(request, response, "jwt-value", false);
+
+        String header = response.getHeader("Set-Cookie");
+        assertNotNull(header);
+        assertTrue(header.toLowerCase().contains("secure"));
+    }
+
+    @Test
+    void writeAuthCookieShouldForceSecureWhenConfigured() {
+        AuthCookieService secureService = new AuthCookieService(jwtUtil, "SP_AUTH", true, "Strict");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        secureService.writeAuthCookie(response, "jwt-value", false);
+
+        String header = response.getHeader("Set-Cookie");
+        assertNotNull(header);
+        assertTrue(header.toLowerCase().contains("secure"));
+        assertTrue(header.contains("SameSite=Strict") || header.toLowerCase().contains("samesite=strict"));
     }
 
     @Test

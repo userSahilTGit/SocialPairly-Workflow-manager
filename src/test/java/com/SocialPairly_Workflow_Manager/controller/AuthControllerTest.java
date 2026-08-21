@@ -89,11 +89,12 @@ class AuthControllerTest {
 
         when(authService.register(request)).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> response = authController.register(request, httpResponse);
+        ResponseEntity<AuthResponse> response = authController.register(request, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(authResponse, response.getBody());
-        verify(authCookieService).writeAuthCookie(httpResponse, "token", false);
+        verify(authRateLimitService).check(AuthRateLimitService.ACTION_REGISTER, "127.0.0.1", "ada@example.com");
+        verify(authCookieService).writeAuthCookie(httpRequest, httpResponse, "token", false);
     }
 
     @Test
@@ -110,7 +111,7 @@ class AuthControllerTest {
         assertSame(authResponse, response.getBody());
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_LOGIN), any(), eq("ada@example.com"));
-        verify(authCookieService).writeAuthCookie(httpResponse, "token", false);
+        verify(authCookieService).writeAuthCookie(httpRequest, httpResponse, "token", false);
     }
 
     @Test
@@ -123,7 +124,7 @@ class AuthControllerTest {
 
         authController.login(request, httpRequest, httpResponse);
 
-        verify(authCookieService).writeAuthCookie(httpResponse, "remember-token", true);
+        verify(authCookieService).writeAuthCookie(httpRequest, httpResponse, "remember-token", true);
     }
 
     @Test
@@ -138,7 +139,7 @@ class AuthControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("Logged out", response.getBody().get("message"));
         verify(tokenBlacklistService).revoke("jwt-token", expiry);
-        verify(authCookieService).clearAuthCookie(httpResponse);
+        verify(authCookieService).clearAuthCookie(httpRequest, httpResponse);
     }
 
     @Test
@@ -149,7 +150,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(tokenBlacklistService, never()).revoke(any(), any());
-        verify(authCookieService).clearAuthCookie(httpResponse);
+        verify(authCookieService).clearAuthCookie(httpRequest, httpResponse);
     }
 
     @Test
@@ -224,11 +225,11 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser(
                 "john@gmail.com", "John", "Doe", false, true)).thenReturn(authResponse);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(authResponse, response.getBody());
-        verify(authCookieService).writeAuthCookie(httpResponse, "google-token", false);
+        verify(authCookieService).writeAuthCookie(httpRequest, httpResponse, "google-token", false);
     }
 
     @Test
@@ -238,7 +239,7 @@ class AuthControllerTest {
 
         when(googleIdTokenVerifier.verify("invalid-token")).thenReturn(null);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -254,7 +255,7 @@ class AuthControllerTest {
 
         when(googleIdTokenVerifier.verify("error-token")).thenThrow(new IOException("network error"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -267,7 +268,7 @@ class AuthControllerTest {
         TokenDto tokenDto = new TokenDto();
         tokenDto.setIdToken("  ");
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -283,7 +284,7 @@ class AuthControllerTest {
         when(googleIdTokenVerifier.verify("bad-token"))
                 .thenThrow(new java.security.GeneralSecurityException("bad sig"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -308,7 +309,7 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser("", null, null, false, false))
                 .thenThrow(new com.SocialPairly_Workflow_Manager.exception.BadRequestException("Email is required"));
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         @SuppressWarnings("unchecked")
@@ -336,11 +337,11 @@ class AuthControllerTest {
         when(authService.loginOrRegisterGoogleUser(
                 "jane@gmail.com", "Jane", "Doe", true, true)).thenReturn(authResponse);
 
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(authService).loginOrRegisterGoogleUser("jane@gmail.com", "Jane", "Doe", true, true);
-        verify(authCookieService).writeAuthCookie(httpResponse, "tok", true);
+        verify(authCookieService).writeAuthCookie(httpRequest, httpResponse, "tok", true);
     }
 
     @Test
@@ -415,7 +416,7 @@ class AuthControllerTest {
 
     @Test
     void verifyGoogleTokenShouldReturnBadRequestWhenTokenDtoNull() {
-        ResponseEntity<?> response = authController.verifyGoogleToken(null, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(null, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
@@ -423,7 +424,7 @@ class AuthControllerTest {
     @Test
     void verifyGoogleTokenShouldReturnBadRequestWhenIdTokenNull() {
         TokenDto tokenDto = new TokenDto();
-        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpResponse);
+        ResponseEntity<?> response = authController.verifyGoogleToken(tokenDto, httpRequest, httpResponse);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }

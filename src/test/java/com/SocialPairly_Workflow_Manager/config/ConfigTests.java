@@ -77,7 +77,14 @@ class ConfigTests {
 
     @Test
     void securityConfigShouldExposeCorsAndPasswordEncoderBeans() {
-        SecurityConfig securityConfig = new SecurityConfig(mock(JwtAuthenticationFilter.class));
+        SecurityConfig securityConfig = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                true,
+                false);
 
         CorsConfigurationSource source = securityConfig.corsConfigurationSource();
         assertNotNull(source);
