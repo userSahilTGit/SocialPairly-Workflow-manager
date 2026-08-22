@@ -4,7 +4,11 @@ import com.SocialPairly_Workflow_Manager.dto.*;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.*;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
@@ -35,6 +40,18 @@ class ControllerTests {
 
     @Mock
     private AuthRateLimitService authRateLimitService;
+
+    @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private GoogleIdTokenVerifier googleIdTokenVerifier;
 
     @Mock
     private AdminService adminService;
@@ -95,14 +112,17 @@ class ControllerTests {
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
         when(authService.register(registerRequest)).thenReturn(authResponse);
-        when(authService.login(loginRequest)).thenReturn(authResponse);
+        when(authService.login(eq(loginRequest), any())).thenReturn(authResponse);
 
-        ResponseEntity<AuthResponse> registerResponse = authController.register(registerRequest);
-        ResponseEntity<AuthResponse> loginResponse = authController.login(loginRequest, new MockHttpServletRequest());
+        ResponseEntity<AuthResponse> registerResponse = authController.register(
+                registerRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
+        ResponseEntity<AuthResponse> loginResponse = authController.login(
+                loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse());
 
         assertEquals(200, registerResponse.getStatusCode().value());
         assertSame(authResponse, registerResponse.getBody());
         assertSame(authResponse, loginResponse.getBody());
+        verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_REGISTER), any(), eq("a@example.com"));
         verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_LOGIN), any(), eq("a@example.com"));
     }
 

@@ -55,14 +55,19 @@ class AuthServiceTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private LoginAccountSecurityService loginAccountSecurityService;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000, 2592000000L);
         authService = new AuthService(userRepository, userProfileRepository, passwordEncoder, authenticationManager,
-                jwtUtil, otpService, userService, emailService);
+                jwtUtil, otpService, userService, emailService, loginAccountSecurityService);
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
+        lenient().doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
+        lenient().doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
     }
 
     @Test
@@ -145,6 +150,8 @@ class AuthServiceTest {
         when(userRepository.findByEmail(eq("jane@example.com"))).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(mock(Authentication.class));
+        doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
+        doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
 
         AuthResponse response = authService.login(request);
 
@@ -163,6 +170,8 @@ class AuthServiceTest {
         when(userRepository.findByEmail(eq("+1-2025550123"))).thenReturn(Optional.empty());
         when(userService.findOptionalByPhoneIdentifier(eq("+1-2025550123"))).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any())).thenReturn(mock(org.springframework.security.core.Authentication.class));
+        doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
+        doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
 
         AuthResponse response = authService.login(request);
 
@@ -185,6 +194,8 @@ class AuthServiceTest {
 
         when(userRepository.findByEmail(eq("jane@example.com"))).thenReturn(Optional.of(user));
         when(authenticationManager.authenticate(any())).thenReturn(mock(Authentication.class));
+        doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
+        doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
 
         AuthResponse response = authService.login(request);
         assertEquals("jane@example.com", response.user().email());
@@ -198,7 +209,7 @@ class AuthServiceTest {
 
         doNothing().when(otpService).assertVerified(any(), eq("jane@example.com"), eq("1234"));
         doNothing().when(otpService).clear(any(), eq("jane@example.com"));
-        when(userService.findByIdentifier("jane@example.com")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("jane@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("newpass")).thenReturn("encoded-newpass");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 

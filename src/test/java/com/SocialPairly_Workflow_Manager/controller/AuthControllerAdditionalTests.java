@@ -3,10 +3,13 @@ package com.SocialPairly_Workflow_Manager.controller;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordSendOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordVerifyOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
+import com.SocialPairly_Workflow_Manager.security.AuthCookieService;
+import com.SocialPairly_Workflow_Manager.security.JwtTokenBlacklistService;
+import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.AuthService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
-import jakarta.mail.MessagingException;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,23 +35,23 @@ class AuthControllerAdditionalTests {
     @Mock
     private AuthRateLimitService authRateLimitService;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @Mock
+    private JwtTokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private GoogleIdTokenVerifier googleIdTokenVerifier;
+
     @InjectMocks
     private AuthController authController;
 
     @Test
-    void sendForgotPasswordOtpShouldReturnErrorResponseWhenExceptionThrown() throws Exception {
-        ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
-        doThrow(new MessagingException("fail")).when(authService).sendForgotPasswordOtp(request);
-
-        ResponseEntity<Map<String, String>> response =
-                authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
-
-        assertEquals(500, response.getStatusCode().value());
-        assertTrue(response.getBody().get("error").contains("Failed to send OTP"));
-    }
-
-    @Test
-    void sendForgotPasswordOtpShouldReturnSuccessResponse() throws Exception {
+    void sendForgotPasswordOtpShouldReturnGenericSuccessResponse() {
         ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("test@example.com");
         doNothing().when(authService).sendForgotPasswordOtp(request);
 
@@ -56,7 +59,21 @@ class AuthControllerAdditionalTests {
                 authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
 
         assertEquals(200, response.getStatusCode().value());
-        assertEquals("OTP sent successfully to your Registered email or Phone number", response.getBody().get("message"));
+        assertEquals(
+                AuthService.FORGOT_PASSWORD_DISPATCH_MESSAGE,
+                response.getBody().get("message"));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldReturnSameMessageForAnyCompletedDispatch() {
+        ForgotPasswordSendOtpRequest request = new ForgotPasswordSendOtpRequest("missing@example.com");
+        doNothing().when(authService).sendForgotPasswordOtp(request);
+
+        ResponseEntity<Map<String, String>> response =
+                authController.sendForgotPasswordOtp(request, new MockHttpServletRequest());
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(AuthService.FORGOT_PASSWORD_DISPATCH_MESSAGE, response.getBody().get("message"));
     }
 
     @Test

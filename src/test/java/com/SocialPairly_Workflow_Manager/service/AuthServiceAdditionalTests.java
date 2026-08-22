@@ -4,7 +4,6 @@ import com.SocialPairly_Workflow_Manager.dto.*;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
-import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +53,9 @@ class AuthServiceAdditionalTests {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private LoginAccountSecurityService loginAccountSecurityService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -76,7 +78,7 @@ class AuthServiceAdditionalTests {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
         when(userService.findOptionalByPhoneIdentifier("missing@example.com")).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> authService.login(request));
+        assertThrows(BadCredentialsException.class, () -> authService.login(request));
     }
 
     @Test
@@ -93,7 +95,7 @@ class AuthServiceAdditionalTests {
         user.setFirstName("Test");
         user.setLastName("User");
 
-        when(userService.findByIdentifier("test@example.com")).thenReturn(user);
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(user));
         when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("test@example.com"))).thenReturn("123456");
 
         authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com"));
@@ -103,11 +105,49 @@ class AuthServiceAdditionalTests {
 
     @Test
     void verifyForgotPasswordOtpShouldReturnSuccessMessage() {
-        when(userService.findByIdentifier("test@example.com")).thenReturn(new User());
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(new User()));
         doNothing().when(otpService).verify(eq("PASSWORD_RESET"), eq("test@example.com"), eq("123456"));
 
         Map<String, String> result = authService.verifyForgotPasswordOtp(new ForgotPasswordVerifyOtpRequest("test@example.com", "123456"));
 
         assertEquals("OTP verified successfully", result.get("message"));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldSwallowMailFailure() throws Exception {
+        User user = new User();
+        user.setEmail("test@example.com");
+
+        when(userService.findOptionalByIdentifier("test@example.com")).thenReturn(Optional.of(user));
+        when(otpService.generateAndStore(eq("PASSWORD_RESET"), eq("test@example.com"))).thenReturn("123456");
+        doThrow(new jakarta.mail.MessagingException("smtp down"))
+                .when(emailService).sendForgotPasswordOtpEmail(user, "123456");
+
+        assertDoesNotThrow(() ->
+                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("test@example.com")));
+    }
+
+    @Test
+    void sendForgotPasswordOtpShouldNoOpWhenAccountMissing() throws Exception {
+        when(userService.findOptionalByIdentifier("missing@example.com")).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() ->
+                authService.sendForgotPasswordOtp(new ForgotPasswordSendOtpRequest("missing@example.com")));
+
+        verify(otpService, never()).generateAndStore(any(), any());
+        verify(emailService, never()).sendForgotPasswordOtpEmail(any(), any());
+    }
+
+    @Test
+    void verifyForgotPasswordOtpShouldThrowInvalidOtpWhenAccountMissing() {
+        when(userService.findOptionalByIdentifier("missing@example.com")).thenReturn(Optional.empty());
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.verifyForgotPasswordOtp(
+                        new ForgotPasswordVerifyOtpRequest("missing@example.com", "1234")));
+
+        assertEquals("Invalid OTP", ex.getMessage());
+        verify(otpService, never()).verify(any(), any(), any());
     }
 }

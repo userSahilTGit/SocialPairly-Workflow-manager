@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class AuthService {
     private final OtpService otpService;
     private final UserService userService;
     private final EmailService emailService;
+    private final LoginAccountSecurityService loginAccountSecurityService;
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -55,7 +57,8 @@ public class AuthService {
                        JwtUtil jwtUtil,
                        OtpService otpService,
                        UserService userService,
-                       EmailService emailService) {
+                       EmailService emailService,
+                       LoginAccountSecurityService loginAccountSecurityService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.passwordEncoder = passwordEncoder;
@@ -64,6 +67,7 @@ public class AuthService {
         this.otpService = otpService;
         this.userService = userService;
         this.emailService = emailService;
+        this.loginAccountSecurityService = loginAccountSecurityService;
     }
 
     @Transactional
@@ -77,7 +81,8 @@ public class AuthService {
             throw new BadRequestException("Required consents must be accepted");
         }
         if (userRepository.existsByEmail(request.email().toLowerCase().trim())) {
-            throw new BadRequestException("Email is already registered");
+            // Same client-facing signal for email or phone conflict — do not reveal which.
+            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
         }
 
         String phoneStorage;
@@ -88,7 +93,7 @@ public class AuthService {
         }
 
         if (phoneNumberExists(request.phoneNumber())) {
-            throw new BadRequestException("Phone number is already registered");
+            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
         }
 
         User user = new User();
@@ -248,15 +253,28 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        return login(request, null);
+    }
+
+    public AuthResponse login(LoginRequest request, String clientIp) {
         String identifier = request.identifier().trim();
         log.info("Authenticating login request for identifier={}", identifier);
         User user = userRepository.findByEmail(identifier.toLowerCase())
                 .or(() -> userService.findOptionalByPhoneIdentifier(identifier))
-                .orElseThrow(() -> new ResourceNotFoundException("No account found for the given identifier"));
+                .orElseThrow(() -> new BadCredentialsException(
+                        LoginAccountSecurityService.GENERIC_CREDENTIALS_MESSAGE));
 
-        // Authenticate by email (the UserDetails username) + raw password
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getEmail(), request.password()));
+        loginAccountSecurityService.assertAccountAllowsLogin(user, identifier, clientIp);
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getEmail(), request.password()));
+        } catch (BadCredentialsException ex) {
+            loginAccountSecurityService.recordFailedPasswordAttempt(user, identifier, clientIp);
+            throw ex;
+        }
+
+        loginAccountSecurityService.recordSuccessfulLogin(user, identifier, clientIp);
 
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
         String token = jwtUtil.generateToken(user.getEmail(), rememberMe);
@@ -309,6 +327,8 @@ public class AuthService {
                     return saved;
                 });
 
+        loginAccountSecurityService.assertAccountAllowsLogin(user, normalizedEmail, null);
+
         if (emailVerifiedClaim && !user.isEmailVerified()) {
             user.setEmailVerified(true);
             userRepository.save(user);
@@ -328,23 +348,52 @@ public class AuthService {
         return value.length() <= 20 ? value : value.substring(0, 20);
     }
 
-    public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) throws MessagingException {
-        log.info("Sending forgot password OTP for identifier={}", request.identifier());
-        User user = userService.findByIdentifier(request.identifier());
-        String otp = otpService.generateAndStore(
-                com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
-                request.identifier());
-        emailService.sendForgotPasswordOtpEmail(user, otp);
+    /**
+     * Generic register conflict — avoids revealing whether email or phone already exists.
+     */
+    public static final String REGISTRATION_CONFLICT_MESSAGE =
+            "Unable to complete registration with the provided details. If you already have an account, please sign in.";
 
-        String destination = user.getEmail().contains("@")
-                ? user.getEmail()
-                : user.getPhoneNumber();
-        log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
+    /**
+     * Generic forgot-password acceptance — same response whether or not the account exists.
+     */
+    public static final String FORGOT_PASSWORD_DISPATCH_MESSAGE =
+            "If an account exists for that email or phone, a reset code has been sent.";
+
+    /**
+     * Starts forgot-password OTP delivery when the identifier matches an account.
+     * Unknown identifiers and mail failures are handled silently so responses do not
+     * reveal whether an account exists (AC11).
+     */
+    public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) {
+        log.info("Sending forgot password OTP for identifier={}", request.identifier());
+        var userOpt = userService.findOptionalByIdentifier(request.identifier());
+        if (userOpt.isEmpty()) {
+            log.info("Forgot-password requested for unknown identifier (no OTP sent)");
+            return;
+        }
+        User user = userOpt.get();
+        try {
+            String otp = otpService.generateAndStore(
+                    com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
+                    request.identifier());
+            emailService.sendForgotPasswordOtpEmail(user, otp);
+            String destination = user.getEmail().contains("@")
+                    ? user.getEmail()
+                    : user.getPhoneNumber();
+            log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
+        } catch (MessagingException e) {
+            // Same client outcome as unknown identifier — do not leak account existence via 500.
+            log.warn("Forgot-password OTP email failed for {}: {}", user.getEmail(), e.getMessage());
+        }
     }
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {
         log.info("Verifying forgot password OTP for identifier={}", request.identifier());
-        userService.findByIdentifier(request.identifier());
+        if (userService.findOptionalByIdentifier(request.identifier()).isEmpty()) {
+            // Same client-facing signal as a wrong OTP — do not reveal account existence.
+            throw new BadRequestException("Invalid OTP");
+        }
         otpService.verify(
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
                 request.identifier(),
@@ -362,7 +411,9 @@ public class AuthService {
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_PASSWORD_RESET,
                 request.identifier(),
                 request.otp());
-        User user = userService.findByIdentifier(request.identifier());
+        User user = userService.findOptionalByIdentifier(request.identifier())
+                .orElseThrow(() -> new BadRequestException(
+                        "Unable to reset password. Please request a new OTP and try again."));
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
         otpService.clear(

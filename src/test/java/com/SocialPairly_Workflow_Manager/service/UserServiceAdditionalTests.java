@@ -81,6 +81,14 @@ class UserServiceAdditionalTests {
     }
 
     @Test
+    void findOptionalByIdentifierShouldReturnEmptyWhenMissing() {
+        when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByPhoneNumber(anyString())).thenReturn(Optional.empty());
+
+        assertTrue(userService.findOptionalByIdentifier("missing@example.com").isEmpty());
+    }
+
+    @Test
     void findByIdentifierShouldReturnUserByEmail() {
         User user = new User();
         user.setId(5L);

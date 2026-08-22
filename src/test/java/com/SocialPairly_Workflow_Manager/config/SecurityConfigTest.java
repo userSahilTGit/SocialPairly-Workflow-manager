@@ -16,7 +16,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,7 +29,15 @@ class SecurityConfigTest {
 
     @BeforeEach
     void setUp() {
-        securityConfig = new SecurityConfig(mock(JwtAuthenticationFilter.class));
+        securityConfig = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                true,
+                false,
+                "");
     }
 
     @Test
@@ -80,5 +91,56 @@ class SecurityConfigTest {
         assertTrue(config.getAllowCredentials());
         assertTrue(config.getAllowedMethods().contains("GET"));
         assertTrue(config.getAllowedMethods().contains("OPTIONS"));
+        assertTrue(config.getExposedHeaders().contains("X-XSRF-TOKEN"));
+    }
+
+    @Test
+    void testCorsIncludesAdditionalOrigins() {
+        SecurityConfig httpsConfig = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                true,
+                true,
+                31_536_000L,
+                true,
+                true,
+                "https://app.example.com, https://admin.example.com");
+
+        CorsConfiguration config = ((UrlBasedCorsConfigurationSource) httpsConfig.corsConfigurationSource())
+                .getCorsConfiguration(new MockHttpServletRequest());
+
+        assertNotNull(config);
+        assertTrue(config.getAllowedOrigins().contains("http://localhost:5173"));
+        assertTrue(config.getAllowedOrigins().contains("https://app.example.com"));
+        assertTrue(config.getAllowedOrigins().contains("https://admin.example.com"));
+    }
+
+    @Test
+    void testParseAdditionalOriginsIgnoresBlank() {
+        assertTrue(SecurityConfig.parseAdditionalOrigins("").isEmpty());
+        assertTrue(SecurityConfig.parseAdditionalOrigins("  , , ").isEmpty());
+        assertEquals(List.of("https://a.com"), SecurityConfig.parseAdditionalOrigins(" https://a.com "));
+    }
+
+    @Test
+    void testRequireHttpsFilterChainBuilds() throws Exception {
+        SecurityConfig httpsConfig = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                true,
+                true,
+                31_536_000L,
+                true,
+                true,
+                "");
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        SecurityFilterChain result = httpsConfig.filterChain(httpSecurity);
+
+        assertNotNull(result);
+        assertSame(filterChain, result);
+        verify(httpSecurity).requiresChannel(any());
     }
 }

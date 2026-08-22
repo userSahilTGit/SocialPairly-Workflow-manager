@@ -19,10 +19,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final CustomUserDetailsService userDetailsService;
+    private final AuthCookieService authCookieService;
+    private final JwtTokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(
+            JwtUtil jwtUtil,
+            CustomUserDetailsService userDetailsService,
+            AuthCookieService authCookieService,
+            JwtTokenBlacklistService tokenBlacklistService
+    ) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+        this.authCookieService = authCookieService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -31,25 +40,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
+        final String token = authCookieService.resolveToken(request);
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            final String token = authHeader.substring(7);
+        if (token != null
+                && jwtUtil.isTokenValid(token)
+                && !tokenBlacklistService.isRevoked(token)
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                if (jwtUtil.isTokenValid(token)
-                        && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    String email = jwtUtil.extractEmail(token);
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                String email = jwtUtil.extractEmail(token);
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                }
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception ignored) {
-                // Invalid token -> leave context unauthenticated
+                // Invalid token / unknown user -> leave context unauthenticated
             }
         }
 
