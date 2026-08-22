@@ -563,7 +563,7 @@ public class IdentityOnboardingService {
         if (dto.willingToRelocate() != null) {
             background.setWillingToRelocate(blankToNull(dto.willingToRelocate().trim().toUpperCase(Locale.ROOT)));
         }
-        background.setEventTravelRadiusKm(dto.eventTravelRadiusKm());
+        background.setEventTravelRadiusMiles(dto.eventTravelRadiusMiles());
 
         List<String> preferred = new ArrayList<>();
         if (dto.preferredFutureLocations() != null) {
@@ -933,7 +933,7 @@ public class IdentityOnboardingService {
         }
         String preferred = trimToNull(request.preferredName());
 
-        validateAllowlist("namePrefix", prefix == null ? "" : prefix, PREFIXES);
+        validateAllowlist("namePrefix", prefix, PREFIXES);
         validateAllowlist("nameSuffix", suffix == null ? "" : suffix, SUFFIXES);
         validateNameField("firstName", first, strict);
         validateNameField("lastName", last, strict);
@@ -969,13 +969,13 @@ public class IdentityOnboardingService {
         String pronouns = normalizeOptional(request.pronouns());
         String gender = normalizeOptional(request.gender());
         String visibility = normalizeOptional(request.genderShownToMatches());
-        if (visibility == null || visibility.isBlank()) {
+        if (visibility.isBlank()) {
             visibility = "MATCHES";
         } else {
             visibility = visibility.toUpperCase(Locale.ROOT);
         }
-        validateAllowlist("pronouns", pronouns == null ? "" : pronouns, PRONOUNS);
-        validateAllowlist("gender", gender == null ? "" : gender, GENDERS);
+        validateAllowlist("pronouns", pronouns, PRONOUNS);
+        validateAllowlist("gender", gender, GENDERS);
         validateAllowlist("genderShownToMatches", visibility, GENDER_VISIBILITY);
 
         String secondaryEmail = trimToNull(request.secondaryEmail());
@@ -987,16 +987,10 @@ public class IdentityOnboardingService {
         String secondaryPhone = optionalPhone(request.secondaryPhone());
         String homePhone = optionalPhone(request.homePhone());
 
-        String contactMethod = normalizeOptional(request.preferredContactMethod());
-        if (contactMethod != null) {
-            contactMethod = contactMethod.toUpperCase(Locale.ROOT);
-        }
-        String bestTime = normalizeOptional(request.bestTimeToContact());
-        if (bestTime != null) {
-            bestTime = bestTime.toUpperCase(Locale.ROOT);
-        }
-        validateAllowlist("preferredContactMethod", contactMethod == null ? "" : contactMethod, CONTACT_METHODS);
-        validateAllowlist("bestTimeToContact", bestTime == null ? "" : bestTime, BEST_TIMES);
+        String contactMethod = normalizeOptional(request.preferredContactMethod()).toUpperCase(Locale.ROOT);
+        String bestTime = normalizeOptional(request.bestTimeToContact()).toUpperCase(Locale.ROOT);
+        validateAllowlist("preferredContactMethod", contactMethod, CONTACT_METHODS);
+        validateAllowlist("bestTimeToContact", bestTime, BEST_TIMES);
 
         user.setNamePrefix(blankToNull(prefix));
         if (first != null) {
@@ -1121,15 +1115,24 @@ public class IdentityOnboardingService {
         }
     }
 
+    private static final Pattern US_ZIP_PATTERN = Pattern.compile("^[0-9]{5}(-[0-9]{4})?$");
+
     private void validatePostalCode(String countryCode, String postalCode) {
         if (countryCode == null || postalCode == null) {
+            return;
+        }
+        if ("US".equalsIgnoreCase(countryCode)) {
+            if (!US_ZIP_PATTERN.matcher(postalCode).matches()) {
+                throw new BadRequestException(
+                        "Invalid zip code. Use 5 digits or 5 digits-4 digits (e.g. 12345 or 12345-6789)");
+            }
             return;
         }
         RefCountry country = refCountryRepository.findById(countryCode)
                 .orElseThrow(() -> new BadRequestException("Unsupported countryCode: " + countryCode));
         String regex = country.getPostalRegex();
         if (regex != null && !regex.isBlank() && !Pattern.compile(regex).matcher(postalCode).matches()) {
-            throw new BadRequestException("Invalid postalCode for country " + countryCode);
+            throw new BadRequestException("Invalid zip code for country " + countryCode);
         }
     }
 
@@ -1369,7 +1372,7 @@ public class IdentityOnboardingService {
                 || bg.getMoveInMonth() != null
                 || bg.getMoveInYear() != null
                 || trimToNull(bg.getWillingToRelocate()) != null
-                || bg.getEventTravelRadiusKm() != null
+                || bg.getEventTravelRadiusMiles() != null
                 || !readStringList(bg.getPreferredRelocateLocations()).isEmpty();
     }
 
@@ -1490,7 +1493,7 @@ public class IdentityOnboardingService {
                 r.getMoveInYear(),
                 calculateResidenceDurationMonths(r.getMoveInMonth(), r.getMoveInYear()),
                 r.getWillingToRelocate(),
-                r.getEventTravelRadiusKm(),
+                r.getEventTravelRadiusMiles(),
                 readStringList(r.getPreferredRelocateLocations())
         );
     }

@@ -20,7 +20,7 @@ public final class IdentitySectionDtos {
             Integer moveInYear,
             Integer residenceDurationMonths,
             String willingToRelocate,
-            Integer eventTravelRadiusKm,
+            Integer eventTravelRadiusMiles,
             List<String> preferredFutureLocations
     ) {}
 

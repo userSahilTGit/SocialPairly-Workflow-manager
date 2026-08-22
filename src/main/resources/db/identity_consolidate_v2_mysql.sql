@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS user_identity_background (
   move_in_month                   TINYINT      NULL,
   move_in_year                    SMALLINT     NULL,
   willing_to_relocate             VARCHAR(40)  NULL,
-  event_travel_radius_km          INT          NULL,
+  event_travel_radius_miles          INT          NULL,
   -- nationality
   country_of_birth                CHAR(2)      NULL,
   primary_nationality             CHAR(2)      NULL,
@@ -203,7 +203,7 @@ ALTER TABLE user_identity_compliance
 - A) Background aggregate (one row per user that has any of residence/nationality/immigration)
 INSERT INTO user_identity_background (
   user_id, line1, line2, unit, city, state_region, postal_code, country_code,
-  residence_type, move_in_month, move_in_year, willing_to_relocate, event_travel_radius_km,
+  residence_type, move_in_month, move_in_year, willing_to_relocate, event_travel_radius_miles,
   country_of_birth, primary_nationality, country_of_citizenship,
   current_country_of_residence, residency_category, international_relocation_pref,
   future_sponsorship_required, open_to_partner_abroad,

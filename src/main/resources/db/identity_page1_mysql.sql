@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS user_current_residence (
   move_in_month           TINYINT      NULL,
   move_in_year            SMALLINT     NULL,
   willing_to_relocate     VARCHAR(40)  NULL,
-  event_travel_radius_km  INT          NULL,
+  event_travel_radius_miles  INT          NULL,
   created_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   updated_at              DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (id),

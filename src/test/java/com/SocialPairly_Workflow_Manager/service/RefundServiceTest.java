@@ -456,6 +456,29 @@ class RefundServiceTest {
         assertEquals(new BigDecimal("95.00"), result.get().refundAmount());
     }
 
+    @Test
+    void getCurrentUserRefundCompletedFallsBackWhenAmountRefundedNull() {
+        refund.setStatus(RefundStatus.Completed);
+        payment.setAmount(new BigDecimal("100.00"));
+        payment.setAmountRefunded(null);
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(refundRepository.findFirstByUser_IdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(refund));
+
+        Optional<RefundDto> result = refundService.getCurrentUserRefund();
+        assertTrue(result.isPresent());
+        assertEquals(new BigDecimal("95.00"), result.get().refundAmount());
+    }
+
+    @Test
+    void requestRefundRejectsWhenUpgradeInProgress() {
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.existsByUser_IdAndStatusNotIn(eq(1L), any())).thenReturn(true);
+
+        assertThrows(BadRequestException.class,
+                () -> refundService.submitRefundRequest(new RefundRequestDto("reason")));
+    }
+
     private BankDetailsRequestDto createBankDetailsRequest() {
         return new BankDetailsRequestDto(
                 "John Doe",

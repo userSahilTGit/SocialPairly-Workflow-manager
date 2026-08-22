@@ -31,4 +31,28 @@ class IdentityPerfTest {
         assertEquals(IdentityPerf.TARGET_MS, meta.get("targetMs"));
         assertEquals(true, meta.get("withinTarget"));
     }
+
+    @Test
+    void timingMetaMarksOverTarget() {
+        Map<String, Object> meta = IdentityPerf.timingMeta(IdentityPerf.TARGET_MS + 1);
+        assertEquals(false, meta.get("withinTarget"));
+    }
+
+    @Test
+    void timedMarksOutsideTargetWhenActionIsSlow() throws Exception {
+        ResponseEntity<String> result = IdentityPerf.timed(
+                "slowOp",
+                1L,
+                () -> {
+                    try {
+                        Thread.sleep(IdentityPerf.TARGET_MS + 50);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return ResponseEntity.ok("done");
+                }
+        );
+        assertEquals("false", result.getHeaders().getFirst("X-Identity-Within-Target"));
+        assertEquals("done", result.getBody());
+    }
 }

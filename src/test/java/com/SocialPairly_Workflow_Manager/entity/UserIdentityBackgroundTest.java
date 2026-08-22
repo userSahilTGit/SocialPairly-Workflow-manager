@@ -39,7 +39,7 @@ class UserIdentityBackgroundTest {
         background.setMoveInMonth(6);
         background.setMoveInYear(2020);
         background.setWillingToRelocate("Yes");
-        background.setEventTravelRadiusKm(50);
+        background.setEventTravelRadiusMiles(50);
         background.setCountryOfBirth("US");
         background.setPrimaryNationality("US");
         background.setCountryOfCitizenship("US");
@@ -69,7 +69,7 @@ class UserIdentityBackgroundTest {
         assertEquals(6, background.getMoveInMonth());
         assertEquals(2020, background.getMoveInYear());
         assertEquals("Yes", background.getWillingToRelocate());
-        assertEquals(50, background.getEventTravelRadiusKm());
+        assertEquals(50, background.getEventTravelRadiusMiles());
         assertEquals("US", background.getCountryOfBirth());
         assertEquals("US", background.getPrimaryNationality());
         assertEquals("US", background.getCountryOfCitizenship());

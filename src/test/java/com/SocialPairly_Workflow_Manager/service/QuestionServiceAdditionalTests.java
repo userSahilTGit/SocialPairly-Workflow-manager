@@ -84,4 +84,32 @@ class QuestionServiceAdditionalTests {
 
         assertThrows(ResourceNotFoundException.class, () -> questionService.delete(4L));
     }
+
+    @Test
+    void createDefaultsTypeAndSkipsBlankOptionsForChoiceQuestions() {
+        when(questionRepository.save(any(Question.class))).thenAnswer(i -> {
+            Question q = i.getArgument(0);
+            if (q.getOptions() == null) {
+                q.setOptions(new java.util.ArrayList<>());
+            }
+            return q;
+        });
+
+        QuestionRequest textReq = new QuestionRequest("Q?", null, "cat", false, true, List.of("ignored"));
+        Question text = questionService.create(textReq);
+        assertEquals(QuestionType.TEXT, text.getType());
+
+        Question choice = new Question();
+        choice.setOptions(new java.util.ArrayList<>());
+        when(questionRepository.findById(9L)).thenReturn(Optional.of(choice));
+        when(questionRepository.save(any(Question.class))).thenAnswer(i -> i.getArgument(0));
+
+        QuestionRequest choiceReq = new QuestionRequest(
+                "Pick", QuestionType.MULTI_CHOICE, "cat", true, true,
+                java.util.Arrays.asList("A", "  ", null, "B")
+        );
+        Question updated = questionService.update(9L, choiceReq);
+        assertEquals(2, updated.getOptions().size());
+        assertEquals("A", updated.getOptions().get(0).getOptionText());
+    }
 }

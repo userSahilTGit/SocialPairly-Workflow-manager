@@ -250,4 +250,50 @@ class UserTokenServiceAdditionalTest {
         assertEquals(0, result.tokensRemoved());
         verify(userRepository, never()).save(any());
     }
+
+    @Test
+    void applyPlanTokenClawbackNullUserAndNullPlanAndZeroPayment() {
+        assertEquals(0, userTokenService.applyPlanTokenClawbackOnRefund(null, plan, null).previousBalance());
+
+        user.setUserTokens(10);
+        var skip = userTokenService.applyPlanTokenClawbackOnRefund(user, null, null);
+        assertEquals(10, skip.previousBalance());
+        assertEquals(0, skip.tokensRemoved());
+
+        plan.setTokensIncluded("100");
+        when(userRepository.save(user)).thenReturn(user);
+        var zeroPay = userTokenService.applyPlanTokenClawbackOnRefund(user, plan, null);
+        assertEquals(0, user.getUserTokens());
+        assertEquals(90, zeroPay.excessTokensUsed());
+        assertEquals(java.math.BigDecimal.ZERO, zeroPay.tokenUsageCost());
+    }
+
+    @Test
+    void ensureSubscriptionTokensCreditedSkipsUnrelatedSubscriptionPayments() {
+        Subscription subscription = new Subscription();
+        subscription.setId(10L);
+        subscription.setPlan(plan);
+
+        Subscription other = new Subscription();
+        other.setId(99L);
+
+        Payment unrelated = new Payment();
+        unrelated.setId(21L);
+        unrelated.setStatus("succeeded");
+        unrelated.setTokensCredited(false);
+        unrelated.setSubscription(other);
+
+        when(paymentRepository.findBySubscription_Id(10L)).thenReturn(List.of());
+        when(paymentRepository.findUncreditedSucceededPaymentsForUser(1L)).thenReturn(List.of(unrelated));
+
+        userTokenService.ensureSubscriptionTokensCredited(user, subscription);
+        assertFalse(unrelated.isTokensCredited());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void creditTokensFromPlanLogsWhenPlanPresentButNonNumeric() {
+        plan.setTokensIncluded("   ");
+        assertEquals(100, userTokenService.creditTokensFromPlan(user, plan));
+    }
 }

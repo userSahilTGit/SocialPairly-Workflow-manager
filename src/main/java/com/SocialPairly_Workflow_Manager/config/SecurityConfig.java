@@ -123,19 +123,25 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        List<String> origins = new ArrayList<>(List.of(
+        config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
                 "http://localhost:8081",
-                "http://3.151.77.90"));
-        origins.addAll(parseAdditionalOrigins(additionalCorsOrigins));
-        config.setAllowedOrigins(origins);
+                "http://3.151.77.90",
+                "http://3.151.77.90.nip.io",
+                "https://3.151.77.90.nip.io"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
-        config.setExposedHeaders(List.of("Authorization", "X-XSRF-TOKEN"));
+        config.setExposedHeaders(List.of(
+                "Authorization",
+                "X-Identity-Duration-Ms",
+                "X-Identity-Op",
+                "X-Identity-Within-Target"
+        ));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

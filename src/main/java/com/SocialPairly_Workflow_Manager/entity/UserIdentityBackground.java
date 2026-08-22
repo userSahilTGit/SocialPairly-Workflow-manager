@@ -56,8 +56,8 @@ public class UserIdentityBackground {
     @Column(name = "willing_to_relocate", length = 40)
     private String willingToRelocate;
 
-    @Column(name = "event_travel_radius_km")
-    private Integer eventTravelRadiusKm;
+    @Column(name = "event_travel_radius_miles")
+    private Integer eventTravelRadiusMiles;
 
     @Column(name = "country_of_birth", columnDefinition = "char(2)")
     private String countryOfBirth;
@@ -159,8 +159,8 @@ public class UserIdentityBackground {
     public String getWillingToRelocate() { return willingToRelocate; }
     public void setWillingToRelocate(String willingToRelocate) { this.willingToRelocate = willingToRelocate; }
 
-    public Integer getEventTravelRadiusKm() { return eventTravelRadiusKm; }
-    public void setEventTravelRadiusKm(Integer eventTravelRadiusKm) { this.eventTravelRadiusKm = eventTravelRadiusKm; }
+    public Integer getEventTravelRadiusMiles() { return eventTravelRadiusMiles; }
+    public void setEventTravelRadiusMiles(Integer eventTravelRadiusMiles) { this.eventTravelRadiusMiles = eventTravelRadiusMiles; }
 
     public String getCountryOfBirth() { return countryOfBirth; }
     public void setCountryOfBirth(String countryOfBirth) { this.countryOfBirth = countryOfBirth; }

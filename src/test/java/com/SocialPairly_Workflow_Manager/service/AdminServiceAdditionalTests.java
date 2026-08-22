@@ -4,9 +4,11 @@ import com.SocialPairly_Workflow_Manager.dto.AdminPaymentDto;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Payment;
 import com.SocialPairly_Workflow_Manager.entity.Question;
+import com.SocialPairly_Workflow_Manager.entity.QuestionOption;
 import com.SocialPairly_Workflow_Manager.entity.QuestionType;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.entity.UserAnswer;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
@@ -109,5 +111,44 @@ class AdminServiceAdditionalTests {
         assertEquals(0, stats.totalQuestions());
         assertTrue(stats.answerDistribution().isEmpty());
         assertEquals(0, stats.newUsersLastDays());
+    }
+
+    @Test
+    void getStatsCoversChoiceAnswerDistributionAndNullCreatedAt() {
+        User admin = new User();
+        admin.setRole(Role.ADMIN);
+        admin.setProfileCompleted(true);
+        admin.setCreatedAt(null);
+
+        User member = new User();
+        member.setRole(Role.USER);
+        member.setProfileCompleted(false);
+        member.setCreatedAt(LocalDateTime.now().minusDays(1));
+
+        QuestionOption opt = new QuestionOption();
+        opt.setOptionText("Yes");
+        Question q = new Question();
+        q.setId(10L);
+        q.setType(QuestionType.SINGLE_CHOICE);
+        q.setOptions(List.of(opt));
+
+        UserAnswer answer = new UserAnswer();
+        answer.setQuestion(q);
+        answer.setAnswerValue("Yes, No");
+
+        UserAnswer blank = new UserAnswer();
+        blank.setQuestion(q);
+        blank.setAnswerValue("  ");
+
+        when(userRepository.findAll()).thenReturn(List.of(admin, member));
+        when(questionRepository.count()).thenReturn(1L);
+        when(questionRepository.findAll()).thenReturn(List.of(q));
+        when(answerRepository.findAll()).thenReturn(List.of(answer, blank));
+
+        var stats = adminService.getStats();
+        assertEquals(2, stats.totalUsers());
+        assertEquals(1, stats.totalAdmins());
+        assertEquals(1, stats.newUsersLastDays());
+        assertFalse(stats.answerDistribution().isEmpty());
     }
 }

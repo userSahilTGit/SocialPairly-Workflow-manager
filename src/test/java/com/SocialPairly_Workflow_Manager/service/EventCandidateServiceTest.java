@@ -315,6 +315,35 @@ class EventCandidateServiceTest {
     }
 
     @Test
+    void searchCandidatesNullOccupationAndEducationFailFilters() {
+        stubRepositories();
+        aliceProfile.setOccupation(null);
+        aliceProfile.setEducations(null);
+        bobProfile.setOccupation(null);
+
+        assertTrue(eventCandidateService.searchCandidates(
+                null, null, null, null, null, null, null, "engineer", null, null).isEmpty());
+        assertTrue(eventCandidateService.searchCandidates(
+                null, null, null, null, null, null, null, null, "master", null).isEmpty());
+    }
+
+    @Test
+    void searchCandidatesBlankLocationProfessionEducationPassThrough() {
+        stubRepositories();
+        assertEquals(2, eventCandidateService.searchCandidates(
+                null, null, null, null, null, null, "  ", "  ", "  ", "  ").size());
+    }
+
+    @Test
+    void searchCandidatesQueryMatchesMaritalAndEducation() {
+        stubRepositories();
+        assertEquals(1, eventCandidateService.searchCandidates(
+                "single", null, null, null, null, null, null, null, null, null).size());
+        assertEquals(1, eventCandidateService.searchCandidates(
+                "master", null, null, null, null, null, null, null, null, null).size());
+    }
+
+    @Test
     void searchCandidatesShouldExcludeWhenGenderFilterDoesNotMatchNullGender() {
         stubRepositories();
         aliceProfile.setGender(null);
