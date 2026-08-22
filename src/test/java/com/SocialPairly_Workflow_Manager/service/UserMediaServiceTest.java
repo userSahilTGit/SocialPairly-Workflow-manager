@@ -593,6 +593,28 @@ class UserMediaServiceTest {
         assertArrayEquals(new byte[]{3, 4, 5}, existing.getMediaData());
     }
 
+    @Test
+    @DisplayName("uploadProfilePhoto - replaces cover photo without PRIMARY category")
+    void uploadProfilePhoto_replacesCoverWithoutPrimaryCategory() {
+        UserMedia existing = photo(8L, "FULL_LENGTH", true, MediaStatus.APPROVED);
+        existing.setPrivacyMode(null);
+        when(userMediaRepository.findByUserId(1L)).thenReturn(List.of(existing));
+        when(userMediaRepository.save(any(UserMedia.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile("file", "new.jpg", "image/jpeg", new byte[]{9});
+        MediaUploadResponseDto dto = service.uploadProfilePhoto(owner, file);
+        assertEquals("/api/media/8/stream", dto.getMediaUrl());
+        assertEquals("PRIMARY", existing.getMediaCategory());
+        assertEquals("PUBLIC", existing.getPrivacyMode());
+    }
+
+    @Test
+    @DisplayName("uploadProfilePhoto - rejects null content type")
+    void uploadProfilePhoto_rejectsNullContentType() {
+        MockMultipartFile file = new MockMultipartFile("file", "x.bin", null, new byte[]{1});
+        assertThrows(BadRequestException.class, () -> service.uploadProfilePhoto(owner, file));
+    }
+
     // ==================== helpers ====================
 
     private UserMedia media(Long id, MediaType type, MediaStatus status) {

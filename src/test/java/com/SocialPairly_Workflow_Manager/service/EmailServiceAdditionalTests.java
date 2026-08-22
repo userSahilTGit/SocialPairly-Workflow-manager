@@ -1,11 +1,15 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
+import com.SocialPairly_Workflow_Manager.entity.EventDetail;
 import com.SocialPairly_Workflow_Manager.entity.Payment;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
+import com.SocialPairly_Workflow_Manager.entity.ReactionType;
 import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,12 +20,15 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Properties;
 
 import jakarta.mail.Session;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -274,6 +281,81 @@ class EmailServiceAdditionalTests {
         emailService.sendSubscriptionConfirmationEmail(user, subscription, payment);
 
         verify(mailSender).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendEventEmailsSkipInvalidAndSendWhenValid() {
+        User bad = new User();
+        bad.setEmail(null);
+        EventDetail event = sampleEvent();
+        emailService.sendEventInvitationEmail(bad, event);
+        emailService.sendEventUpdateEmail(bad, event);
+        emailService.sendInvitationAcceptedEmail(bad, event, "CODE");
+        verify(mailSender, never()).send(any(MimeMessage.class));
+
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        ReflectionTestUtils.setField(emailService, "frontendUrl", "https://app.test");
+        emailService.sendEventInvitationEmail(validUser(), event);
+        emailService.sendEventUpdateEmail(validUser(), event);
+        emailService.sendInvitationAcceptedEmail(validUser(), event, "ENTRY");
+        verify(mailSender, times(3)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendProfileReactionEmailCoversAllReactionLabels() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        ReflectionTestUtils.setField(emailService, "frontendUrl", "https://app.test");
+        EventDetail event = sampleEvent();
+        User reactor = validUser();
+        reactor.setFirstName("Sam");
+        for (ReactionType type : ReactionType.values()) {
+            emailService.sendProfileReactionEmail(validUser(), reactor, event, type);
+        }
+        verify(mailSender, times(ReactionType.values().length)).send(any(MimeMessage.class));
+
+        User bad = new User();
+        bad.setEmail("bad");
+        emailService.sendProfileReactionEmail(bad, reactor, event, ReactionType.Wave);
+    }
+
+    @Test
+    void sendEmailVerificationOtpEmailSendsAndRejectsInvalid() throws Exception {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        emailService.sendEmailVerificationOtpEmail(validUser(), "1234");
+        verify(mailSender).send(any(MimeMessage.class));
+
+        User bad = new User();
+        bad.setEmail("nope");
+        assertThrows(MessagingException.class,
+                () -> emailService.sendEmailVerificationOtpEmail(bad, "1234"));
+    }
+
+    @Test
+    void sendRefundFinalizedEmailCoversTokenDeductionBranches() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        Refund refund = refundWithPayment();
+
+        emailService.sendRefundFinalizedEmail(validUser(), refund, new BigDecimal("80.00"),
+                new RefundTokenAdjustment(100, 0, 100, 100, 50, new BigDecimal("20.00")));
+        emailService.sendRefundFinalizedEmail(validUser(), refund, new BigDecimal("90.00"),
+                new RefundTokenAdjustment(10, 0, 10, 1, 0, BigDecimal.ZERO));
+        emailService.sendRefundFinalizedEmail(validUser(), refund, new BigDecimal("95.00"),
+                new RefundTokenAdjustment(5, 0, 5, 2, 0, BigDecimal.ZERO));
+        emailService.sendRefundFinalizedEmail(validUser(), refund, new BigDecimal("95.00"), null);
+        emailService.sendRefundFinalizedEmail(validUser(), refund, new BigDecimal("95.00"));
+
+        verify(mailSender, times(5)).send(any(MimeMessage.class));
+    }
+
+    private EventDetail sampleEvent() {
+        EventDetail event = new EventDetail();
+        event.setTitle("Mixer");
+        event.setEventCode("EV1");
+        event.setVenueName("Hall");
+        event.setLocation("Austin");
+        event.setEventDate(LocalDate.of(2026, 9, 1));
+        event.setEventTime(LocalTime.of(18, 30));
+        return event;
     }
 
     private User validUser() {

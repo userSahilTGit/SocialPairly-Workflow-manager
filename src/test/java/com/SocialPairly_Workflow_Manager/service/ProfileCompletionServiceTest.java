@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.entity.Education;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserAnswer;
@@ -85,5 +86,78 @@ class ProfileCompletionServiceTest {
         assertEquals(10, result.get("filledSections"));
         assertEquals(100, result.get("percentage"));
         assertTrue((Boolean) result.get("profileCompleted"));
+    }
+
+    @Test
+    void emptyProfileFieldsAndLocationCountryOnly() {
+        User user = new User();
+        user.setId(3L);
+        UserProfile profile = new UserProfile();
+        profile.setProfilePhotoUrl("  ");
+        profile.setAboutMe("");
+        profile.setLocationCountry("US");
+        profile.setInterests(Set.of());
+        profile.setEducations(List.of());
+
+        when(questionRepository.findByActiveTrueOrderByCreatedAtAsc()).thenReturn(List.of());
+
+        Map<String, Object> result = profileCompletionService.calculate(user, profile);
+        assertEquals(2, result.get("filledSections")); // location + no questions
+    }
+
+    @Test
+    void locationCityOnlyAndEducationWithoutInstitution() {
+        User user = new User();
+        user.setId(4L);
+        UserProfile profile = new UserProfile();
+        profile.setLocationCity("Austin");
+        Education edu = new Education();
+        edu.setInstitution("  ");
+        profile.setEducations(List.of(edu));
+
+        Question q = new Question();
+        q.setId(1L);
+        when(questionRepository.findByActiveTrueOrderByCreatedAtAsc()).thenReturn(List.of(q));
+        when(answerRepository.findByUserId(4L)).thenReturn(List.of());
+
+        Map<String, Object> result = profileCompletionService.calculate(user, profile);
+        assertEquals(1, result.get("filledSections"));
+    }
+
+    @Test
+    void allQuestionsAnsweredCountsFullSection() {
+        User user = new User();
+        user.setId(5L);
+        UserProfile profile = new UserProfile();
+
+        Question q1 = new Question();
+        q1.setId(1L);
+        Question q2 = new Question();
+        q2.setId(2L);
+        when(questionRepository.findByActiveTrueOrderByCreatedAtAsc()).thenReturn(List.of(q1, q2));
+
+        UserAnswer a1 = new UserAnswer();
+        a1.setAnswerValue("yes");
+        UserAnswer a2 = new UserAnswer();
+        a2.setAnswerValue("no");
+        UserAnswer blank = new UserAnswer();
+        blank.setAnswerValue("  ");
+        when(answerRepository.findByUserId(5L)).thenReturn(List.of(a1, a2, blank));
+
+        Map<String, Object> result = profileCompletionService.calculate(user, profile);
+        assertEquals(1, result.get("filledSections"));
+    }
+
+    @Test
+    void nullEducationsAndNullInterestsDoNotCount() {
+        User user = new User();
+        user.setId(6L);
+        UserProfile profile = new UserProfile();
+        profile.setEducations(null);
+        profile.setInterests(null);
+        when(questionRepository.findByActiveTrueOrderByCreatedAtAsc()).thenReturn(List.of());
+
+        Map<String, Object> result = profileCompletionService.calculate(user, profile);
+        assertEquals(1, result.get("filledSections"));
     }
 }

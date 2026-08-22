@@ -32,12 +32,15 @@ class FileStorageServiceAdditionalTests {
     }
 
     @Test
-    void storeShouldSaveValidImage() {
+    void storeShouldRejectNullFileAndNullContentTypeAndNullOriginalName() {
         FileStorageService service = new FileStorageService(tempDir.toString());
-        MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", "hello".getBytes());
+        assertThrows(BadRequestException.class, () -> service.store(null));
 
-        String path = service.store(file);
+        MockMultipartFile noType = new MockMultipartFile("file", "a.png", null, "x".getBytes());
+        assertThrows(BadRequestException.class, () -> service.store(noType));
 
+        MockMultipartFile noName = new MockMultipartFile("file", null, "image/png", "x".getBytes());
+        String path = service.store(noName);
         assertTrue(path.startsWith("/uploads/"));
     }
 }

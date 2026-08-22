@@ -3,8 +3,12 @@ package com.SocialPairly_Workflow_Manager.service;
 import com.SocialPairly_Workflow_Manager.dto.PaymentRequestDTO;
 import com.SocialPairly_Workflow_Manager.dto.PaymentResponseDTO;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
+import com.SocialPairly_Workflow_Manager.entity.PlanUpgradeAction;
+import com.SocialPairly_Workflow_Manager.entity.PlanUpgradeRequest;
+import com.SocialPairly_Workflow_Manager.entity.PlanUpgradeStatus;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
 import com.stripe.Stripe;
@@ -146,5 +150,137 @@ public class PaymentServiceTest {
 
         assertTrue(ex.getMessage().contains("already have an active subscription"));
         sessionStatic.verifyNoInteractions();
+    }
+
+    @Test
+    public void checkoutProducts_defaultsCurrencyQuantityNameAndPlanAmount() throws Exception {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("user@test.com");
+
+        Plan plan = new Plan();
+        plan.setId(10L);
+        plan.setPlanName("Default Plan");
+        plan.setAmount(new BigDecimal("12.50"));
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planRepository.findById(10L)).thenReturn(Optional.of(plan));
+
+        PaymentRequestDTO request = new PaymentRequestDTO();
+        request.setPlanId(10L);
+
+        Session mockSession = new Session();
+        mockSession.setId("sess_def");
+        mockSession.setUrl("https://checkout.stripe.com/session/sess_def");
+        sessionStatic.when(() -> Session.create(any(SessionCreateParams.class))).thenReturn(mockSession);
+
+        PaymentResponseDTO response = paymentService.checkoutProducts(request);
+        assertEquals("SUCCESS", response.getStatus());
+    }
+
+    @Test
+    public void checkoutProducts_requiresPlanId() {
+        User user = new User();
+        user.setId(1L);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+
+        PaymentRequestDTO request = new PaymentRequestDTO();
+        assertThrows(BadRequestException.class, () -> paymentService.checkoutProducts(request));
+    }
+
+    @Test
+    public void checkoutUpgrade_happyPath() throws Exception {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("user@test.com");
+
+        Plan plan = new Plan();
+        plan.setId(20L);
+        plan.setPlanName("Pro");
+        plan.setAmount(new BigDecimal("99.00"));
+
+        PlanUpgradeRequest upgrade = new PlanUpgradeRequest();
+        upgrade.setId(5L);
+        upgrade.setUser(user);
+        upgrade.setUpgradePlan("Pro");
+        upgrade.setStatus(PlanUpgradeStatus.InProgress);
+        upgrade.setAction(PlanUpgradeAction.Approved);
+        upgrade.setExtraAmount(new BigDecimal("25.00"));
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.findByIdWithDetails(5L)).thenReturn(Optional.of(upgrade));
+        when(planRepository.findFirstByPlanNameIgnoreCase("Pro")).thenReturn(Optional.of(plan));
+
+        Session mockSession = new Session();
+        mockSession.setId("sess_up");
+        mockSession.setUrl("https://checkout.stripe.com/session/sess_up");
+        sessionStatic.when(() -> Session.create(any(SessionCreateParams.class))).thenReturn(mockSession);
+
+        PaymentResponseDTO response = paymentService.checkoutUpgrade(5L);
+        assertEquals("SUCCESS", response.getStatus());
+        assertEquals("sess_up", response.getSessionId());
+    }
+
+    @Test
+    public void checkoutUpgrade_rejectsWrongUser() {
+        User user = new User();
+        user.setId(1L);
+        User other = new User();
+        other.setId(2L);
+
+        PlanUpgradeRequest upgrade = new PlanUpgradeRequest();
+        upgrade.setId(5L);
+        upgrade.setUser(other);
+        upgrade.setStatus(PlanUpgradeStatus.InProgress);
+        upgrade.setAction(PlanUpgradeAction.Approved);
+        upgrade.setExtraAmount(new BigDecimal("25.00"));
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.findByIdWithDetails(5L)).thenReturn(Optional.of(upgrade));
+
+        assertThrows(BadRequestException.class, () -> paymentService.checkoutUpgrade(5L));
+    }
+
+    @Test
+    public void checkoutUpgrade_rejectsWrongStatus() {
+        User user = new User();
+        user.setId(1L);
+        PlanUpgradeRequest upgrade = new PlanUpgradeRequest();
+        upgrade.setId(5L);
+        upgrade.setUser(user);
+        upgrade.setStatus(PlanUpgradeStatus.Started);
+        upgrade.setAction(PlanUpgradeAction.Approved);
+        upgrade.setExtraAmount(new BigDecimal("25.00"));
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.findByIdWithDetails(5L)).thenReturn(Optional.of(upgrade));
+
+        assertThrows(BadRequestException.class, () -> paymentService.checkoutUpgrade(5L));
+    }
+
+    @Test
+    public void checkoutUpgrade_rejectsZeroExtraAmount() {
+        User user = new User();
+        user.setId(1L);
+        PlanUpgradeRequest upgrade = new PlanUpgradeRequest();
+        upgrade.setId(5L);
+        upgrade.setUser(user);
+        upgrade.setStatus(PlanUpgradeStatus.InProgress);
+        upgrade.setAction(PlanUpgradeAction.Approved);
+        upgrade.setExtraAmount(BigDecimal.ZERO);
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.findByIdWithDetails(5L)).thenReturn(Optional.of(upgrade));
+
+        assertThrows(BadRequestException.class, () -> paymentService.checkoutUpgrade(5L));
+    }
+
+    @Test
+    public void checkoutUpgrade_notFound() {
+        User user = new User();
+        user.setId(1L);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(planUpgradeRequestRepository.findByIdWithDetails(99L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> paymentService.checkoutUpgrade(99L));
     }
 }
