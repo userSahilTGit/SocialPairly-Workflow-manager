@@ -70,6 +70,14 @@ public final class IdentityReferenceEnums {
             "PRIVATE", "MATCHES", "PUBLIC"
     );
 
+    public static final List<String> PROFICIENCY_LEVELS = List.of(
+            "BASIC", "CONVERSATIONAL", "FLUENT", "NATIVE"
+    );
+
+    public static final List<String> RELATIONSHIP_MODEL_PREFS = List.of(
+            "MONOGAMY", "POLYAMORY", "OPEN", "PREFER_NOT_TO_SAY"
+    );
+
     public static final List<Map<String, String>> LANGUAGE_OPTIONS = List.of(
             Map.of("code", "en", "name", "English"),
             Map.of("code", "ar", "name", "Arabic"),
@@ -100,6 +108,8 @@ public final class IdentityReferenceEnums {
                 Map.entry("debtRanges", DEBT_RANGES),
                 Map.entry("sharePreferences", SHARE_PREFERENCES),
                 Map.entry("languages", LANGUAGE_OPTIONS),
+                Map.entry("proficiencyLevels", PROFICIENCY_LEVELS),
+                Map.entry("relationshipModelPrefs", RELATIONSHIP_MODEL_PREFS),
                 Map.entry("backgroundConsentDocumentVersion", OnboardingSteps.BACKGROUND_CONSENT_DOCUMENT_VERSION)
         );
     }
