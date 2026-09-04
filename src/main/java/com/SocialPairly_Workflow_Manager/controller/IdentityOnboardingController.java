@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.controller;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundRequest;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundResponse;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.IdentityOnboardingService;
 import com.SocialPairly_Workflow_Manager.util.IdentityPerf;
@@ -117,21 +118,14 @@ public class IdentityOnboardingController {
         return ResponseEntity.ok(identityOnboardingService.handleVerificationWebhook(body));
     }
 
+    /**
+     * Phase 1: background screening is not offered. Keep the route so older clients
+     * fail fast instead of hanging on a consent dialog / save gate.
+     * Phase 2 will re-enable acceptBackgroundConsent.
+     */
     @PostMapping("/background-consent")
     public ResponseEntity<Map<String, Object>> backgroundConsent(@RequestBody Map<String, Object> body) {
-        User user = currentUserService.getCurrentUser();
-        Boolean accepted = null;
-        if (body != null && body.get("accepted") != null) {
-            Object raw = body.get("accepted");
-            if (raw instanceof Boolean b) {
-                accepted = b;
-            } else {
-                accepted = Boolean.parseBoolean(raw.toString());
-            }
-        }
-        String documentVersion = body == null || body.get("documentVersion") == null
-                ? null
-                : body.get("documentVersion").toString();
-        return ResponseEntity.ok(identityOnboardingService.acceptBackgroundConsent(user, accepted, documentVersion));
+        throw new BadRequestException(
+                "Background screening consent is not available in Phase 1");
     }
 }

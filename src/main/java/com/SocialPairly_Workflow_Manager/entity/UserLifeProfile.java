@@ -138,6 +138,9 @@ public class UserLifeProfile {
     @Column(name = "employer_name", length = 150)
     private String employerName;
 
+    @Column(name = "employment_type", length = 80)
+    private String employmentType;
+
     @Column(name = "show_employer_publicly", nullable = false)
     private Boolean showEmployerPublicly = false;
 
@@ -389,6 +392,9 @@ public class UserLifeProfile {
 
     public String getEmployerName() { return employerName; }
     public void setEmployerName(String employerName) { this.employerName = employerName; }
+
+    public String getEmploymentType() { return employmentType; }
+    public void setEmploymentType(String employmentType) { this.employmentType = employmentType; }
 
     public Boolean getShowEmployerPublicly() { return showEmployerPublicly; }
     public void setShowEmployerPublicly(Boolean showEmployerPublicly) {

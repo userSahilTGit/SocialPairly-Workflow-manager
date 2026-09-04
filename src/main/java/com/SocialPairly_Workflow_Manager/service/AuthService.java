@@ -146,11 +146,8 @@ public class AuthService {
                 request.otp());
         user.setEmailVerified(true);
         UserProfile profile = ensureProfile(user);
-        if (!user.isPhoneVerified()) {
-            profile.setOnboardingStep("STEP_2_VERIFY_EMAIL");
-        } else {
-            profile.setOnboardingStep("STEP_4_COMPLETED");
-        }
+        // Phase 1: email verification completes contact verification; phone SMS is deferred.
+        profile.setOnboardingStep("STEP_4_COMPLETED");
         userProfileRepository.save(profile);
         userRepository.save(user);
         otpService.clear(com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_EMAIL_VERIFY, email);

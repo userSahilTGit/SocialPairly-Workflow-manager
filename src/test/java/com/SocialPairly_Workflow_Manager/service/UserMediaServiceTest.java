@@ -249,11 +249,33 @@ class UserMediaServiceTest {
     @Test
     @DisplayName("getAllMediaForAdmin - returns all mapped")
     void getAllMediaForAdmin() {
-        when(userMediaRepository.findAllByOrderByCreatedAtDesc())
-                .thenReturn(List.of(media(1L, MediaType.PHOTO, MediaStatus.APPROVED)));
+        UserMedia sample = media(1L, MediaType.PHOTO, MediaStatus.APPROVED);
+        when(userMediaRepository.findAllForAdminModeration()).thenAnswer(inv -> {
+            var item = org.mockito.Mockito.mock(com.SocialPairly_Workflow_Manager.dto.UserMediaAdminListItem.class);
+            when(item.getId()).thenReturn(1L);
+            when(item.getUserId()).thenReturn(1L);
+            when(item.getFirstName()).thenReturn("John");
+            when(item.getLastName()).thenReturn("Doe");
+            when(item.getPreferredName()).thenReturn(null);
+            when(item.getEmail()).thenReturn("john@example.com");
+            when(item.getMediaType()).thenReturn(MediaType.PHOTO);
+            when(item.getFileSizeKb()).thenReturn(1.0);
+            when(item.getStatus()).thenReturn(MediaStatus.APPROVED);
+            when(item.getRejectionReason()).thenReturn(null);
+            when(item.getCaption()).thenReturn(null);
+            when(item.getDisplayOrder()).thenReturn(null);
+            when(item.getMediaCategory()).thenReturn(null);
+            when(item.getPrivacyMode()).thenReturn("PUBLIC");
+            when(item.getIsCover()).thenReturn(false);
+            when(item.getPromptText()).thenReturn(null);
+            when(item.getRequiresAccessApproval()).thenReturn(false);
+            when(item.getCreatedAt()).thenReturn(sample.getCreatedAt());
+            return List.of(item);
+        });
         List<MediaUploadResponseDto> result = service.getAllMediaForAdmin();
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).getId());
+        assertEquals("John Doe", result.get(0).getUserName());
     }
 
     @Test

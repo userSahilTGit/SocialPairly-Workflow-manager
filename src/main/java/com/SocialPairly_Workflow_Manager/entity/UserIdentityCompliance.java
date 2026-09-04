@@ -44,6 +44,12 @@ public class UserIdentityCompliance {
     @Column(name = "ssn", length = 11)
     private String ssn;
 
+    @Column(name = "id_document_type", length = 40)
+    private String idDocumentType;
+
+    @Column(name = "id_document_number", length = 100)
+    private String idDocumentNumber;
+
     @Column(name = "dl_front_blob_id")
     private Long dlFrontBlobId;
 
@@ -108,6 +114,12 @@ public class UserIdentityCompliance {
 
     public String getSsn() { return ssn; }
     public void setSsn(String ssn) { this.ssn = ssn; }
+
+    public String getIdDocumentType() { return idDocumentType; }
+    public void setIdDocumentType(String idDocumentType) { this.idDocumentType = idDocumentType; }
+
+    public String getIdDocumentNumber() { return idDocumentNumber; }
+    public void setIdDocumentNumber(String idDocumentNumber) { this.idDocumentNumber = idDocumentNumber; }
 
     public Long getDlFrontBlobId() { return dlFrontBlobId; }
     public void setDlFrontBlobId(Long dlFrontBlobId) { this.dlFrontBlobId = dlFrontBlobId; }

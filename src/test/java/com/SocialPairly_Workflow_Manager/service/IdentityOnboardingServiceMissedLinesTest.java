@@ -128,8 +128,7 @@ class IdentityOnboardingServiceMissedLinesTest {
                 "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                 LocalDate.of(1990, 1, 1), null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         BadRequestException ex = assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         assertTrue(ex.getMessage().contains("maritalStatus"));
     }
@@ -149,8 +148,7 @@ class IdentityOnboardingServiceMissedLinesTest {
                 "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, family, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, family, null, null, null, null, null, null, null, null, null);
 
         service.saveIdentity(user, req);
 
@@ -166,8 +164,7 @@ class IdentityOnboardingServiceMissedLinesTest {
                 "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                 null, null, null, null,
                 null, "123", null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
     }
 
@@ -178,8 +175,7 @@ class IdentityOnboardingServiceMissedLinesTest {
                 "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         service.saveIdentity(user, req);
         assertEquals("MATCHES", profile.getGenderShownToMatches());
     }
@@ -270,8 +266,7 @@ class IdentityOnboardingServiceMissedLinesTest {
                 "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                 LocalDate.of(1990, 1, 1), null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
     }
 }

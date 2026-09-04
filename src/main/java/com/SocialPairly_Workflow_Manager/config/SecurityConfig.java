@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.header.writers.CrossOriginOpenerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -99,7 +100,17 @@ public class SecurityConfig {
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                 // Protect cookie-only sessions; Bearer clients keep working unchanged
                 .requireCsrfProtectionMatcher(new CookieSessionCsrfRequestMatcher(authCookieName))
-                .ignoringRequestMatchers("/api/payment/webhook")
+                .ignoringRequestMatchers(
+                        "/api/payment/webhook",
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/google",
+                        "/api/auth/apple",
+                        "/api/auth/forgot-password/**",
+                        "/api/auth/verify-email",
+                        "/api/auth/verify-phone",
+                        "/api/auth/resend-verification"
+                )
         );
     }
 
@@ -107,6 +118,10 @@ public class SecurityConfig {
         // HSTS is meaningful with HTTPS; enable when either flag is on for prod safety.
         boolean applyHsts = hstsEnabled || requireHttps;
         http.headers(headers -> {
+            // Google Identity Services uses window.postMessage from accounts.google.com;
+            // default same-origin COOP blocks that handshake in some browsers.
+            headers.crossOriginOpenerPolicy(coop -> coop.policy(
+                    CrossOriginOpenerPolicyHeaderWriter.CrossOriginOpenerPolicy.SAME_ORIGIN_ALLOW_POPUPS));
             if (applyHsts) {
                 headers.httpStrictTransportSecurity(hsts -> hsts
                         .maxAgeInSeconds(Math.max(0L, hstsMaxAgeSeconds))
@@ -123,21 +138,25 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
+        List<String> origins = new ArrayList<>(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
                 "http://localhost:8081",
                 "http://3.151.77.90",
+                "https://3.151.77.90",
                 "http://3.151.77.90.nip.io",
                 "https://3.151.77.90.nip.io"
         ));
+        origins.addAll(parseAdditionalOrigins(additionalCorsOrigins));
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setExposedHeaders(List.of(
                 "Authorization",
+                "X-XSRF-TOKEN",
                 "X-Identity-Duration-Ms",
                 "X-Identity-Op",
                 "X-Identity-Within-Target"

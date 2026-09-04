@@ -99,7 +99,7 @@ class IdentityOnboardingServiceCoverageTest {
         usCountry.setPostalRegex("^[0-9]{5}(-[0-9]{4})?$");
         usCountry.setActive(true);
         lenient().when(refCountryRepository.findById("US")).thenReturn(Optional.of(usCountry));
-        lenient().when(refCountryRepository.findByActiveTrue()).thenReturn(List.of(usCountry));
+        lenient().when(refCountryRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(usCountry));
     }
 
     private void stubAcceptedConsent() {
@@ -135,8 +135,7 @@ class IdentityOnboardingServiceCoverageTest {
                 action, null, "Ada", null, "Lovelace", null, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private IdentityBackgroundRequest continueRequest(LocalDate dob) {
@@ -151,8 +150,7 @@ class IdentityOnboardingServiceCoverageTest {
                 "CONTINUE", "Ms.", "Ada", null, "Lovelace", null, null,
                 dob, "She/Her", "Woman", "MATCHES",
                 null, null, null, null, "EMAIL", "ANY",
-                residence, null, null, null, relationship, null, null, null, null, null, null, null, null
-        );
+                residence, null, null, null, relationship, null, null, null, null, null, null, null, null, null, null);
     }
 
     // ── getIdentity ───────────────────────────────────────────────────
@@ -359,7 +357,7 @@ class IdentityOnboardingServiceCoverageTest {
             in.setName("India");
             in.setPostalRegex(null);
             in.setActive(true);
-            when(refCountryRepository.findByActiveTrue()).thenReturn(List.of(in));
+            when(refCountryRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(in));
 
             var result = service.getReferenceData();
             @SuppressWarnings("unchecked")
@@ -375,7 +373,8 @@ class IdentityOnboardingServiceCoverageTest {
             assertTrue(result.containsKey("maritalStatuses"));
             assertTrue(result.containsKey("educationLevels"));
             assertTrue(result.containsKey("incomeRanges"));
-            assertTrue(result.containsKey("backgroundConsentDocumentVersion"));
+            // Phase 1: background screening consent is not offered
+            assertFalse(result.containsKey("backgroundConsentDocumentVersion"));
         }
     }
 
@@ -1021,8 +1020,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1033,8 +1031,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "CONTINUE", null, null, null, "Lovelace", null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1045,8 +1042,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "CONTINUE", null, "Ada", null, null, null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1057,8 +1053,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1069,8 +1064,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.now().plusDays(1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1081,8 +1075,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.now(), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1093,8 +1086,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.now().minusYears(17), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(UnprocessableEntityException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1103,10 +1095,11 @@ class IdentityOnboardingServiceCoverageTest {
             stubAcceptedConsent();
             CurrentResidenceDto residence = new CurrentResidenceDto(
                     "1 Main St", "Apt 2", "3B", "Austin", "TX", "78701", "US",
-                    "RENT", 6, 2020, null, "YES", 50, List.of("Dallas", "Houston")
+                    "RENT", 6, 2020, null, "YES", 50,
+                    List.of(new PreferredFutureLocationDto("Texas", List.of("Dallas", "Houston")))
             );
             List<PreviousAddressDto> previousAddresses = List.of(
-                    new PreviousAddressDto(null, "NYC", "NY", "US", "10001",
+                    new PreviousAddressDto(null, null, null, null, "NYC", "NY", "US", "10001", null,
                             1, 2018, 5, 2020, "Job")
             );
             NationalityDto nationality = new NationalityDto(
@@ -1125,12 +1118,12 @@ class IdentityOnboardingServiceCoverageTest {
             );
             List<EducationDto> educations = List.of(
                     new EducationDto(null, "BACHELOR", "BS", "CS", "MIT", "Cambridge", "US",
-                            2014, 2018, false, "Magna Cum Laude", true, null)
+                            null, 2014, null, 2018, false, "Magna Cum Laude", true, null)
             );
             CareerDto career = new CareerDto(
                     "EMPLOYEE", "Software Engineer", "Technology", "Senior",
                     "500+", "REMOTE", "FULL_TIME", null, 10, "HIGH",
-                    "OCCASIONALLY", "OPEN", "Tech lead", "BALANCED", "Acme Inc", true
+                    "OCCASIONALLY", "OPEN", "Tech lead", "BALANCED", "Acme Inc", true, "H1B"
             );
             FinancialDto financial = new FinancialDto(
                     "100K_149K", "740_799", "50K_99K", "RENTER", "NONE", "NONE",
@@ -1151,8 +1144,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "EMAIL", "MORNING",
                     residence, previousAddresses, nationality, immigration, relationship,
                     family, educations, career, financial, safety, civilJudgment,
-                    "PRIVATE", null
-            );
+                    "PRIVATE", null, null, null);
 
             IdentityBackgroundResponse res = service.saveIdentity(user, req);
             assertNotNull(res);
@@ -1189,8 +1181,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null,
                     null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null, null,
-                    "***-**-6789"
-            );
+                    "***-**-6789", null, null);
             service.saveIdentity(user, req);
             verify(complianceRepository, atLeastOnce()).save(argThat(c ->
                     c instanceof UserIdentityCompliance && ((UserIdentityCompliance) c).getSsn() == null
@@ -1205,8 +1196,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null,
                     null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    "MATCHES", null
-            );
+                    "MATCHES", null, null, null);
             service.saveIdentity(user, req);
             assertEquals("MATCHES", profile.getIncomeRangeSharePreference());
         }
@@ -1219,8 +1209,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null,
                     null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    "INVALID_PREF", null
-            );
+                    "INVALID_PREF", null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1233,8 +1222,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, "+919876543299", null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertFalse(user.isPhoneVerified());
         }
@@ -1248,8 +1236,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, "+919876543210", null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertTrue(user.isPhoneVerified());
         }
@@ -1261,8 +1248,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     "ADA2@EXAMPLE.COM", null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertEquals("ada2@example.com", user.getSecondaryEmail());
         }
@@ -1274,8 +1260,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", "None", null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertNull(user.getNameSuffix());
         }
@@ -1287,8 +1272,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertEquals("MATCHES", profile.getGenderShownToMatches());
         }
@@ -1314,8 +1298,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    residence, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1328,8 +1311,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, relationship, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, relationship, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1342,8 +1324,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, relationship, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, relationship, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1357,8 +1338,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    residence, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1372,8 +1352,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    residence, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1387,23 +1366,21 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    residence, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
         @Test
         void previousAddressInvalidDateRangeRejects() {
             List<PreviousAddressDto> addresses = List.of(
-                    new PreviousAddressDto(null, "NYC", "NY", null, null,
+                    new PreviousAddressDto(null, null, null, null, "NYC", "NY", null, null, null,
                             6, 2022, 1, 2020, null)
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, addresses, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, addresses, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1416,8 +1393,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, nationality, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, nationality, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1430,8 +1406,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, nationality, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, nationality, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1444,8 +1419,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, immigration, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, immigration, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1458,8 +1432,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, family, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, family, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1472,8 +1445,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, family, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, family, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1481,14 +1453,13 @@ class IdentityOnboardingServiceCoverageTest {
         void invalidEducationLevelRejects() {
             List<EducationDto> educations = List.of(
                     new EducationDto(null, "PHD_PLUS", null, null, "MIT",
-                            null, null, null, null, null, null, null, null)
+                            null, null, null, null, null, null, null, null, null, null)
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, educations, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, educations, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1496,14 +1467,13 @@ class IdentityOnboardingServiceCoverageTest {
         void educationGraduationBeforeStartRejects() {
             List<EducationDto> educations = List.of(
                     new EducationDto(null, "BACHELOR", null, null, "MIT",
-                            null, null, 2020, 2018, null, null, null, null)
+                            null, null, null, 2020, null, 2018, null, null, null, null)
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, educations, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, educations, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1511,16 +1481,15 @@ class IdentityOnboardingServiceCoverageTest {
         void educationWithNullInstitutionSkipped() {
             List<EducationDto> educations = List.of(
                     new EducationDto(null, null, null, null, null,
-                            null, null, null, null, null, null, null, null),
+                            null, null, null, null, null, null, null, null, null, null),
                     new EducationDto(null, "BACHELOR", "BS", "CS", "MIT",
-                            null, null, 2014, 2018, false, null, true, null)
+                            null, null, null, 2014, null, 2018, false, null, true, null)
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, educations, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, educations, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertEquals(1, profile.getEducations().size());
         }
@@ -1528,14 +1497,13 @@ class IdentityOnboardingServiceCoverageTest {
         @Test
         void invalidEmploymentStatusRejects() {
             CareerDto career = new CareerDto(
-                    "FREELANCER", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
+                    "FREELANCER", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, career, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, career, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1548,8 +1516,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1562,8 +1529,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1576,8 +1542,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, safety, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, safety, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1590,8 +1555,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, civilJudgment, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, civilJudgment, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1601,8 +1565,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, "Xe/Xem", null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1612,8 +1575,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, "Alien", null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1623,8 +1585,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, "EVERYONE",
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1634,8 +1595,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", "Prof.", "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1645,8 +1605,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", "IV", null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1656,8 +1615,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, "PIGEON", null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1667,8 +1625,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, "MIDNIGHT",
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1679,8 +1636,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, longName, null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1695,8 +1651,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    residence, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1709,8 +1664,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, immigration, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, immigration, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1723,8 +1677,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1737,8 +1690,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1751,8 +1703,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1765,8 +1716,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, financial, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, financial, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1776,8 +1726,7 @@ class IdentityOnboardingServiceCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, List.of(), null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, List.of(), null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             verify(backgroundRepository, atLeastOnce()).save(any(UserIdentityBackground.class));
         }
@@ -1785,15 +1734,14 @@ class IdentityOnboardingServiceCoverageTest {
         @Test
         void previousAddressZeroMonthRejects() {
             List<PreviousAddressDto> addresses = List.of(
-                    new PreviousAddressDto(null, "NYC", "NY", null, null,
+                    new PreviousAddressDto(null, null, null, null, "NYC", "NY", null, null, null,
                             0, 2020, 6, 2022, null)
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, addresses, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, addresses, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
     }
@@ -1870,8 +1818,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null, null, null,
                     null, null, null, null,
                     new RelationshipDto("NEVER_MARRIED", null, null, null, null, null, null, null, null, null),
-                    null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1883,8 +1830,7 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null, null, null,
                     new CurrentResidenceDto("1 Main", null, null, "Austin", "TX", "78701", "US",
                             null, null, null, null, null, null, null),
-                    null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -1905,8 +1851,7 @@ class IdentityOnboardingServiceCoverageTest {
                             null, null, null, null, null, null, null),
                     null, null, null,
                     new RelationshipDto("NEVER_MARRIED", null, null, null, null, null, null, null, null, null),
-                    null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
     }
@@ -1973,14 +1918,13 @@ class IdentityOnboardingServiceCoverageTest {
         void careerSetsProfileOccupation() {
             stubAcceptedConsent();
             CareerDto career = new CareerDto(
-                    "EMPLOYEE", "Engineer", null, null, null, null, null, null, null, null, null, null, null, null, "Acme", true
+                    "EMPLOYEE", "Engineer", null, null, null, null, null, null, null, null, null, null, null, null, "Acme", true, null
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, career, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, career, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertEquals("Engineer", profile.getOccupation());
             assertTrue(profile.getEmployerNamePubliclyAllowed());
@@ -2013,7 +1957,8 @@ class IdentityOnboardingServiceCoverageTest {
 
             IdentityBackgroundResponse res = service.getIdentity(user);
             assertNotNull(res.currentResidence());
-            assertEquals(2, res.currentResidence().preferredFutureLocations().size());
+            assertEquals(1, res.currentResidence().preferredFutureLocations().size());
+            assertEquals(2, res.currentResidence().preferredFutureLocations().get(0).cities().size());
         }
 
         @Test

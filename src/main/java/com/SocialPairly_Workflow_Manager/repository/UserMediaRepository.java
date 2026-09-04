@@ -17,6 +17,38 @@ public interface UserMediaRepository extends JpaRepository<UserMedia, Long> {
     List<UserMedia> findByStatus(MediaStatus status);
     List<UserMedia> findAllByOrderByCreatedAtDesc();
 
+    @Query("SELECT m FROM UserMedia m JOIN FETCH m.user u ORDER BY m.createdAt DESC")
+    List<UserMedia> findAllWithUserOrderByCreatedAtDesc();
+
+    /**
+     * Admin moderation catalog without loading LONGBLOB bytes (avoids OOM / page hangs).
+     */
+    @Query("""
+            SELECT
+              m.id AS id,
+              u.id AS userId,
+              u.firstName AS firstName,
+              u.lastName AS lastName,
+              u.preferredName AS preferredName,
+              u.email AS email,
+              m.mediaType AS mediaType,
+              m.fileSizeKb AS fileSizeKb,
+              m.status AS status,
+              m.rejectionReason AS rejectionReason,
+              m.caption AS caption,
+              m.displayOrder AS displayOrder,
+              m.mediaCategory AS mediaCategory,
+              m.privacyMode AS privacyMode,
+              m.isCover AS isCover,
+              m.promptText AS promptText,
+              m.requiresAccessApproval AS requiresAccessApproval,
+              m.createdAt AS createdAt
+            FROM UserMedia m
+            JOIN m.user u
+            ORDER BY m.createdAt DESC
+            """)
+    List<com.SocialPairly_Workflow_Manager.dto.UserMediaAdminListItem> findAllForAdminModeration();
+
     void deleteByUserId(Long userId);
 
     // 👈 Privacy query layer (Step 1) - Expanded with VERIFIED_ONLY and EVENT_ONLY

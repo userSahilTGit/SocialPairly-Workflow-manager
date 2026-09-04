@@ -123,7 +123,7 @@ class UserMediaControllerTest {
     void streamMedia_video() throws Exception {
         UserMedia video = UserMedia.builder()
                 .id(2L).user(currentUser)
-                .mediaData(new byte[]{9, 9}).mediaType(MediaType.VIDEO)
+                .mediaData(new byte[]{9, 9, 9, 9}).mediaType(MediaType.VIDEO)
                 .fileSizeKb(1.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
                 .build();
         when(userMediaService.getMediaEntityById(2L)).thenReturn(video);
@@ -131,8 +131,27 @@ class UserMediaControllerTest {
         mockMvc.perform(get("/api/media/2/stream"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("video/mp4"))
-                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "2"))
-                .andExpect(content().bytes(new byte[]{9, 9}));
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "4"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(content().bytes(new byte[]{9, 9, 9, 9}));
+    }
+
+    @Test
+    @DisplayName("GET /api/media/{id}/stream - video Range request returns 206")
+    void streamMedia_videoRange() throws Exception {
+        UserMedia video = UserMedia.builder()
+                .id(2L).user(currentUser)
+                .mediaData(new byte[]{1, 2, 3, 4, 5, 6, 7, 8}).mediaType(MediaType.VIDEO)
+                .fileSizeKb(1.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
+                .build();
+        when(userMediaService.getMediaEntityById(2L)).thenReturn(video);
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=2-5"))
+                .andExpect(status().isPartialContent())
+                .andExpect(content().contentType("video/mp4"))
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-5/8"))
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, "4"))
+                .andExpect(content().bytes(new byte[]{3, 4, 5, 6}));
     }
 
     @Test

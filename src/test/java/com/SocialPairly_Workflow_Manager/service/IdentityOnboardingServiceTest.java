@@ -162,8 +162,7 @@ class IdentityOnboardingServiceTest {
                 "Ms.", "Ada", null, "Lovelace", null, "Addie",
                 null, "She/Her", "Woman", "MATCHES",
                 null, null, null, null, "EMAIL", "MORNING",
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         var res = service.saveIdentity(user, req);
         assertFalse(res.identityPage1Complete());
         assertEquals(OnboardingSteps.IDENTITY_IN_PROGRESS, profile.getOnboardingStep());
@@ -178,8 +177,7 @@ class IdentityOnboardingServiceTest {
                 null, "Ada123", null, "Lovelace", null, null,
                 LocalDate.of(1990, 1, 1), null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
     }
 
@@ -191,8 +189,7 @@ class IdentityOnboardingServiceTest {
                 null, "Ada", null, "Lovelace", null, "Addie",
                 null, null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         service.saveIdentity(user, req);
         assertEquals("Ada", user.getFirstName());
         assertEquals("Addie", user.getPreferredName());
@@ -315,7 +312,6 @@ class IdentityOnboardingServiceTest {
                 dob, "She/Her", "Woman", "MATCHES",
                 null, null, null, null, "EMAIL", "ANY",
                 residence, null, null, null, relationship, null, null, null, null, null, null, null,
-                ssn
-        );
+                ssn, null, null);
     }
 }

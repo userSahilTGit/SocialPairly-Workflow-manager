@@ -44,5 +44,7 @@ public record IdentityBackgroundRequest(
     SafetyDto safety,
     CivilJudgmentDto civilJudgment,
     String incomeRangeSharePreference,
-    @Size(max = 11) String ssn
+    @Size(max = 11) String ssn,
+    @Size(max = 40) String idDocumentType,
+    @Size(max = 100) String idDocumentNumber
 ) {}

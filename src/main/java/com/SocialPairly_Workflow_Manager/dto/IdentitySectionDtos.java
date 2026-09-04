@@ -7,6 +7,11 @@ public final class IdentitySectionDtos {
 
     private IdentitySectionDtos() {}
 
+    public record PreferredFutureLocationDto(
+            String state,
+            List<String> cities
+    ) {}
+
     public record CurrentResidenceDto(
             String line1,
             String line2,
@@ -21,15 +26,19 @@ public final class IdentitySectionDtos {
             Integer residenceDurationMonths,
             String willingToRelocate,
             Integer eventTravelRadiusMiles,
-            List<String> preferredFutureLocations
+            List<PreferredFutureLocationDto> preferredFutureLocations
     ) {}
 
     public record PreviousAddressDto(
             Long id,
+            String line1,
+            String line2,
+            String unit,
             String city,
             String stateRegion,
             String countryCode,
             String postalCode,
+            String residenceType,
             Integer fromMonth,
             Integer fromYear,
             Integer toMonth,
@@ -93,7 +102,9 @@ public final class IdentitySectionDtos {
             String institution,
             String city,
             String countryCode,
+            Integer startMonth,
             Integer startYear,
+            Integer graduationMonth,
             Integer graduationYear,
             Boolean currentlyStudying,
             String honors,
@@ -117,7 +128,8 @@ public final class IdentitySectionDtos {
             String careerAmbitions,
             String workLifeBalancePref,
             String employerName,
-            Boolean showEmployerPublicly
+            Boolean showEmployerPublicly,
+            String employmentType
     ) {}
 
     public record FinancialDto(
@@ -168,7 +180,9 @@ public final class IdentitySectionDtos {
             Boolean showVerificationBadge,
             String ssn,
             Long dlFrontDocumentId,
-            Long dlBackDocumentId
+            Long dlBackDocumentId,
+            String idDocumentType,
+            String idDocumentNumber
     ) {}
 
     public record BackgroundConsentDto(
