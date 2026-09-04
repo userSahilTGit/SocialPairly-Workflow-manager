@@ -12,6 +12,7 @@ import com.SocialPairly_Workflow_Manager.exception.UnprocessableEntityException;
 import com.SocialPairly_Workflow_Manager.repository.*;
 import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -36,15 +37,18 @@ public class IdentityOnboardingService {
     public static final int MIN_AGE = 18;
     public static final long MAX_DOCUMENT_BYTES = 5L * 1024 * 1024;
     private static final int MAX_AUDIT_EVENTS = 200;
+    private static final int MAX_CONSENT_EVENTS = 20;
+    private static final int MAX_DOCUMENT_META = 50;
+    private static final int MAX_PREVIOUS_ADDRESSES = 10;
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} .'-]{0,59}$");
     private static final Pattern SSN_PATTERN = Pattern.compile("^\\d{3}-\\d{2}-\\d{4}$");
     private static final Set<String> DOCUMENT_PURPOSES = Set.of(
-            "DL_FRONT", "DL_BACK", "SELFIE",
+            "DL_FRONT", "DL_BACK", "SELFIE", "PASSPORT",
             "SAFETY_SUPPORT", "CIVIL_SUPPORT", "EDU_VERIFY", "EMP_VERIFY",
             "ID_FRONT", "ID_BACK"
     );
-    private static final Set<String> DL_IMAGE_CONTENT_TYPES = Set.of(
+    private static final Set<String> ID_IMAGE_CONTENT_TYPES = Set.of(
             "image/jpeg", "image/jpg", "image/png", "image/webp"
     );
     private static final Set<String> PREFIXES = Set.of("", "Mr.", "Ms.", "Mrs.", "Dr.", "Other");
@@ -114,7 +118,7 @@ public class IdentityOnboardingService {
             if (cached != null && (now - referenceDataCachedAtMs) < REFERENCE_CACHE_TTL_MS) {
                 return cached;
             }
-            List<Map<String, String>> countries = refCountryRepository.findByActiveTrue().stream()
+            List<Map<String, String>> countries = refCountryRepository.findByActiveTrueOrderByNameAsc().stream()
                     .map(c -> {
                         Map<String, String> m = new LinkedHashMap<>();
                         m.put("code", c.getCode());
@@ -139,7 +143,8 @@ public class IdentityOnboardingService {
             throw new BadRequestException("action must be SAVE_LATER or CONTINUE");
         }
 
-        requireBackgroundConsent(user);
+        // Phase 1: background screening / consent is not offered — never gate saves on consent.
+        // Phase 2: call requireBackgroundConsent(user) here when screening ships.
 
         boolean strict = ACTION_CONTINUE.equals(action);
         validateAndApply(user, request, strict);
@@ -147,6 +152,7 @@ public class IdentityOnboardingService {
         UserProfile profile = ensureProfile(user);
         applyProfileFields(profile, request, strict);
         applySsn(user, request.ssn());
+        applyIdDocument(user, request.idDocumentType(), request.idDocumentNumber());
 
         if (request.currentResidence() != null) {
             applyCurrentResidence(user, profile, request.currentResidence());
@@ -167,7 +173,7 @@ public class IdentityOnboardingService {
             applyFamily(user, request.family());
         }
         if (request.educations() != null) {
-            applyEducations(profile, request.educations());
+            applyEducations(profile, request.educations(), profile.getDateOfBirth());
         }
         if (request.career() != null) {
             applyCareer(user, profile, request.career());
@@ -220,11 +226,6 @@ public class IdentityOnboardingService {
         if (!DOCUMENT_PURPOSES.contains(purpose)) {
             throw new BadRequestException("Unsupported docPurpose");
         }
-        if ("ID_FRONT".equals(purpose)) {
-            purpose = "DL_FRONT";
-        } else if ("ID_BACK".equals(purpose)) {
-            purpose = "DL_BACK";
-        }
 
         String contentType = file.getContentType();
         if (contentType == null || contentType.isBlank()) {
@@ -232,9 +233,10 @@ public class IdentityOnboardingService {
         } else {
             contentType = contentType.trim().toLowerCase(Locale.ROOT);
         }
-        if (("DL_FRONT".equals(purpose) || "DL_BACK".equals(purpose) || "SELFIE".equals(purpose))
-                && !DL_IMAGE_CONTENT_TYPES.contains(contentType)) {
-            throw new BadRequestException("DL and selfie uploads must be image/jpeg, image/png, or image/webp");
+        if (("DL_FRONT".equals(purpose) || "DL_BACK".equals(purpose) || "ID_FRONT".equals(purpose)
+                || "ID_BACK".equals(purpose) || "PASSPORT".equals(purpose) || "SELFIE".equals(purpose))
+                && !ID_IMAGE_CONTENT_TYPES.contains(contentType)) {
+            throw new BadRequestException("ID document uploads must be image/jpeg, image/png, or image/webp");
         }
 
         try {
@@ -248,9 +250,9 @@ public class IdentityOnboardingService {
             UserIdentityComplianceBlob saved = blobRepository.save(blob);
 
             appendDocumentMeta(compliance, saved);
-            if ("DL_FRONT".equals(purpose)) {
+            if ("DL_FRONT".equals(purpose) || "ID_FRONT".equals(purpose) || "PASSPORT".equals(purpose)) {
                 compliance.setDlFrontBlobId(saved.getId());
-            } else if ("DL_BACK".equals(purpose)) {
+            } else if ("DL_BACK".equals(purpose) || "ID_BACK".equals(purpose)) {
                 compliance.setDlBackBlobId(saved.getId());
             }
             complianceRepository.save(compliance);
@@ -405,6 +407,7 @@ public class IdentityOnboardingService {
 
     @Transactional
     public Map<String, Object> acceptBackgroundConsent(User user, Boolean accepted, String documentVersion) {
+        // Phase 1 HTTP route rejects this; method retained for Phase 2 and unit tests only.
         if (!Boolean.TRUE.equals(accepted)) {
             throw new BadRequestException("accepted must be true");
         }
@@ -422,7 +425,7 @@ public class IdentityOnboardingService {
         consent.put("acceptedIp", null);
         consent.put("userAgentHash", null);
         consent.put("createdAt", acceptedAt.toString());
-        appendJsonArray(compliance, "consents", compliance.getConsents(), consent, Integer.MAX_VALUE);
+        appendJsonArray(compliance, "consents", compliance.getConsents(), consent, MAX_CONSENT_EVENTS);
         complianceRepository.save(compliance);
         writeAudit(user, "CONSENT_ACCEPTED", version);
 
@@ -452,20 +455,7 @@ public class IdentityOnboardingService {
         }
     }
 
-    private void requireBackgroundConsent(User user) {
-        if (!hasAcceptedConsent(user)) {
-            throw new BadRequestException("Background screening consent is required before saving");
-        }
-    }
-
-    private boolean hasAcceptedConsent(User user) {
-        return complianceRepository.findByUserId(user.getId())
-                .map(c -> readConsentList(c.getConsents()).stream()
-                        .anyMatch(entry -> Boolean.TRUE.equals(asBoolean(entry.get("accepted")))
-                                && OnboardingSteps.BACKGROUND_CONSENT_DOCUMENT_VERSION
-                                .equals(asString(entry.get("documentVersion")))))
-                .orElse(false);
-    }
+    // Phase 2: re-introduce requireBackgroundConsent(user) on saveIdentity when screening ships.
 
     private void applySsn(User user, String rawSsn) {
         String trimmed = trimToNull(rawSsn);
@@ -478,6 +468,35 @@ public class IdentityOnboardingService {
         String normalized = normalizeSsn(trimmed);
         UserIdentityCompliance compliance = ensureCompliance(user);
         compliance.setSsn(normalized);
+        complianceRepository.save(compliance);
+    }
+
+    private static final Set<String> ID_DOCUMENT_TYPES = Set.of(
+            "DRIVER_LICENSE", "STATE_ID", "PASSPORT"
+    );
+
+    private void applyIdDocument(User user, String rawType, String rawNumber) {
+        String type = trimToNull(rawType);
+        String number = trimToNull(rawNumber);
+        if (type == null && number == null) {
+            return;
+        }
+        if (type != null) {
+            type = type.toUpperCase(Locale.ROOT);
+            if (!ID_DOCUMENT_TYPES.contains(type)) {
+                throw new BadRequestException("idDocumentType must be DRIVER_LICENSE, STATE_ID, or PASSPORT");
+            }
+        }
+        if (number != null && number.length() > 100) {
+            throw new BadRequestException("idDocumentNumber is too long");
+        }
+        UserIdentityCompliance compliance = ensureCompliance(user);
+        if (type != null) {
+            compliance.setIdDocumentType(type);
+        }
+        if (number != null) {
+            compliance.setIdDocumentNumber(number);
+        }
         complianceRepository.save(compliance);
     }
 
@@ -565,13 +584,31 @@ public class IdentityOnboardingService {
         }
         background.setEventTravelRadiusMiles(dto.eventTravelRadiusMiles());
 
-        List<String> preferred = new ArrayList<>();
+        validatePreferredFutureLocations(dto.preferredFutureLocations());
+
+        List<Map<String, Object>> preferred = new ArrayList<>();
         if (dto.preferredFutureLocations() != null) {
-            for (String label : dto.preferredFutureLocations()) {
-                String trimmed = trimToNull(label);
-                if (trimmed != null) {
-                    preferred.add(trimmed);
+            for (PreferredFutureLocationDto group : dto.preferredFutureLocations()) {
+                String state = trimToNull(group.state());
+                if (state == null) {
+                    continue;
                 }
+                List<String> cities = new ArrayList<>();
+                if (group.cities() != null) {
+                    for (String city : group.cities()) {
+                        String trimmedCity = trimToNull(city);
+                        if (trimmedCity != null) {
+                            cities.add(trimmedCity);
+                        }
+                    }
+                }
+                if (cities.isEmpty()) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("state", state);
+                row.put("cities", cities);
+                preferred.add(row);
             }
         }
         background.setPreferredRelocateLocations(writeJson(preferred));
@@ -589,6 +626,10 @@ public class IdentityOnboardingService {
             backgroundRepository.save(background);
             return;
         }
+        if (addresses.size() > MAX_PREVIOUS_ADDRESSES) {
+            throw new BadRequestException("A maximum of " + MAX_PREVIOUS_ADDRESSES
+                    + " previous addresses is allowed");
+        }
         List<Map<String, Object>> rows = new ArrayList<>();
         for (PreviousAddressDto dto : addresses) {
             validateMonth("fromMonth", dto.fromMonth());
@@ -596,12 +637,22 @@ public class IdentityOnboardingService {
             validateYearRange("previous address", dto.fromMonth(), dto.fromYear(), dto.toMonth(), dto.toYear());
             String countryCode = normalizeCountryCode(dto.countryCode());
             validatePostalCode(countryCode, trimToNull(dto.postalCode()));
+            if (dto.residenceType() != null && !dto.residenceType().isBlank()) {
+                validateAllowlistEnum("residenceType", dto.residenceType().trim().toUpperCase(Locale.ROOT),
+                        IdentityReferenceEnums.RESIDENCE_TYPES);
+            }
 
             Map<String, Object> row = new LinkedHashMap<>();
+            row.put("line1", trimToNull(dto.line1()));
+            row.put("line2", trimToNull(dto.line2()));
+            row.put("unit", trimToNull(dto.unit()));
             row.put("city", trimToNull(dto.city()));
             row.put("stateRegion", trimToNull(dto.stateRegion()));
             row.put("countryCode", countryCode);
             row.put("postalCode", trimToNull(dto.postalCode()));
+            row.put("residenceType", dto.residenceType() == null || dto.residenceType().isBlank()
+                    ? null
+                    : dto.residenceType().trim().toUpperCase(Locale.ROOT));
             row.put("fromMonth", dto.fromMonth());
             row.put("fromYear", dto.fromYear());
             row.put("toMonth", dto.toMonth());
@@ -767,8 +818,18 @@ public class IdentityOnboardingService {
         lifeProfileRepository.save(life);
     }
 
-    private void applyEducations(UserProfile profile, List<EducationDto> educations) {
+    private static final int EDUCATION_MIN_YEAR = 1970;
+    private static final Pattern EDUCATION_CITY_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} ]{0,119}$");
+    private static final Pattern EDUCATION_TEXT_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} ]{0,254}$");
+    private static final Pattern PREFERRED_LOCATION_TEXT_PATTERN =
+            Pattern.compile("^[\\p{L}][\\p{L} .'-]{0,119}$");
+    private static final int MAX_PREFERRED_FUTURE_STATES = 5;
+    private static final int MAX_PREFERRED_FUTURE_CITIES = 50;
+
+    private void applyEducations(UserProfile profile, List<EducationDto> educations, LocalDate dateOfBirth) {
         profile.getEducations().clear();
+        int currentYear = LocalDate.now().getYear();
+        Integer dobYear = dateOfBirth == null ? null : dateOfBirth.getYear();
         for (EducationDto dto : educations) {
             String institution = trimToNull(dto.institution());
             if (institution == null) {
@@ -778,9 +839,29 @@ public class IdentityOnboardingService {
                 validateAllowlistEnum("educationLevel", dto.educationLevel().trim().toUpperCase(Locale.ROOT),
                         IdentityReferenceEnums.EDUCATION_LEVELS);
             }
-            if (dto.startYear() != null && dto.graduationYear() != null
-                    && dto.graduationYear() < dto.startYear()) {
-                throw new BadRequestException("graduationYear cannot be before startYear");
+
+            validateEducationTextField("institution", institution, EDUCATION_TEXT_PATTERN);
+            validateEducationTextField("degree", trimToNull(dto.degree()), EDUCATION_TEXT_PATTERN);
+            validateEducationTextField("fieldOfStudy", trimToNull(dto.fieldOfStudy()), EDUCATION_TEXT_PATTERN);
+            validateEducationTextField("honors", trimToNull(dto.honors()), EDUCATION_TEXT_PATTERN);
+            validateEducationTextField("city", trimToNull(dto.city()), EDUCATION_CITY_PATTERN);
+
+            validateMonth("startMonth", dto.startMonth());
+            validateEducationYear("startYear", dto.startYear(), currentYear, dobYear);
+
+            boolean currentlyStudying = Boolean.TRUE.equals(dto.currentlyStudying());
+            Integer graduationMonth = currentlyStudying ? null : dto.graduationMonth();
+            Integer graduationYear = currentlyStudying ? null : dto.graduationYear();
+            if (!currentlyStudying) {
+                validateMonth("graduationMonth", graduationMonth);
+                validateEducationYear("graduationYear", graduationYear, currentYear, dobYear);
+                if (dto.startYear() != null && graduationYear != null) {
+                    int startKey = dto.startYear() * 12 + (dto.startMonth() == null ? 1 : dto.startMonth());
+                    int endKey = graduationYear * 12 + (graduationMonth == null ? 1 : graduationMonth);
+                    if (endKey < startKey) {
+                        throw new BadRequestException("Graduation date cannot be before start date");
+                    }
+                }
             }
 
             Education edu = new Education();
@@ -790,12 +871,14 @@ public class IdentityOnboardingService {
             edu.setFieldOfStudy(trimToNull(dto.fieldOfStudy()));
             edu.setCity(trimToNull(dto.city()));
             edu.setCountryCode(normalizeCountryCode(dto.countryCode()));
+            edu.setStartMonth(dto.startMonth());
             edu.setStartYear(dto.startYear());
-            edu.setEndYear(dto.graduationYear());
+            edu.setGraduationMonth(graduationMonth);
+            edu.setEndYear(graduationYear);
             if (dto.educationLevel() != null) {
                 edu.setEducationLevel(blankToNull(dto.educationLevel().trim().toUpperCase(Locale.ROOT)));
             }
-            edu.setCurrentlyStudying(Boolean.TRUE.equals(dto.currentlyStudying()));
+            edu.setCurrentlyStudying(currentlyStudying);
             edu.setHonors(trimToNull(dto.honors()));
             edu.setShowInstitutionPublicly(Boolean.TRUE.equals(dto.showInstitutionPublicly()));
             edu.setVerificationDocumentId(dto.verificationDocumentId());
@@ -803,10 +886,83 @@ public class IdentityOnboardingService {
         }
     }
 
+    private void validateEducationYear(String field, Integer year, int currentYear, Integer dobYear) {
+        if (year == null) {
+            return;
+        }
+        if (year < EDUCATION_MIN_YEAR || year > currentYear) {
+            throw new BadRequestException(field + " must be between " + EDUCATION_MIN_YEAR + " and " + currentYear);
+        }
+        if (dobYear != null && year < dobYear) {
+            throw new BadRequestException(field + " cannot be earlier than date of birth");
+        }
+    }
+
+    private void validatePreferredFutureLocations(List<PreferredFutureLocationDto> locations) {
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        if (locations.size() > MAX_PREFERRED_FUTURE_STATES) {
+            throw new BadRequestException("A maximum of " + MAX_PREFERRED_FUTURE_STATES
+                    + " states is allowed for preferred future locations");
+        }
+        int totalCities = 0;
+        Set<String> seenStates = new HashSet<>();
+        for (PreferredFutureLocationDto group : locations) {
+            String state = trimToNull(group.state());
+            if (state == null) {
+                throw new BadRequestException("State is required for preferred future locations");
+            }
+            validateEducationTextField("preferredFutureLocations.state", state, PREFERRED_LOCATION_TEXT_PATTERN);
+            String stateKey = state.toLowerCase(Locale.ROOT);
+            if (!seenStates.add(stateKey)) {
+                throw new BadRequestException("Duplicate states are not allowed in preferred future locations");
+            }
+            List<String> cities = group.cities() == null ? List.of() : group.cities();
+            if (cities.isEmpty()) {
+                throw new BadRequestException("At least one city is required per state in preferred future locations");
+            }
+            Set<String> seenCities = new HashSet<>();
+            for (String cityRaw : cities) {
+                String city = trimToNull(cityRaw);
+                if (city == null) {
+                    continue;
+                }
+                validateEducationTextField("preferredFutureLocations.city", city, PREFERRED_LOCATION_TEXT_PATTERN);
+                if (!seenCities.add(city.toLowerCase(Locale.ROOT))) {
+                    throw new BadRequestException("Duplicate cities are not allowed within the same state");
+                }
+                totalCities++;
+            }
+        }
+        if (totalCities > MAX_PREFERRED_FUTURE_CITIES) {
+            throw new BadRequestException("A maximum of " + MAX_PREFERRED_FUTURE_CITIES
+                    + " cities is allowed across preferred future locations");
+        }
+    }
+
+    private void validateEducationTextField(String field, String value, Pattern pattern) {
+        if (value == null) {
+            return;
+        }
+        if (!pattern.matcher(value).matches()) {
+            throw new BadRequestException(field + " may contain letters and spaces only");
+        }
+    }
+
     private void applyCareer(User user, UserProfile profile, CareerDto dto) {
         if (dto.employmentStatus() != null && !dto.employmentStatus().isBlank()) {
             validateAllowlistEnum("employmentStatus", dto.employmentStatus().trim().toUpperCase(Locale.ROOT),
                     IdentityReferenceEnums.EMPLOYMENT_STATUSES);
+        }
+
+        validateCareerAlphanumericField("jobFunction", dto.jobFunction());
+        validateCareerAlphanumericField("industry", dto.industry());
+        validateCareerAlphanumericField("employerName", dto.employerName());
+        validateCareerAlphanumericField("careerAmbitions", dto.careerAmbitions());
+        validateEmploymentTypeField(dto.employmentType());
+        if (dto.yearsInProfession() != null && dto.yearsInProfession() < 0) {
+            throw new BadRequestException("yearsInProfession must be a non-negative number");
         }
 
         UserLifeProfile life = ensureLife(user);
@@ -827,6 +983,7 @@ public class IdentityOnboardingService {
         life.setCareerAmbitions(trimToNull(dto.careerAmbitions()));
         life.setWorkLifeBalancePref(trimToNull(dto.workLifeBalancePref()));
         life.setEmployerName(trimToNull(dto.employerName()));
+        life.setEmploymentType(trimToNull(dto.employmentType()));
         life.setShowEmployerPublicly(Boolean.TRUE.equals(dto.showEmployerPublicly()));
         lifeProfileRepository.save(life);
 
@@ -834,6 +991,25 @@ public class IdentityOnboardingService {
             profile.setOccupation(life.getJobFunction());
         }
         profile.setEmployerNamePubliclyAllowed(Boolean.TRUE.equals(life.getShowEmployerPublicly()));
+    }
+
+    private static final Pattern CAREER_ALNUM_PATTERN = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,499}$");
+    private static final Pattern EMPLOYMENT_TYPE_PATTERN = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N} /\\-]{0,79}$");
+
+    private void validateCareerAlphanumericField(String field, String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) return;
+        if (!CAREER_ALNUM_PATTERN.matcher(trimmed).matches()) {
+            throw new BadRequestException(field + " may contain letters and numbers only");
+        }
+    }
+
+    private void validateEmploymentTypeField(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) return;
+        if (!EMPLOYMENT_TYPE_PATTERN.matcher(trimmed).matches()) {
+            throw new BadRequestException("employmentType may contain letters, numbers, spaces, / and - only");
+        }
     }
 
     private void applyFinancial(User user, FinancialDto dto) {
@@ -1206,7 +1382,7 @@ public class IdentityOnboardingService {
         meta.put("createdAt", saved.getCreatedAt() == null
                 ? LocalDateTime.now().toString()
                 : saved.getCreatedAt().toString());
-        appendJsonArray(compliance, "documentsMeta", compliance.getDocumentsMeta(), meta, Integer.MAX_VALUE);
+        appendJsonArray(compliance, "documentsMeta", compliance.getDocumentsMeta(), meta, MAX_DOCUMENT_META);
     }
 
     private void appendJsonArray(
@@ -1312,7 +1488,9 @@ public class IdentityOnboardingService {
                         Boolean.TRUE.equals(profile.getShowVerificationBadge()),
                         maskSsn(v.getSsn()),
                         v.getDlFrontBlobId(),
-                        v.getDlBackBlobId()
+                        v.getDlBackBlobId(),
+                        v.getIdDocumentType(),
+                        v.getIdDocumentNumber()
                 ))
                 .orElse(null);
         BackgroundConsentDto backgroundConsent = complianceOpt
@@ -1373,7 +1551,7 @@ public class IdentityOnboardingService {
                 || bg.getMoveInYear() != null
                 || trimToNull(bg.getWillingToRelocate()) != null
                 || bg.getEventTravelRadiusMiles() != null
-                || !readStringList(bg.getPreferredRelocateLocations()).isEmpty();
+                || !readPreferredFutureLocations(bg.getPreferredRelocateLocations()).isEmpty();
     }
 
     private boolean hasNationalityData(UserIdentityBackground bg) {
@@ -1494,8 +1672,54 @@ public class IdentityOnboardingService {
                 calculateResidenceDurationMonths(r.getMoveInMonth(), r.getMoveInYear()),
                 r.getWillingToRelocate(),
                 r.getEventTravelRadiusMiles(),
-                readStringList(r.getPreferredRelocateLocations())
+                readPreferredFutureLocations(r.getPreferredRelocateLocations())
         );
+    }
+
+    private List<PreferredFutureLocationDto> readPreferredFutureLocations(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            if (!root.isArray()) {
+                return List.of();
+            }
+            List<PreferredFutureLocationDto> structured = new ArrayList<>();
+            List<String> legacyCities = new ArrayList<>();
+            for (JsonNode node : root) {
+                if (node.isTextual()) {
+                    String city = trimToNull(node.asText());
+                    if (city != null) {
+                        legacyCities.add(city);
+                    }
+                } else if (node.isObject()) {
+                    String state = trimToNull(node.path("state").asText(null));
+                    List<String> cities = new ArrayList<>();
+                    JsonNode citiesNode = node.get("cities");
+                    if (citiesNode != null && citiesNode.isArray()) {
+                        for (JsonNode cityNode : citiesNode) {
+                            String city = trimToNull(cityNode.asText(null));
+                            if (city != null) {
+                                cities.add(city);
+                            }
+                        }
+                    }
+                    if (state != null || !cities.isEmpty()) {
+                        structured.add(new PreferredFutureLocationDto(state, cities));
+                    }
+                }
+            }
+            if (!structured.isEmpty()) {
+                return structured;
+            }
+            if (!legacyCities.isEmpty()) {
+                return List.of(new PreferredFutureLocationDto(null, legacyCities));
+            }
+        } catch (IOException ex) {
+            return List.of();
+        }
+        return List.of();
     }
 
     private List<PreviousAddressDto> toPreviousAddressDtos(String json) {
@@ -1504,10 +1728,14 @@ public class IdentityOnboardingService {
         for (Map<String, Object> row : rows) {
             result.add(new PreviousAddressDto(
                     asLong(row.get("id")),
+                    asString(row.get("line1")),
+                    asString(row.get("line2")),
+                    asString(row.get("unit")),
                     asString(row.get("city")),
                     asString(row.get("stateRegion")),
                     asString(row.get("countryCode")),
                     asString(row.get("postalCode")),
+                    asString(row.get("residenceType")),
                     asInteger(row.get("fromMonth")),
                     asInteger(row.get("fromYear")),
                     asInteger(row.get("toMonth")),
@@ -1584,7 +1812,9 @@ public class IdentityOnboardingService {
                 e.getInstitution(),
                 e.getCity(),
                 e.getCountryCode(),
+                e.getStartMonth(),
                 e.getStartYear(),
+                e.getGraduationMonth(),
                 e.getEndYear(),
                 e.getCurrentlyStudying(),
                 e.getHonors(),
@@ -1610,7 +1840,8 @@ public class IdentityOnboardingService {
                 c.getCareerAmbitions(),
                 c.getWorkLifeBalancePref(),
                 c.getEmployerName(),
-                c.getShowEmployerPublicly()
+                c.getShowEmployerPublicly(),
+                c.getEmploymentType()
         );
     }
 

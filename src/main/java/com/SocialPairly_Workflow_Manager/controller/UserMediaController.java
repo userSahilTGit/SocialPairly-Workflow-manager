@@ -42,22 +42,76 @@ public class UserMediaController {
         return ResponseEntity.ok(userMediaService.uploadMedia(currentUser, file));
     }
 
-    // 👈 Streams raw byte[] data directly from MySQL database
+    // 👈 Streams raw byte[] data directly from MySQL database (supports HTTP Range for video seek/play)
     @GetMapping("/media/{id}/stream")
-    public ResponseEntity<byte[]> streamMedia(@PathVariable Long id) {
+    public ResponseEntity<byte[]> streamMedia(
+            @PathVariable Long id,
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader
+    ) {
         UserMedia media = userMediaService.getMediaEntityById(id);
+        byte[] data = media.getMediaData();
+        if (data == null || data.length == 0) {
+            throw new ResourceNotFoundException("Media content not available for id: " + id);
+        }
 
-        // Dynamic MIME type determination
         String contentType = (media.getMediaType() == MediaType.VIDEO) ? "video/mp4" : "image/jpeg";
+        org.springframework.http.MediaType mediaType = org.springframework.http.MediaType.parseMediaType(contentType);
+        long fileSize = data.length;
+
+        if (rangeHeader != null && rangeHeader.startsWith("bytes=") && media.getMediaType() == MediaType.VIDEO) {
+            String rangeValue = rangeHeader.substring("bytes=".length()).trim();
+            // Support single range: bytes=start-end | bytes=start- | bytes=-suffix
+            String[] parts = rangeValue.split("-", 2);
+            long start;
+            long end;
+            try {
+                if (parts[0].isEmpty()) {
+                    // bytes=-500 → last 500 bytes
+                    long suffix = Long.parseLong(parts[1]);
+                    start = Math.max(0, fileSize - suffix);
+                    end = fileSize - 1;
+                } else {
+                    start = Long.parseLong(parts[0]);
+                    end = (parts.length > 1 && !parts[1].isEmpty())
+                            ? Long.parseLong(parts[1])
+                            : fileSize - 1;
+                }
+            } catch (NumberFormatException ex) {
+                return ResponseEntity.status(416)
+                        .header(HttpHeaders.CONTENT_RANGE, "bytes */" + fileSize)
+                        .build();
+            }
+
+            if (start < 0 || start >= fileSize || end < start) {
+                return ResponseEntity.status(416)
+                        .header(HttpHeaders.CONTENT_RANGE, "bytes */" + fileSize)
+                        .build();
+            }
+            end = Math.min(end, fileSize - 1);
+            int chunkLength = (int) (end - start + 1);
+            byte[] chunk = new byte[chunkLength];
+            System.arraycopy(data, (int) start, chunk, 0, chunkLength);
+
+            return ResponseEntity.status(206)
+                    .contentType(mediaType)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileSize)
+                    .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
+                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(chunkLength))
+                    .body(chunk);
+        }
 
         return ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.parseMediaType(contentType)) // Fully qualified to avoid collision
+                .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                .header(HttpHeaders.CACHE_CONTROL, media.getMediaType() == MediaType.VIDEO
+                        ? "private, max-age=3600"
+                        : "no-store, no-cache, must-revalidate")
                 .header(HttpHeaders.PRAGMA, "no-cache")
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes") // 👈 Enables video seeking/playhead support
-                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(media.getMediaData().length))
-                .body(media.getMediaData());
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileSize))
+                .body(data);
     }
 
     @GetMapping("/media/my-uploads")

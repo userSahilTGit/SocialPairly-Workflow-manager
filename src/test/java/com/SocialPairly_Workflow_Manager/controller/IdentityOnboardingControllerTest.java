@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.controller;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundRequest;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundResponse;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
 import com.SocialPairly_Workflow_Manager.service.IdentityOnboardingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,29 +133,19 @@ class IdentityOnboardingControllerTest {
     }
 
     @Test
-    void backgroundConsentParsesBooleanAccepted() {
-        when(identityOnboardingService.acceptBackgroundConsent(user, true, "v1"))
-                .thenReturn(Map.of("accepted", true));
-        ResponseEntity<Map<String, Object>> response = controller.backgroundConsent(Map.of(
-                "accepted", true,
-                "documentVersion", "v1"
-        ));
-        assertEquals(true, response.getBody().get("accepted"));
+    void backgroundConsentRejectedInPhase1() {
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> controller.backgroundConsent(Map.of("accepted", true, "documentVersion", "v1"))
+        );
+        assertTrue(ex.getMessage().toLowerCase().contains("phase 1"));
+        verify(identityOnboardingService, never()).acceptBackgroundConsent(any(), any(), any());
+        verify(currentUserService, never()).getCurrentUser();
     }
 
     @Test
-    void backgroundConsentParsesStringAcceptedAndNullVersion() {
-        when(identityOnboardingService.acceptBackgroundConsent(user, false, null))
-                .thenReturn(Map.of("accepted", false));
-        controller.backgroundConsent(Map.of("accepted", "false"));
-        verify(identityOnboardingService).acceptBackgroundConsent(user, false, null);
-    }
-
-    @Test
-    void backgroundConsentNullBody() {
-        when(identityOnboardingService.acceptBackgroundConsent(user, null, null))
-                .thenReturn(Map.of("accepted", false));
-        controller.backgroundConsent(null);
-        verify(identityOnboardingService).acceptBackgroundConsent(user, null, null);
+    void backgroundConsentRejectedEvenWithNullBody() {
+        assertThrows(BadRequestException.class, () -> controller.backgroundConsent(null));
+        verify(identityOnboardingService, never()).acceptBackgroundConsent(any(), any(), any());
     }
 }

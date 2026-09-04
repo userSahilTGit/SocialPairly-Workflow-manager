@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS user_identity_compliance (
   age_status             VARCHAR(30)  NOT NULL DEFAULT 'NOT_STARTED',
   photo_status           VARCHAR(30)  NOT NULL DEFAULT 'NOT_STARTED',
   ssn                    VARCHAR(11)  NULL,
+  id_document_type       VARCHAR(40)  NULL,
+  id_document_number     VARCHAR(100) NULL,
   dl_front_blob_id       BIGINT       NULL,
   dl_back_blob_id        BIGINT       NULL,
   last_error_code        VARCHAR(60)  NULL,

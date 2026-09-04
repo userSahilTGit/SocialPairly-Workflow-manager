@@ -22,6 +22,7 @@ public class UserMedia {
     private User user;
 
     @Lob
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "media_data", columnDefinition = "LONGBLOB", nullable = false)
     private byte[] mediaData; // 👈 Stores file binary data directly in MySQL
 

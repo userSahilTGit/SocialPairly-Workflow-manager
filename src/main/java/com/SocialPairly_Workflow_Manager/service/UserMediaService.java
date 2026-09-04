@@ -4,6 +4,7 @@ import com.SocialPairly_Workflow_Manager.dto.MediaModerationRequestDto;
 import com.SocialPairly_Workflow_Manager.dto.MediaUpdateRequestDto;
 import com.SocialPairly_Workflow_Manager.dto.MediaUploadResponseDto;
 import com.SocialPairly_Workflow_Manager.dto.ProfileStatusDto;
+import com.SocialPairly_Workflow_Manager.dto.UserMediaAdminListItem;
 import com.SocialPairly_Workflow_Manager.entity.*;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
@@ -11,6 +12,7 @@ import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -161,6 +163,7 @@ public class UserMediaService {
         }
     }
 
+    @Transactional(readOnly = true)
     public UserMedia getMediaEntityById(Long mediaId) {
         return userMediaRepository.findById(mediaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found with id: " + mediaId));
@@ -272,9 +275,10 @@ public class UserMediaService {
         return mapToDto(updated);
     }
 
+    @Transactional(readOnly = true)
     public List<MediaUploadResponseDto> getAllMediaForAdmin() {
-        return userMediaRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(this::mapToDto)
+        return userMediaRepository.findAllForAdminModeration().stream()
+                .map(this::mapAdminListItemToDto)
                 .collect(Collectors.toList());
     }
 
@@ -302,11 +306,37 @@ public class UserMediaService {
     // verified once the frontend confirms the match (POST /api/users/verify-success).
     // No image bytes are sent to any external service.
 
+    private MediaUploadResponseDto mapAdminListItemToDto(UserMediaAdminListItem item) {
+        return MediaUploadResponseDto.builder()
+                .id(item.getId())
+                .userId(item.getUserId())
+                .userName(formatAdminUserName(
+                        item.getPreferredName(),
+                        item.getFirstName(),
+                        item.getLastName(),
+                        item.getEmail()))
+                .mediaUrl("/api/media/" + item.getId() + "/stream")
+                .mediaType(item.getMediaType())
+                .fileSizeKb(item.getFileSizeKb())
+                .status(item.getStatus())
+                .rejectionReason(item.getRejectionReason())
+                .caption(item.getCaption())
+                .displayOrder(item.getDisplayOrder())
+                .mediaCategory(item.getMediaCategory())
+                .privacyMode(item.getPrivacyMode())
+                .isCover(item.getIsCover())
+                .promptText(item.getPromptText())
+                .requiresAccessApproval(item.getRequiresAccessApproval())
+                .createdAt(item.getCreatedAt())
+                .build();
+    }
+
     private MediaUploadResponseDto mapToDto(UserMedia media) {
+        User owner = media.getUser();
         return MediaUploadResponseDto.builder()
                 .id(media.getId())
-                .userId(media.getUser().getId())
-                .userName(media.getUser().getFirstName() + " " + media.getUser().getLastName())
+                .userId(owner != null ? owner.getId() : null)
+                .userName(formatAdminUserName(owner))
                 // 👈 Dynamic streaming URL for frontend <img> and <video> tags
                 .mediaUrl("/api/media/" + media.getId() + "/stream")
                 .mediaType(media.getMediaType())
@@ -322,5 +352,33 @@ public class UserMediaService {
                 .requiresAccessApproval(media.getRequiresAccessApproval())
                 .createdAt(media.getCreatedAt())
                 .build();
+    }
+
+    /** Display name for admin moderation grouping / search. */
+    private static String formatAdminUserName(User user) {
+        if (user == null) {
+            return "Unknown User";
+        }
+        return formatAdminUserName(
+                user.getPreferredName(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail());
+    }
+
+    private static String formatAdminUserName(String preferredName, String firstName, String lastName, String email) {
+        if (preferredName != null && !preferredName.isBlank()) {
+            return preferredName.trim();
+        }
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        String full = (first + " " + last).trim();
+        if (!full.isEmpty()) {
+            return full;
+        }
+        if (email != null && !email.isBlank()) {
+            return email.trim();
+        }
+        return "Unknown User";
     }
 }

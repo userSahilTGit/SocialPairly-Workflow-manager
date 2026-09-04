@@ -95,7 +95,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         us.setPostalRegex("^[0-9]{5}(-[0-9]{4})?$");
         us.setActive(true);
         lenient().when(refCountryRepository.findById("US")).thenReturn(Optional.of(us));
-        lenient().when(refCountryRepository.findByActiveTrue()).thenReturn(List.of(us));
+        lenient().when(refCountryRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(us));
 
         RefCountry noRegex = new RefCountry();
         noRegex.setCode("XX");
@@ -166,8 +166,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                 null, null, null, null, null, null,
                 residence, null, nationality, immigration, relationship,
                 family, educations, career, financial, safety, civil,
-                null, null
-        );
+                null, null, null, null);
     }
 
     @Nested
@@ -407,7 +406,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         void savePartialCareerFinancialSafetyWithNullEnumFields() {
             CareerDto career = new CareerDto(
                     null, "Engineer", null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null
+                    null, null, null, null, null, null, null, null, null
             );
             FinancialDto financial = new FinancialDto(
                     null, null, null, null, null, null,
@@ -443,8 +442,8 @@ class IdentityOnboardingServiceBranchCoverageTest {
         @Test
         void saveEducationSkipsBlankInstitutionAndBlankLevel() {
             List<EducationDto> educations = List.of(
-                    new EducationDto(null, null, null, null, "  ", null, null, null, null, null, null, null, null),
-                    new EducationDto(null, "  ", "BS", "CS", "MIT", null, "US", 2010, 2014, false, null, false, null)
+                    new EducationDto(null, null, null, null, "  ", null, null, null, null, null, null, null, null, null, null),
+                    new EducationDto(null, "  ", "BS", "CS", "MIT", null, "US", null, 2010, null, 2014, false, null, false, null)
             );
             IdentityBackgroundResponse res = service.saveIdentity(user,
                     saveLaterWith(null, null, null, null, null, educations, null, null, null, null));
@@ -470,12 +469,15 @@ class IdentityOnboardingServiceBranchCoverageTest {
         void saveResidenceWithBlankTypeAndRelocateAndPreferredLocations() {
             CurrentResidenceDto residence = new CurrentResidenceDto(
                     "1 Main", null, null, "Austin", "TX", "78701", "US",
-                    "  ", 1, 2020, null, "  ", null, java.util.Arrays.asList("  ", "Dallas", null)
+                    "  ", 1, 2020, null, "  ", null,
+                    List.of(new PreferredFutureLocationDto("Texas", List.of("Dallas")))
             );
             IdentityBackgroundResponse res = service.saveIdentity(user,
                     saveLaterWith(residence, null, null, null, null, null, null, null, null, null));
             assertNotNull(res.currentResidence());
             assertEquals(1, res.currentResidence().preferredFutureLocations().size());
+            assertEquals("Texas", res.currentResidence().preferredFutureLocations().get(0).state());
+            assertEquals(List.of("Dallas"), res.currentResidence().preferredFutureLocations().get(0).cities());
         }
 
         @Test
@@ -523,12 +525,12 @@ class IdentityOnboardingServiceBranchCoverageTest {
             xx.setCode("XX");
             xx.setName("No Regex Land");
             xx.setActive(true);
-            when(refCountryRepository.findByActiveTrue()).thenReturn(List.of(xx));
+            when(refCountryRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(xx));
 
             Map<String, Object> first = service.getReferenceData();
             Map<String, Object> second = service.getReferenceData();
             assertSame(first, second);
-            verify(refCountryRepository, times(1)).findByActiveTrue();
+            verify(refCountryRepository, times(1)).findByActiveTrueOrderByNameAsc();
         }
 
         @Test
@@ -563,7 +565,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         @Test
         void previousAddressYearRangeWithNullMonths() {
             List<PreviousAddressDto> previous = List.of(
-                    new PreviousAddressDto(null, "NYC", "NY", "US", "10001",
+                    new PreviousAddressDto(null, null, null, null, "NYC", "NY", "US", "10001", null,
                             null, 2018, null, 2019, "Move")
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
@@ -572,8 +574,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     null, null, null, null, null, null,
                     null, previous, null, null, null,
                     null, null, null, null, null, null,
-                    null, null
-            );
+                    null, null, null, null);
             assertDoesNotThrow(() -> service.saveIdentity(user, req));
         }
 
@@ -591,8 +592,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -609,7 +609,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         void educationGraduationBeforeStartRejected() {
             List<EducationDto> educations = List.of(
                     new EducationDto(null, "BACHELOR", "BS", "CS", "MIT", null, "US",
-                            2018, 2014, false, null, false, null)
+                            null, 2018, null, 2014, false, null, false, null)
             );
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user,
                     saveLaterWith(null, null, null, null, null, educations, null, null, null, null)));
@@ -619,7 +619,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         void careerBlankEmploymentStatusSkipped() {
             CareerDto career = new CareerDto(
                     "  ", "Engineer", null, null, null, null, null, null,
-                    null, null, null, null, null, null, "Acme", false
+                    null, null, null, null, null, null, "Acme", false, null
             );
             IdentityBackgroundResponse res = service.saveIdentity(user,
                     saveLaterWith(null, null, null, null, null, null, career, null, null, null));
@@ -633,7 +633,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
             ReflectionTestUtils.setField(service, "referenceDataCachedAtMs", System.currentTimeMillis() - 6 * 60 * 1000L);
             Map<String, Object> second = service.getReferenceData();
             assertNotSame(first, second);
-            verify(refCountryRepository, times(2)).findByActiveTrue();
+            verify(refCountryRepository, times(2)).findByActiveTrueOrderByNameAsc();
         }
 
         @Test
@@ -646,8 +646,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "ADA@Example.COM", "+919876543210", null, null,
                     "email", "evening",
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, null
-            );
+                    null, null, null, null);
             IdentityBackgroundResponse res = service.saveIdentity(user, req);
             assertEquals("Addie", res.displayName());
             assertFalse(user.isPhoneVerified());
@@ -662,8 +661,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.now().minusYears(10), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(com.SocialPairly_Workflow_Manager.exception.UnprocessableEntityException.class,
                     () -> service.saveIdentity(user, underage));
 
@@ -671,16 +669,14 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.now().plusDays(1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, future));
 
             IdentityBackgroundRequest missingName = new IdentityBackgroundRequest(
                     "CONTINUE", null, null, null, null, null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, missingName));
         }
 
@@ -690,8 +686,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "SAVE_LATER", "mr.", "Ada", null, "Lovelace", "jr.", null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertDoesNotThrow(() -> service.saveIdentity(user, req));
 
             String longName = "A".repeat(61);
@@ -699,8 +694,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "SAVE_LATER", null, longName, null, "Lovelace", null, null,
                     null, null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, tooLong));
         }
 
@@ -711,7 +705,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
             );
             List<EducationDto> educations = List.of(
                     new EducationDto(null, "bachelor", "BS", "CS", "MIT", null, "US",
-                            2010, 2014, true, null, true, 9L)
+                            null, 2010, null, 2014, true, null, true, 9L)
             );
             IdentityBackgroundResponse res = service.saveIdentity(user,
                     saveLaterWith(null, null, null, relationship, null, educations, null, null, null, null));
@@ -725,8 +719,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "CONTINUE", null, "Ada", null, "Lovelace", null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
             stubBg(bg -> {
                 bg.setLine1(null);
@@ -790,8 +783,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
                     null, null, null, "",
                     null, "+919876543210", null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             service.saveIdentity(user, req);
             assertTrue(user.isPhoneVerified());
         }
@@ -808,7 +800,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         @Test
         void previousAddressInvalidYearRangeRejected() {
             List<PreviousAddressDto> previous = List.of(
-                    new PreviousAddressDto(null, "NYC", "NY", "US", "10001",
+                    new PreviousAddressDto(null, null, null, null, "NYC", "NY", "US", "10001", null,
                             6, 2020, 1, 2019, "Move")
             );
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
@@ -817,8 +809,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     null, null, null, null, null, null,
                     null, previous, null, null, null,
                     null, null, null, null, null, null,
-                    null, null
-            );
+                    null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
         }
 
@@ -828,16 +819,14 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "CONTINUE", null, null, null, "Lovelace", null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, missingFirst));
 
             IdentityBackgroundRequest missingLast = new IdentityBackgroundRequest(
                     "CONTINUE", null, "Ada", null, null, null, null,
                     LocalDate.of(1990, 1, 1), null, null, null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, missingLast));
         }
 
@@ -847,8 +836,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
                     "SAVE_LATER", null, null, null, null, null, null,
                     null, null, "  ", null,
                     null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null, null
-            );
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             assertDoesNotThrow(() -> service.saveIdentity(user, req));
             assertNull(profile.getGender());
         }
@@ -903,7 +891,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
         void educationLevelOnlyStartYearAndBlankLevel() {
             List<EducationDto> educations = List.of(
                     new EducationDto(null, null, "BS", "CS", "MIT", null, null,
-                            2010, null, null, null, null, null)
+                            null, 2010, null, null, null, null, null, null)
             );
             IdentityBackgroundResponse res = service.saveIdentity(user,
                     saveLaterWith(null, null, null, null, null, educations, null, null, null, null));

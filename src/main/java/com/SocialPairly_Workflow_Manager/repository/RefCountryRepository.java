@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface RefCountryRepository extends JpaRepository<RefCountry, String> {
 
-    List<RefCountry> findByActiveTrue();
+    List<RefCountry> findByActiveTrueOrderByNameAsc();
 }

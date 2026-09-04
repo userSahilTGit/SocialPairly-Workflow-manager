@@ -203,7 +203,7 @@ class AuthServiceCoverageTest {
     }
 
     @Test
-    void verifyEmailShouldMarkVerifiedAndSetStep2WhenPhoneUnverified() {
+    void verifyEmailShouldMarkVerifiedAndCompleteContactVerification() {
         User user = new User();
         user.setId(1L);
         user.setEmail("ada@example.com");
@@ -221,7 +221,8 @@ class AuthServiceCoverageTest {
 
         assertEquals("Email verified successfully", result.get("message"));
         assertTrue(user.isEmailVerified());
-        assertEquals("STEP_2_VERIFY_EMAIL", profile.getOnboardingStep());
+        // Phase 1: email OTP completes contact verification (phone SMS deferred)
+        assertEquals("STEP_4_COMPLETED", profile.getOnboardingStep());
         verify(otpService).verify(eq("EMAIL_VERIFY"), eq("ada@example.com"), eq("123456"));
         verify(otpService).clear(eq("EMAIL_VERIFY"), eq("ada@example.com"));
     }

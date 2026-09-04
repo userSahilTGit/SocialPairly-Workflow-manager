@@ -28,8 +28,14 @@ public class Education {
     @Column(name = "start_year")
     private Integer startYear;
 
+    @Column(name = "start_month")
+    private Integer startMonth;
+
     @Column(name = "end_year")
     private Integer endYear;
+
+    @Column(name = "graduation_month")
+    private Integer graduationMonth;
 
     @Column(name = "education_level", length = 40)
     private String educationLevel;
@@ -71,8 +77,14 @@ public class Education {
     public Integer getStartYear() { return startYear; }
     public void setStartYear(Integer startYear) { this.startYear = startYear; }
 
+    public Integer getStartMonth() { return startMonth; }
+    public void setStartMonth(Integer startMonth) { this.startMonth = startMonth; }
+
     public Integer getEndYear() { return endYear; }
     public void setEndYear(Integer endYear) { this.endYear = endYear; }
+
+    public Integer getGraduationMonth() { return graduationMonth; }
+    public void setGraduationMonth(Integer graduationMonth) { this.graduationMonth = graduationMonth; }
 
     public String getEducationLevel() { return educationLevel; }
     public void setEducationLevel(String educationLevel) { this.educationLevel = educationLevel; }
