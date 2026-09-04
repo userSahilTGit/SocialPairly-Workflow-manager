@@ -145,6 +145,7 @@ public class IdentityOnboardingService {
 
         // Phase 1: background screening / consent is not offered — never gate saves on consent.
         // Phase 2: call requireBackgroundConsent(user) here when screening ships.
+        // Background screening consent deferred to Phase 2 (#1561) — no longer required on save.
 
         boolean strict = ACTION_CONTINUE.equals(action);
         validateAndApply(user, request, strict);
@@ -693,7 +694,13 @@ public class IdentityOnboardingService {
                 if (code == null) continue;
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("languageCode", code.toLowerCase(Locale.ROOT));
-                row.put("proficiency", trimToNull(lang.proficiency()));
+                String proficiency = trimToNull(lang.proficiency());
+                if (proficiency != null) {
+                    validateAllowlistEnum("proficiency", proficiency.toUpperCase(Locale.ROOT),
+                            IdentityReferenceEnums.PROFICIENCY_LEVELS);
+                    proficiency = proficiency.toUpperCase(Locale.ROOT);
+                }
+                row.put("proficiency", proficiency);
                 languages.add(row);
             }
         }
@@ -747,6 +754,13 @@ public class IdentityOnboardingService {
         if (dto.previousMarriagesCount() != null && dto.divorcesCount() != null
                 && dto.divorcesCount() > dto.previousMarriagesCount()) {
             throw new BadRequestException("divorcesCount cannot exceed previousMarriagesCount");
+        }
+        validateOptionalYesNoPrefer("coParenting", dto.coParenting());
+        validateOptionalApproxYear("mostRecentDivorceYear", dto.mostRecentDivorceYear());
+        if (dto.relationshipModelPref() != null && !dto.relationshipModelPref().isBlank()) {
+            validateAllowlistEnum("relationshipModelPref",
+                    dto.relationshipModelPref().trim().toUpperCase(Locale.ROOT),
+                    IdentityReferenceEnums.RELATIONSHIP_MODEL_PREFS);
         }
 
         UserLifeProfile life = ensureLife(user);
@@ -1077,6 +1091,7 @@ public class IdentityOnboardingService {
                     blankToNull(dto.governmentOffenderRegistry().trim().toUpperCase(Locale.ROOT)));
         }
         life.setSafetyJurisdiction(trimToNull(dto.jurisdiction()));
+        validateOptionalApproxYear("safety.approxYear", dto.approxYear());
         life.setSafetyApproxYear(dto.approxYear());
         life.setSafetyCaseResolved(dto.caseResolved());
         life.setSafetyExplanation(trimToNull(dto.explanation()));
@@ -1092,6 +1107,7 @@ public class IdentityOnboardingService {
         }
         life.setCivilCategories(trimToNull(dto.categories()));
         life.setCivilJurisdiction(trimToNull(dto.jurisdiction()));
+        validateOptionalApproxYear("civilJudgment.approxYear", dto.approxYear());
         life.setCivilApproxYear(dto.approxYear());
         life.setCivilResolved(dto.resolved());
         life.setCivilExplanation(trimToNull(dto.explanation()));
@@ -1269,6 +1285,16 @@ public class IdentityOnboardingService {
 
     private void validateOptionalSafety(String field, String value) {
         validateOptionalEnum(field, value, IdentityReferenceEnums.SAFETY_ANSWERS);
+    }
+
+    private void validateOptionalApproxYear(String field, Integer year) {
+        if (year == null) {
+            return;
+        }
+        int currentYear = java.time.Year.now().getValue();
+        if (year < 1900 || year > currentYear) {
+            throw new BadRequestException(field + " must be between 1900 and " + currentYear);
+        }
     }
 
     private void validateMonth(String field, Integer month) {

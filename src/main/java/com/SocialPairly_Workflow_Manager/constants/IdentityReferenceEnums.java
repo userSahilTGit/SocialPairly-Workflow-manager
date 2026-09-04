@@ -70,6 +70,14 @@ public final class IdentityReferenceEnums {
             "PRIVATE", "MATCHES", "PUBLIC"
     );
 
+    public static final List<String> PROFICIENCY_LEVELS = List.of(
+            "BASIC", "CONVERSATIONAL", "FLUENT", "NATIVE"
+    );
+
+    public static final List<String> RELATIONSHIP_MODEL_PREFS = List.of(
+            "MONOGAMY", "POLYAMORY", "OPEN", "PREFER_NOT_TO_SAY"
+    );
+
     public static final List<Map<String, String>> LANGUAGE_OPTIONS = List.of(
             Map.of("code", "en", "name", "English"),
             Map.of("code", "ar", "name", "Arabic"),
