@@ -102,7 +102,13 @@ public class IdentityOnboardingService {
 
     @Transactional(readOnly = true)
     public IdentityBackgroundResponse getIdentity(User user) {
-        UserProfile profile = ensureProfile(user);
+        // Do not INSERT on read — read-only transactions forbid writes. The row is created on first save.
+        UserProfile profile = profileRepository.findByUserId(user.getId()).orElseGet(() -> {
+            UserProfile p = new UserProfile();
+            p.setUser(user);
+            p.setGenderShownToMatches("MATCHES");
+            return p;
+        });
         return toResponse(user, profile);
     }
 

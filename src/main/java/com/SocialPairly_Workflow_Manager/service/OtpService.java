@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.service;
 import com.SocialPairly_Workflow_Manager.entity.AuthOtpCode;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.repository.AuthOtpCodeRepository;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -49,7 +50,7 @@ public class OtpService {
         row.setVerified(false);
         row.setAttemptCount(0);
         authOtpCodeRepository.save(row);
-        log.info("OTP generated purpose={} identifier={} (valid {} minutes)", purpose, key, OTP_TTL_MINUTES);
+        log.info("OTP generated purpose={} identifier={} (valid {} minutes)", purpose, LogMasker.identifier(key), OTP_TTL_MINUTES);
         return otp;
     }
 

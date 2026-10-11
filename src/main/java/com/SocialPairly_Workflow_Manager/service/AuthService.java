@@ -16,6 +16,7 @@ import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
@@ -72,7 +73,8 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        log.info("Registering user email={} phone={}", request.email(), request.phoneNumber());
+        log.info("Registering user email={} phone={}",
+                LogMasker.email(request.email()), LogMasker.phone(request.phoneNumber()));
         if (!request.password().equals(request.confirmPassword())) {
             throw new BadRequestException("Passwords do not match");
         }
@@ -127,7 +129,7 @@ public class AuthService {
         try {
             emailService.sendEmailVerificationOtpEmail(saved, emailOtp);
         } catch (MessagingException e) {
-            log.warn("Failed to send email verification OTP to {}: {}", saved.getEmail(), e.getMessage());
+            log.warn("Failed to send email verification OTP to {}: {}", LogMasker.email(saved.getEmail()), e.getMessage());
         }
         // Phone SMS is handled by Firebase on the client (optional verification)
 
@@ -189,7 +191,7 @@ public class AuthService {
             }
             userProfileRepository.save(profile);
             userRepository.save(currentUser);
-            log.info("Firebase phone verified for userId={} phone={}", currentUser.getId(), phoneE164);
+            log.info("Firebase phone verified for userId={} phone={}", currentUser.getId(), LogMasker.phone(phoneE164));
             return Map.of(
                     "message", "Phone verified successfully",
                     "user", UserDto.from(currentUser)
@@ -255,7 +257,7 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request, String clientIp) {
         String identifier = request.identifier().trim();
-        log.info("Authenticating login request for identifier={}", identifier);
+        log.info("Authenticating login request for identifier={}", LogMasker.identifier(identifier));
         User user = userRepository.findByEmail(identifier.toLowerCase())
                 .or(() -> userService.findOptionalByPhoneIdentifier(identifier))
                 .orElseThrow(() -> new BadCredentialsException(
@@ -319,7 +321,7 @@ public class AuthService {
                     try {
                         emailService.sendWelcomeEmail(saved);
                     } catch (Exception mailEx) {
-                        log.warn("Welcome email failed for google user {}: {}", normalizedEmail, mailEx.getMessage());
+                        log.warn("Welcome email failed for google user {}: {}", LogMasker.email(normalizedEmail), mailEx.getMessage());
                     }
                     return saved;
                 });
@@ -363,7 +365,7 @@ public class AuthService {
      * reveal whether an account exists (AC11).
      */
     public void sendForgotPasswordOtp(ForgotPasswordSendOtpRequest request) {
-        log.info("Sending forgot password OTP for identifier={}", request.identifier());
+        log.info("Sending forgot password OTP for identifier={}", LogMasker.identifier(request.identifier()));
         var userOpt = userService.findOptionalByIdentifier(request.identifier());
         if (userOpt.isEmpty()) {
             log.info("Forgot-password requested for unknown identifier (no OTP sent)");
@@ -378,15 +380,15 @@ public class AuthService {
             String destination = user.getEmail().contains("@")
                     ? user.getEmail()
                     : user.getPhoneNumber();
-            log.info("Password reset OTP sent to {} for user {}", destination, user.getEmail());
+            log.info("Password reset OTP sent to {} for user {}", LogMasker.identifier(destination), user.getId());
         } catch (MessagingException e) {
             // Same client outcome as unknown identifier — do not leak account existence via 500.
-            log.warn("Forgot-password OTP email failed for {}: {}", user.getEmail(), e.getMessage());
+            log.warn("Forgot-password OTP email failed for {}: {}", LogMasker.email(user.getEmail()), e.getMessage());
         }
     }
 
     public Map<String, String> verifyForgotPasswordOtp(ForgotPasswordVerifyOtpRequest request) {
-        log.info("Verifying forgot password OTP for identifier={}", request.identifier());
+        log.info("Verifying forgot password OTP for identifier={}", LogMasker.identifier(request.identifier()));
         if (userService.findOptionalByIdentifier(request.identifier()).isEmpty()) {
             // Same client-facing signal as a wrong OTP — do not reveal account existence.
             throw new BadRequestException("Invalid OTP");
@@ -400,7 +402,7 @@ public class AuthService {
 
     @Transactional
     public Map<String, String> resetPassword(ForgotPasswordResetRequest request) {
-        log.info("Resetting password for identifier={}", request.identifier());
+        log.info("Resetting password for identifier={}", LogMasker.identifier(request.identifier()));
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new BadRequestException("Passwords do not match");
         }

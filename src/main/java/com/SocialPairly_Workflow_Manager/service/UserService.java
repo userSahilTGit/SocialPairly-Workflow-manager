@@ -6,14 +6,18 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
+import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
 import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserPersonalityProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.repository.VideoAccessRequestRepository;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +41,9 @@ public class UserService {
     private final RefundRepository refundRepository;
     private final PaymentRepository paymentRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final EventParticipantRepository eventParticipantRepository;
+    private final PlanUpgradeRequestRepository planUpgradeRequestRepository;
+    private final UserPersonalityProfileRepository personalityProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.sms.default-country-code:+91}")
@@ -51,6 +58,9 @@ public class UserService {
                        RefundRepository refundRepository,
                        PaymentRepository paymentRepository,
                        SubscriptionRepository subscriptionRepository,
+                       EventParticipantRepository eventParticipantRepository,
+                       PlanUpgradeRequestRepository planUpgradeRequestRepository,
+                       UserPersonalityProfileRepository personalityProfileRepository,
                        PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
@@ -61,6 +71,9 @@ public class UserService {
         this.refundRepository = refundRepository;
         this.paymentRepository = paymentRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.eventParticipantRepository = eventParticipantRepository;
+        this.planUpgradeRequestRepository = planUpgradeRequestRepository;
+        this.personalityProfileRepository = personalityProfileRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -82,7 +95,10 @@ public class UserService {
         videoAccessRequestRepository.deleteByRequesterId(userId);
         videoAccessRequestRepository.deleteByOwnerId(userId);
         userMediaRepository.deleteByUserId(userId);
+        eventParticipantRepository.deleteByUser_Id(userId);
+        personalityProfileRepository.deleteByUser_Id(userId);
         bankDetailsRepository.deleteByUserId(userId);
+        planUpgradeRequestRepository.deleteByUser_Id(userId);
         refundRepository.deleteByUser_Id(userId);
         paymentRepository.deleteByUser_Id(userId);
         subscriptionRepository.deleteByUser_Id(userId);
@@ -101,7 +117,7 @@ public class UserService {
     @Transactional
     public Map<String, Object> updatePhone(User currentUser, String rawPhone) {
         String phoneStorage = normalizePhoneStorageOrThrow(rawPhone);
-        log.info("Updating phone for userId={} to {}", currentUser.getId(), phoneStorage);
+        log.info("Updating phone for userId={} to {}", currentUser.getId(), LogMasker.phone(phoneStorage));
 
         if (phoneNumberExistsForOtherUser(rawPhone, currentUser.getId())) {
             throw new BadRequestException("This phone number is already registered to another account");
@@ -136,7 +152,7 @@ public class UserService {
             return java.util.Optional.empty();
         }
         String trimmed = identifier.trim();
-        log.debug("Finding user by identifier={}", trimmed);
+        log.debug("Finding user by identifier={}", LogMasker.identifier(trimmed));
         return userRepository.findByEmail(trimmed.toLowerCase())
                 .or(() -> findOptionalByPhoneIdentifier(trimmed));
     }

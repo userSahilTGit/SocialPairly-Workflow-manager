@@ -10,6 +10,9 @@ import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
+import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserPersonalityProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
@@ -60,6 +63,15 @@ class UserServiceAdditionalTests {
 
     @Mock
     private SubscriptionRepository subscriptionRepository;
+
+    @Mock
+    private EventParticipantRepository eventParticipantRepository;
+
+    @Mock
+    private PlanUpgradeRequestRepository planUpgradeRequestRepository;
+
+    @Mock
+    private UserPersonalityProfileRepository personalityProfileRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;

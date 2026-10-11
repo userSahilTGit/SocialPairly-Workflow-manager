@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.entity;
 
+import com.SocialPairly_Workflow_Manager.security.EncryptedBytesConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.hibernate.annotations.OnDelete;
@@ -31,6 +32,7 @@ public class UserIdentityComplianceBlob {
     private Integer fileSizeKb;
 
     @Lob
+    @Convert(converter = EncryptedBytesConverter.class)
     @Column(name = "storage_blob", columnDefinition = "LONGBLOB")
     private byte[] storageBlob;
 

@@ -23,6 +23,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -69,7 +70,7 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
-        log.info("Register request received for email={}", request.email());
+        log.info("Register request received for email={}", LogMasker.email(request.email()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_REGISTER,
                 clientIp(httpRequest),
@@ -85,7 +86,7 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
-        log.info("Login request received for identifier={}", request.identifier());
+        log.info("Login request received for identifier={}", LogMasker.identifier(request.identifier()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_LOGIN,
                 clientIp(httpRequest),
@@ -125,7 +126,7 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordSendOtpRequest request,
             HttpServletRequest httpRequest
     ) {
-        log.info("Forgot-password OTP request received for identifier={}", request.identifier());
+        log.info("Forgot-password OTP request received for identifier={}", LogMasker.identifier(request.identifier()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_FORGOT_SEND,
                 clientIp(httpRequest),
@@ -140,7 +141,7 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordVerifyOtpRequest request,
             HttpServletRequest httpRequest
     ) {
-        log.info("OTP verification request received for identifier={}", request.identifier());
+        log.info("OTP verification request received for identifier={}", LogMasker.identifier(request.identifier()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_FORGOT_VERIFY,
                 clientIp(httpRequest),
@@ -151,7 +152,7 @@ public class AuthController {
     @PostMapping("/forgot-password/reset")
     public ResponseEntity<Map<String, String>> resetPassword(
             @Valid @RequestBody ForgotPasswordResetRequest request) {
-        log.info("Reset password request received for identifier={}", request.identifier());
+        log.info("Reset password request received for identifier={}", LogMasker.identifier(request.identifier()));
         return ResponseEntity.ok(authService.resetPassword(request));
     }
 
@@ -160,7 +161,7 @@ public class AuthController {
             @Valid @RequestBody VerifyContactRequest request,
             HttpServletRequest httpRequest
     ) {
-        log.info("Email verification request for identifier={}", request.identifier());
+        log.info("Email verification request for identifier={}", LogMasker.identifier(request.identifier()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_VERIFY_EMAIL,
                 clientIp(httpRequest),
@@ -171,7 +172,7 @@ public class AuthController {
     @PostMapping("/verify-phone")
     public ResponseEntity<Map<String, String>> verifyPhone(
             @Valid @RequestBody VerifyContactRequest request) {
-        log.info("Legacy phone verification request for identifier={}", request.identifier());
+        log.info("Legacy phone verification request for identifier={}", LogMasker.identifier(request.identifier()));
         return ResponseEntity.ok(authService.verifyPhone(request));
     }
 
@@ -188,7 +189,7 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordSendOtpRequest request,
             HttpServletRequest httpRequest
     ) {
-        log.info("Resend verification OTP for identifier={}", request.identifier());
+        log.info("Resend verification OTP for identifier={}", LogMasker.identifier(request.identifier()));
         authRateLimitService.check(
                 AuthRateLimitService.ACTION_RESEND_VERIFICATION,
                 clientIp(httpRequest),

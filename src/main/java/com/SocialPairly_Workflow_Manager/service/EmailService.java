@@ -10,6 +10,7 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.SocialPairly_Workflow_Manager.util.EmailTemplateBuilder;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -556,9 +557,9 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
             mailSender.send(message);
-            log.info("Email sent successfully to {} subject={}", to, subject);
+            log.info("Email sent successfully to {} subject={}", LogMasker.email(to), subject);
         } catch (Exception e) {
-            log.error("Failed to send email to {} subject={}", to, subject, e);
+            log.error("Failed to send email to {} subject={}", LogMasker.email(to), subject, e);
         }
     }
 
