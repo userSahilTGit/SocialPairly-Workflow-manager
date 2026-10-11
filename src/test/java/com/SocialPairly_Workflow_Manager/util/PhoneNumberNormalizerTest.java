@@ -74,9 +74,16 @@ class PhoneNumberNormalizerTest {
 
     @Test
     void parseShouldFallbackWhenUnknownCountryPrefix() {
-        PhoneNumberNormalizer.PhoneParts parts = PhoneNumberNormalizer.parse("+33123456789", "+91");
-        assertEquals("+3", parts.countryCode());
-        assertEquals("3123456789", parts.national());
+        // +33 is a real seeded dial code (France, 9 digits) after BUG-1570.
+        PhoneNumberNormalizer.registerNationalLength("+33", 9);
+        PhoneNumberNormalizer.PhoneParts france = PhoneNumberNormalizer.parse("+33612345678", "+91");
+        assertEquals("+33", france.countryCode());
+        assertEquals("612345678", france.national());
+
+        // Truly unknown prefix still falls back to first-digit country code.
+        PhoneNumberNormalizer.PhoneParts parts = PhoneNumberNormalizer.parse("+99912345678", "+91");
+        assertEquals("+9", parts.countryCode());
+        assertEquals("9912345678", parts.national());
     }
 
     @Test
@@ -110,10 +117,46 @@ class PhoneNumberNormalizerTest {
         assertEquals("", strip.invoke(null, (Object) null));
         assertEquals("9876543210", strip.invoke(null, "0009876543210"));
 
-        var validate = PhoneNumberNormalizer.class.getDeclaredMethod("validateNational", String.class);
+        var validate = PhoneNumberNormalizer.class.getDeclaredMethod(
+                "validateNational", String.class, String.class);
         validate.setAccessible(true);
-        Exception ex = assertThrows(Exception.class, () -> validate.invoke(null, (Object) null));
+        Exception ex = assertThrows(Exception.class, () -> validate.invoke(null, null, "+91"));
         assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+    }
+
+    @Test
+    void parseShouldEnforceStrictNationalLengthPerCountry() {
+        assertDoesNotThrow(() -> PhoneNumberNormalizer.parse("+91-9876543210", "+91"));
+        assertThrows(IllegalArgumentException.class,
+                () -> PhoneNumberNormalizer.parse("+91-987654321", "+91"));
+        assertDoesNotThrow(() -> PhoneNumberNormalizer.parse("+971-501234567", "+91"));
+        assertThrows(IllegalArgumentException.class,
+                () -> PhoneNumberNormalizer.parse("+971-50123456", "+91"));
+
+        PhoneNumberNormalizer.registerNationalLength("+33", 9);
+        assertDoesNotThrow(() -> PhoneNumberNormalizer.parse("+33-612345678", "+91"));
+        assertThrows(IllegalArgumentException.class,
+                () -> PhoneNumberNormalizer.parse("+33-61234567", "+91"));
+    }
+
+    @Test
+    void registerNationalLengthIgnoresInvalidInput() {
+        PhoneNumberNormalizer.registerNationalLength(null, 10);
+        PhoneNumberNormalizer.registerNationalLength("  ", 10);
+        PhoneNumberNormalizer.registerNationalLength("+88", 3);
+        PhoneNumberNormalizer.registerNationalLength("+88", 16);
+        assertNull(PhoneNumberNormalizer.nationalLengthFor("+88"));
+        assertNull(PhoneNumberNormalizer.nationalLengthFor(null));
+        assertNull(PhoneNumberNormalizer.nationalLengthFor(" "));
+        assertEquals(10, PhoneNumberNormalizer.nationalLengthFor("+91"));
+    }
+
+    @Test
+    void parseUnknownDialUsesLooseLengthBounds() {
+        // Unregistered dial code (+800 not in world seed) still accepts 8–15 national digits.
+        assertDoesNotThrow(() -> PhoneNumberNormalizer.parse("+800-12345678", "+91"));
+        assertThrows(IllegalArgumentException.class,
+                () -> PhoneNumberNormalizer.parse("+800-1234567", "+91"));
     }
 
     @Test

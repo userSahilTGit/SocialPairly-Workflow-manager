@@ -891,15 +891,15 @@ class IdentityOnboardingServiceCoverageTest {
         void rejectsUnsupportedPurpose() {
             MockMultipartFile file = new MockMultipartFile("file", "f.jpg", "image/jpeg", new byte[]{1});
             assertThrows(BadRequestException.class,
-                    () -> service.uploadDocument(user, file, "PASSPORT"));
+                    () -> service.uploadDocument(user, file, "NOT_A_REAL_PURPOSE"));
         }
 
         @Test
-        void idBackMapsToDlBack() {
+        void idBackKeepsIdBackPurpose() {
             stubBlobSave();
             MockMultipartFile file = new MockMultipartFile("file", "id.png", "image/png", new byte[]{1});
             var result = service.uploadDocument(user, file, "ID_BACK");
-            assertEquals("DL_BACK", result.get("docPurpose"));
+            assertEquals("ID_BACK", result.get("docPurpose"));
         }
 
         @Test
@@ -1104,7 +1104,7 @@ class IdentityOnboardingServiceCoverageTest {
             );
             NationalityDto nationality = new NationalityDto(
                     "US", "US", "US", List.of(), List.of(
-                    new LanguageDto("en", "NATIVE"), new LanguageDto("es", "INTERMEDIATE")
+                    new LanguageDto("en", "NATIVE"), new LanguageDto("es", "CONVERSATIONAL")
             ));
             ImmigrationDto immigration = new ImmigrationDto(
                     "US", "CITIZEN", "NO", "NO", "YES", List.of("US")

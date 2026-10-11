@@ -196,14 +196,14 @@ class IdentityOnboardingServiceTest {
     }
 
     @Test
-    void saveWithoutConsentRejected() {
+    void saveLaterAllowedWithoutConsentInPhase1() {
         when(complianceRepository.findByUserId(1L)).thenReturn(Optional.empty());
         IdentityBackgroundRequest req = baseRequest(
                 IdentityOnboardingService.ACTION_SAVE_LATER,
                 null
         );
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
-        assertTrue(ex.getMessage().toLowerCase().contains("consent"));
+        // Phase1: consent gate removed — SAVE_LATER must not require consent.
+        assertDoesNotThrow(() -> service.saveIdentity(user, req));
     }
 
     @Test
@@ -267,7 +267,7 @@ class IdentityOnboardingServiceTest {
                 "file", "id.png", "image/png", new byte[]{1, 2, 3}
         );
         var result = service.uploadDocument(user, file, "ID_FRONT");
-        assertEquals("DL_FRONT", result.get("docPurpose"));
+        assertEquals("ID_FRONT", result.get("docPurpose"));
     }
 
     @Test
