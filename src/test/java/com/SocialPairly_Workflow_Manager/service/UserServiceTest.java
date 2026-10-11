@@ -8,6 +8,9 @@ import com.SocialPairly_Workflow_Manager.repository.BankDetailsRepository;
 import com.SocialPairly_Workflow_Manager.repository.PaymentRepository;
 import com.SocialPairly_Workflow_Manager.repository.RefundRepository;
 import com.SocialPairly_Workflow_Manager.repository.SubscriptionRepository;
+import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
+import com.SocialPairly_Workflow_Manager.repository.PlanUpgradeRequestRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserPersonalityProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserAnswerRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserMediaRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
@@ -15,6 +18,7 @@ import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.repository.VideoAccessRequestRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,6 +62,15 @@ class UserServiceTest {
     private SubscriptionRepository subscriptionRepository;
 
     @Mock
+    private EventParticipantRepository eventParticipantRepository;
+
+    @Mock
+    private PlanUpgradeRequestRepository planUpgradeRequestRepository;
+
+    @Mock
+    private UserPersonalityProfileRepository personalityProfileRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
@@ -90,6 +103,28 @@ class UserServiceTest {
         verify(answerRepository).deleteAll(any());
         verify(profileRepository, never()).delete(any());
         verify(userRepository).delete(user);
+    }
+
+    @Test
+    void shouldDeleteEventParticipationPersonalityAndUpgradeRequestsBeforeUser() {
+        User user = new User();
+        user.setId(7L);
+        user.setPassword("encoded-password");
+        user.setRole(Role.USER);
+
+        when(passwordEncoder.matches(eq("secret123"), eq("encoded-password"))).thenReturn(true);
+        when(answerRepository.findByUserId(eq(7L))).thenReturn(Collections.emptyList());
+        when(profileRepository.findByUserId(eq(7L))).thenReturn(Optional.empty());
+
+        userService.deleteAccount(user, new DeleteAccountRequest("secret123"));
+
+        InOrder order = inOrder(eventParticipantRepository, personalityProfileRepository,
+                planUpgradeRequestRepository, paymentRepository, userRepository);
+        order.verify(eventParticipantRepository).deleteByUser_Id(7L);
+        order.verify(personalityProfileRepository).deleteByUser_Id(7L);
+        order.verify(planUpgradeRequestRepository).deleteByUser_Id(7L);
+        order.verify(paymentRepository).deleteByUser_Id(7L);
+        order.verify(userRepository).delete(user);
     }
 
     @Test

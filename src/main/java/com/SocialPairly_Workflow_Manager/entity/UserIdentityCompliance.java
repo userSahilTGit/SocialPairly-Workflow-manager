@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.entity;
 
+import com.SocialPairly_Workflow_Manager.security.EncryptedStringConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -41,13 +42,15 @@ public class UserIdentityCompliance {
     @Column(name = "photo_status", nullable = false, length = 30)
     private String photoStatus = "NOT_STARTED";
 
-    @Column(name = "ssn", length = 11)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "ssn", length = 255)
     private String ssn;
 
     @Column(name = "id_document_type", length = 40)
     private String idDocumentType;
 
-    @Column(name = "id_document_number", length = 100)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "id_document_number", length = 255)
     private String idDocumentNumber;
 
     @Column(name = "dl_front_blob_id")

@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.service;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,10 +26,10 @@ public class CurrentUserService {
             throw new ResourceNotFoundException("No authenticated user");
         }
         String email = authentication.getName();
-        log.debug("Resolving current user for email={}", email);
+        log.debug("Resolving current user for email={}", LogMasker.email(email));
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("Authenticated email not found in repository: {}", email);
+                    log.warn("Authenticated email not found in repository: {}", LogMasker.email(email));
                     return new ResourceNotFoundException("Authenticated user not found");
                 });
     }

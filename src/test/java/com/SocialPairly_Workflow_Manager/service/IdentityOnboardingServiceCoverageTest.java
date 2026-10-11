@@ -174,12 +174,12 @@ class IdentityOnboardingServiceCoverageTest {
         }
 
         @Test
-        void createsProfileWhenMissing() {
+        void returnsDefaultsWithoutInsertingWhenProfileMissing() {
             when(profileRepository.findByUserId(1L)).thenReturn(Optional.empty());
-            when(profileRepository.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
             IdentityBackgroundResponse res = service.getIdentity(user);
             assertNotNull(res);
             assertEquals("MATCHES", res.genderShownToMatches());
+            verify(profileRepository, never()).save(any(UserProfile.class));
         }
 
         @Test
@@ -891,15 +891,87 @@ class IdentityOnboardingServiceCoverageTest {
         void rejectsUnsupportedPurpose() {
             MockMultipartFile file = new MockMultipartFile("file", "f.jpg", "image/jpeg", new byte[]{1});
             assertThrows(BadRequestException.class,
-                    () -> service.uploadDocument(user, file, "NOT_A_REAL_PURPOSE"));
+                    () -> service.uploadDocument(user, file, "BANK_STATEMENT"));
+            verifyNoInteractions(blobRepository);
         }
 
         @Test
-        void idBackKeepsIdBackPurpose() {
+        void idBackKeepsPurposeAndSetsBackBlobId() {
             stubBlobSave();
             MockMultipartFile file = new MockMultipartFile("file", "id.png", "image/png", new byte[]{1});
             var result = service.uploadDocument(user, file, "ID_BACK");
             assertEquals("ID_BACK", result.get("docPurpose"));
+            verify(complianceRepository, atLeastOnce()).save(argThat(c ->
+                    Long.valueOf(55L).equals(c.getDlBackBlobId())));
+        }
+
+        @Test
+        void idFrontKeepsPurposeAndSetsFrontBlobId() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "id.png", "image/png", new byte[]{1});
+            var result = service.uploadDocument(user, file, "ID_FRONT");
+            assertEquals("ID_FRONT", result.get("docPurpose"));
+            verify(complianceRepository, atLeastOnce()).save(argThat(c ->
+                    Long.valueOf(55L).equals(c.getDlFrontBlobId())));
+        }
+
+        @Test
+        void passportSetsFrontBlobId() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "p.jpg", "image/jpeg", new byte[]{1});
+            var result = service.uploadDocument(user, file, "passport");
+            assertEquals("PASSPORT", result.get("docPurpose"));
+            verify(complianceRepository, atLeastOnce()).save(argThat(c ->
+                    Long.valueOf(55L).equals(c.getDlFrontBlobId())));
+        }
+
+        @Test
+        void rejectsNonImageForPassport() {
+            MockMultipartFile file = new MockMultipartFile("file", "p.pdf", "application/pdf", new byte[]{1});
+            assertThrows(BadRequestException.class,
+                    () -> service.uploadDocument(user, file, "PASSPORT"));
+        }
+
+        @Test
+        void rejectsNonImageForIdFrontAndBack() {
+            MockMultipartFile file = new MockMultipartFile("file", "id.pdf", "application/pdf", new byte[]{1});
+            assertThrows(BadRequestException.class,
+                    () -> service.uploadDocument(user, file, "ID_FRONT"));
+            assertThrows(BadRequestException.class,
+                    () -> service.uploadDocument(user, file, "ID_BACK"));
+        }
+
+        @Test
+        void nullContentTypeFallsBackToOctetStream() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "f.dat", null, new byte[]{1});
+            var result = service.uploadDocument(user, file, "EMP_VERIFY");
+            assertEquals("application/octet-stream", result.get("contentType"));
+        }
+
+        @Test
+        void contentTypeIsNormalizedToLowerCase() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "f.jpg", " IMAGE/JPEG ", new byte[]{1});
+            var result = service.uploadDocument(user, file, "DL_FRONT");
+            assertEquals("image/jpeg", result.get("contentType"));
+        }
+
+        @Test
+        void selfieDoesNotSetFrontOrBackBlobIds() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "s.jpg", "image/jpeg", new byte[]{1});
+            service.uploadDocument(user, file, "SELFIE");
+            verify(complianceRepository, never()).save(argThat(c ->
+                    c.getDlFrontBlobId() != null || c.getDlBackBlobId() != null));
+        }
+
+        @Test
+        void fileSizeIsRoundedUpToKb() {
+            stubBlobSave();
+            MockMultipartFile file = new MockMultipartFile("file", "s.jpg", "image/jpeg", new byte[1025]);
+            var result = service.uploadDocument(user, file, "SELFIE");
+            assertEquals(2, result.get("fileSizeKb"));
         }
 
         @Test
@@ -1408,6 +1480,59 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null, null, null,
                     null, null, nationality, null, null, null, null, null, null, null, null, null, null, null, null);
             assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
+        }
+
+        private IdentityBackgroundRequest nationalityRequest(NationalityDto nationality) {
+            return new IdentityBackgroundRequest(
+                    "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
+                    null, null, null, null,
+                    null, null, null, null, null, null,
+                    null, null, nationality, null, null, null, null, null, null, null, null, null, null, null, null);
+        }
+
+        private UserIdentityBackground savedBackground() {
+            org.mockito.ArgumentCaptor<UserIdentityBackground> captor =
+                    org.mockito.ArgumentCaptor.forClass(UserIdentityBackground.class);
+            verify(backgroundRepository, atLeastOnce()).save(captor.capture());
+            return captor.getValue();
+        }
+
+        @Test
+        void invalidLanguageProficiencyRejects() {
+            NationalityDto nationality = new NationalityDto(
+                    null, "US", null, null, List.of(new LanguageDto("es", "INTERMEDIATE")));
+            BadRequestException ex = assertThrows(BadRequestException.class,
+                    () -> service.saveIdentity(user, nationalityRequest(nationality)));
+            assertTrue(ex.getMessage().contains("proficiency"));
+        }
+
+        @Test
+        void languageProficiencyAndCodeAreNormalized() {
+            NationalityDto nationality = new NationalityDto(
+                    null, "us", null, List.of(" in ", " "), List.of(
+                    new LanguageDto(" EN ", " fluent "),
+                    new LanguageDto("hi", null),
+                    new LanguageDto("  ", "NATIVE"),
+                    new LanguageDto(null, "BASIC")));
+            service.saveIdentity(user, nationalityRequest(nationality));
+
+            UserIdentityBackground bg = savedBackground();
+            assertEquals("US", bg.getPrimaryNationality());
+            assertEquals("[\"IN\"]", bg.getAdditionalNationalities());
+            assertEquals("[{\"languageCode\":\"en\",\"proficiency\":\"FLUENT\"},"
+                    + "{\"languageCode\":\"hi\",\"proficiency\":null}]", bg.getLanguages());
+        }
+
+        @Test
+        void nullLanguagesAndAdditionalNationalitiesStoreEmptyArrays() {
+            NationalityDto nationality = new NationalityDto("IN", "IN", "IN", null, null);
+            service.saveIdentity(user, nationalityRequest(nationality));
+
+            UserIdentityBackground bg = savedBackground();
+            assertEquals("IN", bg.getCountryOfBirth());
+            assertEquals("IN", bg.getCountryOfCitizenship());
+            assertEquals("[]", bg.getAdditionalNationalities());
+            assertEquals("[]", bg.getLanguages());
         }
 
         @Test

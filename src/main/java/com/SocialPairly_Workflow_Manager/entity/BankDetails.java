@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.entity;
 
+import com.SocialPairly_Workflow_Manager.security.EncryptedStringConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -18,21 +19,25 @@ public class BankDetails {
     @JoinColumn(name = "refund_id", nullable = false)
     private Refund refund;
 
-    @Column(name = "account_number", nullable = false, length = 50)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "account_number", nullable = false, length = 255)
     private String accountNumber;
 
     @Column(name = "account_type", nullable = false, length = 30)
     private String accountType;
 
-    @Column(name = "account_holder_name", nullable = false, length = 255)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "account_holder_name", nullable = false, length = 512)
     private String accountHolderName;
 
-    @Column(name = "aba_routing_number", nullable = false, length = 20)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "aba_routing_number", nullable = false, length = 255)
     private String abaRoutingNumber;
 
     @Column(name = "bank_name", nullable = false, length = 100)
     private String bankName;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "recipients_address", nullable = false, columnDefinition = "TEXT")
     private String recipientsAddress;
 

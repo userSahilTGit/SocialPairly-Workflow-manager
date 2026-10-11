@@ -14,6 +14,8 @@ public interface PlanUpgradeRequestRepository extends JpaRepository<PlanUpgradeR
 
     boolean existsByUser_IdAndStatusNotIn(Long userId, List<PlanUpgradeStatus> terminalStatuses);
 
+    void deleteByUser_Id(Long userId);
+
     @Query("""
             SELECT r FROM PlanUpgradeRequest r
             JOIN FETCH r.user

@@ -15,6 +15,8 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
 
     Optional<EventParticipant> findByEventIdAndUserId(Long eventId, Long userId);
 
+    void deleteByUser_Id(Long userId);
+
     @Query("""
             SELECT ep FROM EventParticipant ep
             JOIN FETCH ep.event

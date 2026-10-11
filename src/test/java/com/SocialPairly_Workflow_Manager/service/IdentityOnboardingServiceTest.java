@@ -196,14 +196,26 @@ class IdentityOnboardingServiceTest {
     }
 
     @Test
-    void saveLaterAllowedWithoutConsentInPhase1() {
-        when(complianceRepository.findByUserId(1L)).thenReturn(Optional.empty());
+    void saveWithoutConsentAllowedInPhase1() {
+        lenient().when(complianceRepository.findByUserId(1L)).thenReturn(Optional.empty());
         IdentityBackgroundRequest req = baseRequest(
                 IdentityOnboardingService.ACTION_SAVE_LATER,
                 null
         );
-        // Phase1: consent gate removed — SAVE_LATER must not require consent.
-        assertDoesNotThrow(() -> service.saveIdentity(user, req));
+        var res = assertDoesNotThrow(() -> service.saveIdentity(user, req));
+        assertNotNull(res);
+        assertEquals(OnboardingSteps.IDENTITY_IN_PROGRESS, profile.getOnboardingStep());
+    }
+
+    @Test
+    void continueWithoutConsentAllowedInPhase1() {
+        lenient().when(complianceRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        IdentityBackgroundRequest req = baseRequest(
+                IdentityOnboardingService.ACTION_CONTINUE,
+                LocalDate.of(1990, 1, 1)
+        );
+        var res = service.saveIdentity(user, req);
+        assertTrue(res.identityPage1Complete());
     }
 
     @Test
@@ -254,7 +266,7 @@ class IdentityOnboardingServiceTest {
     }
 
     @Test
-    void legacyIdFrontMapsToDlFront() {
+    void legacyIdFrontKeepsPurposeAndSetsFrontDocumentFk() {
         when(blobRepository.save(any(UserIdentityComplianceBlob.class))).thenAnswer(inv -> {
             UserIdentityComplianceBlob d = inv.getArgument(0);
             d.setId(56L);
@@ -268,6 +280,10 @@ class IdentityOnboardingServiceTest {
         );
         var result = service.uploadDocument(user, file, "ID_FRONT");
         assertEquals("ID_FRONT", result.get("docPurpose"));
+
+        ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
+        verify(complianceRepository, atLeastOnce()).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(56L).equals(c.getDlFrontBlobId())));
     }
 
     @Test
