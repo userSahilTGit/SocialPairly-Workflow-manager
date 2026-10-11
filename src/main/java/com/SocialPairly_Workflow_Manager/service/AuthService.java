@@ -8,11 +8,13 @@ import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.dto.VerifyContactRequest;
+import com.SocialPairly_Workflow_Manager.entity.RefCountry;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.repository.RefCountryRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
@@ -31,6 +33,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -40,6 +46,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final RefCountryRepository refCountryRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
@@ -53,6 +60,7 @@ public class AuthService {
 
     public AuthService(UserRepository userRepository,
                        UserProfileRepository userProfileRepository,
+                       RefCountryRepository refCountryRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        JwtUtil jwtUtil,
@@ -62,6 +70,7 @@ public class AuthService {
                        LoginAccountSecurityService loginAccountSecurityService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
+        this.refCountryRepository = refCountryRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
@@ -69,6 +78,33 @@ public class AuthService {
         this.userService = userService;
         this.emailService = emailService;
         this.loginAccountSecurityService = loginAccountSecurityService;
+    }
+
+    /** Worldwide ISO countries with dialing codes for signup/signin dropdowns (BUG-1570). */
+    @Transactional(readOnly = true)
+    public List<Map<String, String>> listPhoneCountryCodes() {
+        List<RefCountry> rows = refCountryRepository.findByActiveTrueAndPhoneCodeIsNotNullOrderByNameAsc();
+        List<Map<String, String>> out = new ArrayList<>(rows.size());
+        for (RefCountry country : rows) {
+            String dial = country.getPhoneCode();
+            if (dial == null || dial.isBlank()) {
+                continue;
+            }
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("code", country.getCode());
+            row.put("name", country.getName());
+            String dialCode = dial.startsWith("+") ? dial : "+" + dial.replaceAll("\\D", "");
+            row.put("dialCode", dialCode);
+            Integer nationalLength = country.getPhoneNationalLength();
+            if (nationalLength == null) {
+                nationalLength = PhoneNumberNormalizer.nationalLengthFor(dialCode);
+            }
+            if (nationalLength != null) {
+                row.put("nationalLength", String.valueOf(nationalLength));
+            }
+            out.add(row);
+        }
+        return out;
     }
 
     @Transactional

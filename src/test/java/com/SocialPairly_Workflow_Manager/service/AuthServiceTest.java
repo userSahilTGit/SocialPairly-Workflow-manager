@@ -6,6 +6,8 @@ import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.entity.RefCountry;
+import com.SocialPairly_Workflow_Manager.repository.RefCountryRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
@@ -21,6 +23,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -37,6 +40,9 @@ class AuthServiceTest {
 
     @Mock
     private UserProfileRepository userProfileRepository;
+
+    @Mock
+    private RefCountryRepository refCountryRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -63,11 +69,38 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000, 2592000000L);
-        authService = new AuthService(userRepository, userProfileRepository, passwordEncoder, authenticationManager,
-                jwtUtil, otpService, userService, emailService, loginAccountSecurityService);
+        authService = new AuthService(userRepository, userProfileRepository, refCountryRepository, passwordEncoder,
+                authenticationManager, jwtUtil, otpService, userService, emailService, loginAccountSecurityService);
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
         lenient().doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
         lenient().doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
+    }
+
+    @Test
+    void shouldListPhoneCountryCodes() {
+        RefCountry india = new RefCountry();
+        india.setCode("IN");
+        india.setName("India");
+        india.setPhoneCode("+91");
+        india.setPhoneNationalLength(10);
+        india.setActive(true);
+        RefCountry us = new RefCountry();
+        us.setCode("US");
+        us.setName("United States");
+        us.setPhoneCode("1");
+        us.setPhoneNationalLength(10);
+        us.setActive(true);
+
+        when(refCountryRepository.findByActiveTrueAndPhoneCodeIsNotNullOrderByNameAsc())
+                .thenReturn(List.of(india, us));
+
+        List<Map<String, String>> rows = authService.listPhoneCountryCodes();
+        assertEquals(2, rows.size());
+        assertEquals("IN", rows.get(0).get("code"));
+        assertEquals("+91", rows.get(0).get("dialCode"));
+        assertEquals("10", rows.get(0).get("nationalLength"));
+        assertEquals("+1", rows.get(1).get("dialCode"));
+        assertEquals("10", rows.get(1).get("nationalLength"));
     }
 
     @Test

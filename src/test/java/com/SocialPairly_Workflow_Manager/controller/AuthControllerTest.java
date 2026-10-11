@@ -28,6 +28,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -76,6 +77,22 @@ class AuthControllerTest {
         return new UserDto(
                 id, firstName, lastName, null, firstName, email, "1234567", "London",
                 null, false, false, false, false, false, false, false, false, false, null, false, "", 0);
+    }
+
+    @Test
+    void phoneCountryCodesShouldDelegateToAuthService() {
+        List<Map<String, String>> rows = List.of(
+                Map.of("code", "IN", "name", "India", "dialCode", "+91", "nationalLength", "10"),
+                Map.of("code", "AE", "name", "United Arab Emirates", "dialCode", "+971", "nationalLength", "9")
+        );
+        when(authService.listPhoneCountryCodes()).thenReturn(rows);
+
+        ResponseEntity<List<Map<String, String>>> response = authController.phoneCountryCodes();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2, response.getBody().size());
+        assertEquals("+91", response.getBody().get(0).get("dialCode"));
+        verify(authService).listPhoneCountryCodes();
     }
 
     @Test

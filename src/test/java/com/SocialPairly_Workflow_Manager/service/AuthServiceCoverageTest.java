@@ -9,6 +9,7 @@ import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.repository.RefCountryRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
@@ -43,6 +44,9 @@ class AuthServiceCoverageTest {
 
     @Mock
     private UserProfileRepository userProfileRepository;
+
+    @Mock
+    private RefCountryRepository refCountryRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;

@@ -31,6 +31,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -62,6 +63,12 @@ public class AuthController {
         this.jwtUtil = jwtUtil;
         this.tokenBlacklistService = tokenBlacklistService;
         this.googleIdTokenVerifier = googleIdTokenVerifier;
+    }
+
+    /** Public list of worldwide dialing codes for phone dropdowns (BUG-1570). */
+    @GetMapping("/phone-country-codes")
+    public ResponseEntity<List<Map<String, String>>> phoneCountryCodes() {
+        return ResponseEntity.ok(authService.listPhoneCountryCodes());
     }
 
     @PostMapping("/register")

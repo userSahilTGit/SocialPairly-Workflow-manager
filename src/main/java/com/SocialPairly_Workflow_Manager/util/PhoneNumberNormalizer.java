@@ -1,21 +1,54 @@
 package com.SocialPairly_Workflow_Manager.util;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Normalizes phone numbers for DB storage ({@code +91-9876543210}) and external APIs (E.164).
+ * National lengths are strict per dial code when registered (e.g. India = exactly 10).
  */
 public final class PhoneNumberNormalizer {
 
-    /** Longest-prefix first so +971 is matched before +91 and +1. */
-    private static final String[] KNOWN_COUNTRY_CODES = {"+971", "+91", "+44", "+1"};
+    private static final Map<String, Integer> NATIONAL_LENGTH_BY_DIAL = new ConcurrentHashMap<>();
+
+    /** Fallback longest-prefix list until worldwide codes are registered at startup. */
+    private static volatile String[] knownCountryCodes = {"+971", "+91", "+44", "+1"};
+
+    static {
+        NATIONAL_LENGTH_BY_DIAL.put("+1", 10);
+        NATIONAL_LENGTH_BY_DIAL.put("+91", 10);
+        NATIONAL_LENGTH_BY_DIAL.put("+44", 10);
+        NATIONAL_LENGTH_BY_DIAL.put("+971", 9);
+    }
 
     private PhoneNumberNormalizer() {}
 
     public record PhoneParts(String countryCode, String national) {}
+
+    public static void registerNationalLength(String dialCode, int nationalLength) {
+        if (dialCode == null || dialCode.isBlank() || nationalLength < 4 || nationalLength > 15) {
+            return;
+        }
+        String cc = normalizeCountryCode(dialCode, dialCode);
+        NATIONAL_LENGTH_BY_DIAL.put(cc, nationalLength);
+        refreshKnownCountryCodes();
+    }
+
+    public static Integer nationalLengthFor(String dialCode) {
+        if (dialCode == null || dialCode.isBlank()) {
+            return null;
+        }
+        try {
+            return NATIONAL_LENGTH_BY_DIAL.get(normalizeCountryCode(dialCode, dialCode));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
 
     /**
      * Canonical DB format: CountryCode-PhoneNumber (e.g. {@code +91-9876543210}).
@@ -61,7 +94,7 @@ public final class PhoneNumberNormalizer {
             String national = trimmed.substring(dash + 1).replaceAll("\\D", "");
             national = stripLeadingZeros(national);
             String cc = normalizeCountryCode(ccPart, defaultCountryCode);
-            validateNational(national);
+            validateNational(national, cc);
             return new PhoneParts(cc, national);
         }
 
@@ -72,13 +105,13 @@ public final class PhoneNumberNormalizer {
 
         if (digitsOnly.startsWith("+")) {
             PhoneParts split = splitE164(digitsOnly);
-            validateNational(split.national());
+            validateNational(split.national(), split.countryCode());
             return split;
         }
 
         String national = stripLeadingZeros(digitsOnly.replaceAll("\\D", ""));
         String cc = normalizeCountryCode(defaultCountryCode, defaultCountryCode);
-        validateNational(national);
+        validateNational(national, cc);
         return new PhoneParts(cc, national);
     }
 
@@ -88,10 +121,17 @@ public final class PhoneNumberNormalizer {
 
     private static PhoneParts splitE164(String e164) {
         String body = e164.substring(1).replaceAll("\\D", "");
-        for (String code : KNOWN_COUNTRY_CODES) {
+        for (String code : knownCountryCodes) {
             String ccDigits = code.substring(1);
             if (body.startsWith(ccDigits)) {
                 String national = body.substring(ccDigits.length());
+                Integer expected = NATIONAL_LENGTH_BY_DIAL.get(code);
+                if (expected != null) {
+                    if (national.length() == expected) {
+                        return new PhoneParts(code, national);
+                    }
+                    continue;
+                }
                 if (national.length() >= 8 && national.length() <= 15) {
                     return new PhoneParts(code, national);
                 }
@@ -100,7 +140,6 @@ public final class PhoneNumberNormalizer {
         if (body.length() < 9 || body.length() > 16) {
             throw new IllegalArgumentException("Invalid phone number length");
         }
-        // Fallback: treat first digit as +1-style country code
         return new PhoneParts("+" + body.charAt(0), body.substring(1));
     }
 
@@ -128,9 +167,26 @@ public final class PhoneNumberNormalizer {
         return national.replaceFirst("^0+", "");
     }
 
-    private static void validateNational(String national) {
-        if (national == null || national.length() < 8 || national.length() > 15) {
+    private static void validateNational(String national, String dialCode) {
+        if (national == null || national.isBlank()) {
             throw new IllegalArgumentException("Invalid phone number length");
         }
+        Integer expected = NATIONAL_LENGTH_BY_DIAL.get(dialCode);
+        if (expected != null) {
+            if (national.length() != expected) {
+                throw new IllegalArgumentException(
+                        "Phone number must be exactly " + expected + " digits for " + dialCode);
+            }
+            return;
+        }
+        if (national.length() < 8 || national.length() > 15) {
+            throw new IllegalArgumentException("Invalid phone number length");
+        }
+    }
+
+    private static void refreshKnownCountryCodes() {
+        knownCountryCodes = NATIONAL_LENGTH_BY_DIAL.keySet().stream()
+                .sorted(Comparator.comparingInt(String::length).reversed().thenComparing(s -> s))
+                .toArray(String[]::new);
     }
 }

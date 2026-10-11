@@ -132,6 +132,9 @@ public class IdentityOnboardingService {
                         if (c.getPostalRegex() != null) {
                             m.put("postalRegex", c.getPostalRegex());
                         }
+                        if (c.getPhoneCode() != null && !c.getPhoneCode().isBlank()) {
+                            m.put("phoneCode", c.getPhoneCode());
+                        }
                         return m;
                     })
                     .toList();
