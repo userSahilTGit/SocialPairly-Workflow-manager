@@ -348,6 +348,57 @@ class IdentityOnboardingServiceTest {
     }
 
     @Test
+    void listIdentityDocumentsForAdminGroupsByUser() {
+        User owner = new User();
+        owner.setId(38L);
+        owner.setFirstName("Doc");
+        owner.setLastName("Tester");
+        owner.setEmail("doc@example.com");
+        owner.setRole(Role.USER);
+        UserIdentityCompliance compliance = new UserIdentityCompliance();
+        compliance.setId(9L);
+        compliance.setUser(owner);
+        compliance.setIdDocumentType("DRIVER_LICENSE");
+        compliance.setIdDocumentNumber("D1234567");
+        UserIdentityComplianceBlob front = new UserIdentityComplianceBlob();
+        front.setId(3L);
+        front.setDocPurpose("DL_FRONT");
+        front.setContentType("image/png");
+        front.setFileSizeKb(81);
+        front.setCreatedAt(LocalDateTime.now());
+        front.setCompliance(compliance);
+        UserIdentityComplianceBlob back = new UserIdentityComplianceBlob();
+        back.setId(4L);
+        back.setDocPurpose("DL_BACK");
+        back.setContentType("image/png");
+        back.setFileSizeKb(160);
+        back.setCreatedAt(LocalDateTime.now());
+        back.setCompliance(compliance);
+        when(blobRepository.findAllForAdminByPurposes(any())).thenReturn(List.of(front, back));
+
+        var grouped = service.listIdentityDocumentsForAdmin();
+        assertEquals(1, grouped.size());
+        assertEquals(38L, grouped.get(0).userId());
+        assertEquals("Doc Tester", grouped.get(0).displayName());
+        assertEquals("DRIVER_LICENSE", grouped.get(0).idDocumentType());
+        assertTrue(grouped.get(0).idDocumentNumberMasked().endsWith("4567"));
+        assertEquals(2, grouped.get(0).documents().size());
+        assertTrue(grouped.get(0).documents().get(0).streamUrl().contains("/documents/3/stream")
+                || grouped.get(0).documents().get(1).streamUrl().contains("/documents/3/stream"));
+    }
+
+    @Test
+    void resolveIdImageContentTypeInfersFromFilenameAndMagic() {
+        assertEquals("image/jpeg",
+                IdentityOnboardingService.resolveIdImageContentType("a.jpg", "application/octet-stream", new byte[]{1}));
+        assertEquals("image/png",
+                IdentityOnboardingService.resolveIdImageContentType(null, "application/octet-stream",
+                        new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0, 0, 0, 0}));
+        assertEquals("image/jpeg",
+                IdentityOnboardingService.resolveIdImageContentType(null, "image/jpeg", new byte[]{1}));
+    }
+
+    @Test
     void normalizeSsnFormatsDigits() {
         assertEquals("123-45-6789", IdentityOnboardingService.normalizeSsn("123456789"));
         assertEquals("123-45-6789", IdentityOnboardingService.normalizeSsn("123-45-6789"));
