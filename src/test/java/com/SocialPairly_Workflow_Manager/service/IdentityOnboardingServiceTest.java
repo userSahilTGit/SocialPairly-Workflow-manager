@@ -262,7 +262,50 @@ class IdentityOnboardingServiceTest {
 
         ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
         verify(complianceRepository, atLeastOnce()).save(captor.capture());
-        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(55L).equals(c.getDlFrontBlobId())));
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(55L).equals(c.getIdFrontBlobId())));
+        assertEquals(Boolean.TRUE, result.get("storedAsDbBlob"));
+        assertEquals(3, result.get("byteLength"));
+    }
+
+    @Test
+    void uploadInfersJpegFromFilenameWhenContentTypeMissing() {
+        when(blobRepository.save(any(UserIdentityComplianceBlob.class))).thenAnswer(inv -> {
+            UserIdentityComplianceBlob d = inv.getArgument(0);
+            d.setId(57L);
+            if (d.getCreatedAt() == null) {
+                d.setCreatedAt(LocalDateTime.now());
+            }
+            assertNotNull(d.getStorageBlob());
+            assertEquals(3, d.getStorageBlob().length);
+            assertEquals("image/jpeg", d.getContentType());
+            return d;
+        });
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "license.jpg", "application/octet-stream", new byte[]{1, 2, 3}
+        );
+        var result = service.uploadDocument(user, file, "DL_FRONT");
+        assertEquals("image/jpeg", result.get("contentType"));
+        assertEquals(Boolean.TRUE, result.get("storedAsDbBlob"));
+    }
+
+    @Test
+    void passportUploadSetsPrimaryIdFrontBlobFk() {
+        when(blobRepository.save(any(UserIdentityComplianceBlob.class))).thenAnswer(inv -> {
+            UserIdentityComplianceBlob d = inv.getArgument(0);
+            d.setId(58L);
+            if (d.getCreatedAt() == null) {
+                d.setCreatedAt(LocalDateTime.now());
+            }
+            return d;
+        });
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "passport.png", "image/png", new byte[]{1, 2, 3}
+        );
+        var result = service.uploadDocument(user, file, "PASSPORT");
+        assertEquals("PASSPORT", result.get("docPurpose"));
+        ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
+        verify(complianceRepository, atLeastOnce()).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(58L).equals(c.getIdFrontBlobId())));
     }
 
     @Test
@@ -283,7 +326,7 @@ class IdentityOnboardingServiceTest {
 
         ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
         verify(complianceRepository, atLeastOnce()).save(captor.capture());
-        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(56L).equals(c.getDlFrontBlobId())));
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(56L).equals(c.getIdFrontBlobId())));
     }
 
     @Test
@@ -302,6 +345,57 @@ class IdentityOnboardingServiceTest {
         when(blobRepository.findById(99L)).thenReturn(Optional.of(blob));
 
         assertThrows(ResourceNotFoundException.class, () -> service.streamDocument(user, 99L));
+    }
+
+    @Test
+    void listIdentityDocumentsForAdminGroupsByUser() {
+        User owner = new User();
+        owner.setId(38L);
+        owner.setFirstName("Doc");
+        owner.setLastName("Tester");
+        owner.setEmail("doc@example.com");
+        owner.setRole(Role.USER);
+        UserIdentityCompliance compliance = new UserIdentityCompliance();
+        compliance.setId(9L);
+        compliance.setUser(owner);
+        compliance.setIdDocumentType("DRIVER_LICENSE");
+        compliance.setIdDocumentNumber("D1234567");
+        UserIdentityComplianceBlob front = new UserIdentityComplianceBlob();
+        front.setId(3L);
+        front.setDocPurpose("DL_FRONT");
+        front.setContentType("image/png");
+        front.setFileSizeKb(81);
+        front.setCreatedAt(LocalDateTime.now());
+        front.setCompliance(compliance);
+        UserIdentityComplianceBlob back = new UserIdentityComplianceBlob();
+        back.setId(4L);
+        back.setDocPurpose("DL_BACK");
+        back.setContentType("image/png");
+        back.setFileSizeKb(160);
+        back.setCreatedAt(LocalDateTime.now());
+        back.setCompliance(compliance);
+        when(blobRepository.findAllForAdminByPurposes(any())).thenReturn(List.of(front, back));
+
+        var grouped = service.listIdentityDocumentsForAdmin();
+        assertEquals(1, grouped.size());
+        assertEquals(38L, grouped.get(0).userId());
+        assertEquals("Doc Tester", grouped.get(0).displayName());
+        assertEquals("DRIVER_LICENSE", grouped.get(0).idDocumentType());
+        assertTrue(grouped.get(0).idDocumentNumberMasked().endsWith("4567"));
+        assertEquals(2, grouped.get(0).documents().size());
+        assertTrue(grouped.get(0).documents().get(0).streamUrl().contains("/documents/3/stream")
+                || grouped.get(0).documents().get(1).streamUrl().contains("/documents/3/stream"));
+    }
+
+    @Test
+    void resolveIdImageContentTypeInfersFromFilenameAndMagic() {
+        assertEquals("image/jpeg",
+                IdentityOnboardingService.resolveIdImageContentType("a.jpg", "application/octet-stream", new byte[]{1}));
+        assertEquals("image/png",
+                IdentityOnboardingService.resolveIdImageContentType(null, "application/octet-stream",
+                        new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0, 0, 0, 0}));
+        assertEquals("image/jpeg",
+                IdentityOnboardingService.resolveIdImageContentType(null, "image/jpeg", new byte[]{1}));
     }
 
     @Test

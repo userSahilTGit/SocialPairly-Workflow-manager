@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.AdminIdentityDocumentUserDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminPaymentDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminPlanUpgradeDetailDto;
 import com.SocialPairly_Workflow_Manager.dto.AdminPlanUpgradeListDto;
@@ -11,6 +12,7 @@ import com.SocialPairly_Workflow_Manager.dto.QuestionRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.service.AdminService;
+import com.SocialPairly_Workflow_Manager.service.IdentityOnboardingService;
 import com.SocialPairly_Workflow_Manager.service.PlanUpgradeService;
 import com.SocialPairly_Workflow_Manager.service.QuestionService;
 import com.SocialPairly_Workflow_Manager.service.RefundService;
@@ -34,17 +36,20 @@ public class AdminController {
     private final SubscriptionService subscriptionService;
     private final RefundService refundService;
     private final PlanUpgradeService planUpgradeService;
+    private final IdentityOnboardingService identityOnboardingService;
 
     public AdminController(AdminService adminService,
                             QuestionService questionService,
                             SubscriptionService subscriptionService,
                             RefundService refundService,
-                            PlanUpgradeService planUpgradeService) {
+                            PlanUpgradeService planUpgradeService,
+                            IdentityOnboardingService identityOnboardingService) {
         this.adminService = adminService;
         this.questionService = questionService;
         this.subscriptionService = subscriptionService;
         this.refundService = refundService;
         this.planUpgradeService = planUpgradeService;
+        this.identityOnboardingService = identityOnboardingService;
     }
 
     @GetMapping("/stats")
@@ -56,6 +61,13 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<List<UserDto>> getUsers() {
         return ResponseEntity.ok(adminService.listUsers());
+    }
+
+    /** Government ID uploads (DL / State ID / Passport) grouped by user — ADO #1560. */
+    @GetMapping("/identity-documents")
+    public ResponseEntity<List<AdminIdentityDocumentUserDto>> getIdentityDocuments() {
+        log.info("Admin identity documents list requested");
+        return ResponseEntity.ok(identityOnboardingService.listIdentityDocumentsForAdmin());
     }
 
     @GetMapping("/payments")

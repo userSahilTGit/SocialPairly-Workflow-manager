@@ -2,6 +2,8 @@ package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.constants.IdentityReferenceEnums;
 import com.SocialPairly_Workflow_Manager.constants.OnboardingSteps;
+import com.SocialPairly_Workflow_Manager.dto.AdminIdentityDocumentItemDto;
+import com.SocialPairly_Workflow_Manager.dto.AdminIdentityDocumentUserDto;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundRequest;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundResponse;
 import com.SocialPairly_Workflow_Manager.dto.IdentitySectionDtos.*;
@@ -243,46 +245,94 @@ public class IdentityOnboardingService {
             throw new BadRequestException("Unsupported docPurpose");
         }
 
+        final byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException ex) {
+            throw new BadRequestException("Unable to read uploaded file");
+        }
+        if (bytes.length == 0) {
+            throw new BadRequestException("file is empty");
+        }
+
         String contentType = file.getContentType();
         if (contentType == null || contentType.isBlank()) {
             contentType = "application/octet-stream";
         } else {
             contentType = contentType.trim().toLowerCase(Locale.ROOT);
         }
-        if (("DL_FRONT".equals(purpose) || "DL_BACK".equals(purpose) || "ID_FRONT".equals(purpose)
-                || "ID_BACK".equals(purpose) || "PASSPORT".equals(purpose) || "SELFIE".equals(purpose))
-                && !ID_IMAGE_CONTENT_TYPES.contains(contentType)) {
-            throw new BadRequestException("ID document uploads must be image/jpeg, image/png, or image/webp");
-        }
 
-        try {
-            UserIdentityCompliance compliance = ensureCompliance(user);
-            UserIdentityComplianceBlob blob = new UserIdentityComplianceBlob();
-            blob.setCompliance(compliance);
-            blob.setDocPurpose(purpose);
-            blob.setContentType(contentType);
-            blob.setFileSizeKb((int) Math.ceil(file.getSize() / 1024.0));
-            blob.setStorageBlob(file.getBytes());
-            UserIdentityComplianceBlob saved = blobRepository.save(blob);
-
-            appendDocumentMeta(compliance, saved);
-            if ("DL_FRONT".equals(purpose) || "ID_FRONT".equals(purpose) || "PASSPORT".equals(purpose)) {
-                compliance.setDlFrontBlobId(saved.getId());
-            } else if ("DL_BACK".equals(purpose) || "ID_BACK".equals(purpose)) {
-                compliance.setDlBackBlobId(saved.getId());
+        boolean idImagePurpose = "DL_FRONT".equals(purpose) || "DL_BACK".equals(purpose)
+                || "ID_FRONT".equals(purpose) || "ID_BACK".equals(purpose)
+                || "PASSPORT".equals(purpose) || "SELFIE".equals(purpose);
+        if (idImagePurpose) {
+            contentType = resolveIdImageContentType(file.getOriginalFilename(), contentType, bytes);
+            if (!ID_IMAGE_CONTENT_TYPES.contains(contentType)) {
+                throw new BadRequestException("ID document uploads must be image/jpeg, image/png, or image/webp");
             }
-            complianceRepository.save(compliance);
-
-            writeAudit(user, "DOCUMENT_UPLOAD", purpose + ":" + saved.getId());
-            return Map.of(
-                    "id", saved.getId(),
-                    "docPurpose", saved.getDocPurpose(),
-                    "contentType", saved.getContentType(),
-                    "fileSizeKb", saved.getFileSizeKb()
-            );
-        } catch (IOException ex) {
-            throw new BadRequestException("Unable to read uploaded file");
         }
+
+        UserIdentityCompliance compliance = ensureCompliance(user);
+        UserIdentityComplianceBlob blob = new UserIdentityComplianceBlob();
+        blob.setCompliance(compliance);
+        blob.setDocPurpose(purpose);
+        blob.setContentType(contentType);
+        blob.setFileSizeKb((int) Math.ceil(bytes.length / 1024.0));
+        // Persist encrypted LONGBLOB in user_identity_compliance_blobs.storage_blob (no filesystem path).
+        blob.setStorageBlob(bytes);
+        UserIdentityComplianceBlob saved = blobRepository.save(blob);
+        if (saved.getId() == null) {
+            throw new BadRequestException("Document upload failed to persist");
+        }
+
+        appendDocumentMeta(compliance, saved);
+        if ("DL_FRONT".equals(purpose) || "ID_FRONT".equals(purpose) || "PASSPORT".equals(purpose)) {
+            compliance.setIdFrontBlobId(saved.getId());
+        } else if ("DL_BACK".equals(purpose) || "ID_BACK".equals(purpose)) {
+            compliance.setIdBackBlobId(saved.getId());
+        }
+        complianceRepository.save(compliance);
+
+        writeAudit(user, "DOCUMENT_UPLOAD", purpose + ":" + saved.getId());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", saved.getId());
+        response.put("docPurpose", saved.getDocPurpose());
+        response.put("contentType", saved.getContentType());
+        response.put("fileSizeKb", saved.getFileSizeKb());
+        response.put("storedAsDbBlob", Boolean.TRUE);
+        response.put("byteLength", bytes.length);
+        return response;
+    }
+
+    /**
+     * Browsers sometimes omit Content-Type or send application/octet-stream.
+     * Infer from filename / magic bytes so valid images still persist as DB blobs.
+     */
+    static String resolveIdImageContentType(String originalFilename, String declaredType, byte[] bytes) {
+        String type = declaredType == null ? "" : declaredType.trim().toLowerCase(Locale.ROOT);
+        if (ID_IMAGE_CONTENT_TYPES.contains(type)) {
+            return type;
+        }
+        if (originalFilename != null) {
+            String lower = originalFilename.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+            if (lower.endsWith(".png")) return "image/png";
+            if (lower.endsWith(".webp")) return "image/webp";
+        }
+        if (bytes != null) {
+            if (bytes.length >= 3 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF) {
+                return "image/jpeg";
+            }
+            if (bytes.length >= 8 && bytes[0] == (byte) 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+                return "image/png";
+            }
+            if (bytes.length >= 12
+                    && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                    && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
+                return "image/webp";
+            }
+        }
+        return type.isBlank() ? "application/octet-stream" : type;
     }
 
     @Transactional
@@ -313,6 +363,86 @@ public class IdentityOnboardingService {
     }
 
     public record DocumentStreamResult(String contentType, byte[] bytes) {}
+
+    private static final Set<String> ADMIN_ID_DOC_PURPOSES = Set.of(
+            "DL_FRONT", "DL_BACK", "ID_FRONT", "ID_BACK", "PASSPORT"
+    );
+
+    /**
+     * Admin catalog of government ID uploads grouped by user (metadata only; images via stream).
+     */
+    @Transactional(readOnly = true)
+    public List<AdminIdentityDocumentUserDto> listIdentityDocumentsForAdmin() {
+        List<UserIdentityComplianceBlob> blobs = blobRepository.findAllForAdminByPurposes(ADMIN_ID_DOC_PURPOSES);
+        Map<Long, AdminIdentityDocumentUserDto> byUser = new LinkedHashMap<>();
+        Map<Long, List<AdminIdentityDocumentItemDto>> docsByUser = new LinkedHashMap<>();
+
+        for (UserIdentityComplianceBlob blob : blobs) {
+            UserIdentityCompliance compliance = blob.getCompliance();
+            if (compliance == null || compliance.getUser() == null) {
+                continue;
+            }
+            User u = compliance.getUser();
+            Long userId = u.getId();
+            docsByUser.computeIfAbsent(userId, id -> new ArrayList<>()).add(
+                    new AdminIdentityDocumentItemDto(
+                            blob.getId(),
+                            blob.getDocPurpose(),
+                            blob.getContentType(),
+                            blob.getFileSizeKb(),
+                            blob.getCreatedAt() == null ? null : blob.getCreatedAt().toString(),
+                            "/api/onboarding/identity/documents/" + blob.getId() + "/stream"
+                    )
+            );
+            byUser.computeIfAbsent(userId, id -> new AdminIdentityDocumentUserDto(
+                    userId,
+                    u.getFirstName(),
+                    u.getLastName(),
+                    buildDisplayName(u),
+                    u.getEmail(),
+                    compliance.getIdDocumentType(),
+                    maskIdDocumentNumber(compliance.getIdDocumentNumber()),
+                    List.of()
+            ));
+        }
+
+        List<AdminIdentityDocumentUserDto> result = new ArrayList<>();
+        for (Map.Entry<Long, AdminIdentityDocumentUserDto> e : byUser.entrySet()) {
+            AdminIdentityDocumentUserDto base = e.getValue();
+            result.add(new AdminIdentityDocumentUserDto(
+                    base.userId(),
+                    base.firstName(),
+                    base.lastName(),
+                    base.displayName(),
+                    base.email(),
+                    base.idDocumentType(),
+                    base.idDocumentNumberMasked(),
+                    List.copyOf(docsByUser.getOrDefault(e.getKey(), List.of()))
+            ));
+        }
+        return result;
+    }
+
+    private static String buildDisplayName(User u) {
+        if (u.getPreferredName() != null && !u.getPreferredName().isBlank()) {
+            return u.getPreferredName().trim();
+        }
+        String first = u.getFirstName() == null ? "" : u.getFirstName().trim();
+        String last = u.getLastName() == null ? "" : u.getLastName().trim();
+        String combined = (first + " " + last).trim();
+        return combined.isEmpty() ? (u.getEmail() == null ? "User" : u.getEmail()) : combined;
+    }
+
+    private static String maskIdDocumentNumber(String raw) {
+        String value = trimToNull(raw);
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "*".repeat(Math.min(8, value.length() - 4)) + value.substring(value.length() - 4);
+    }
 
     @Transactional
     public Map<String, Object> startVerification(User user) {
@@ -352,8 +482,8 @@ public class IdentityOnboardingService {
             if (!"SELFIE".equalsIgnoreCase(blob.getDocPurpose())) {
                 throw new BadRequestException("documentId must be a selfie upload");
             }
-            if (compliance.getDlFrontBlobId() == null) {
-                throw new BadRequestException("Upload driver license front before verifying selfie");
+            if (compliance.getIdFrontBlobId() == null) {
+                throw new BadRequestException("Upload ID document front (or passport) before verifying selfie");
             }
             compliance.setPhotoStatus(faceMatchConfirmed ? "VERIFIED" : "MISMATCH");
         } else {
@@ -1550,8 +1680,8 @@ public class IdentityOnboardingService {
                         v.getPhotoStatus(),
                         Boolean.TRUE.equals(profile.getShowVerificationBadge()),
                         maskSsn(v.getSsn()),
-                        v.getDlFrontBlobId(),
-                        v.getDlBackBlobId(),
+                        v.getIdFrontBlobId(),
+                        v.getIdBackBlobId(),
                         v.getIdDocumentType(),
                         v.getIdDocumentNumber()
                 ))

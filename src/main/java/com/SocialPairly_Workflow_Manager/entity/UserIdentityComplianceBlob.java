@@ -8,6 +8,10 @@ import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 
+/**
+ * Identity document image stored as an encrypted LONGBLOB in MySQL
+ * ({@code storage_blob}). Filesystem paths are not used (ADO #1560).
+ */
 @Entity
 @Table(name = "user_identity_compliance_blobs")
 public class UserIdentityComplianceBlob {
@@ -31,13 +35,11 @@ public class UserIdentityComplianceBlob {
     @Column(name = "file_size_kb")
     private Integer fileSizeKb;
 
+    /** Encrypted image bytes (AES-GCM envelope). App decrypts on read/stream. */
     @Lob
     @Convert(converter = EncryptedBytesConverter.class)
     @Column(name = "storage_blob", columnDefinition = "LONGBLOB")
     private byte[] storageBlob;
-
-    @Column(name = "storage_path", length = 500)
-    private String storagePath;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -64,9 +66,6 @@ public class UserIdentityComplianceBlob {
 
     public byte[] getStorageBlob() { return storageBlob; }
     public void setStorageBlob(byte[] storageBlob) { this.storageBlob = storageBlob; }
-
-    public String getStoragePath() { return storagePath; }
-    public void setStoragePath(String storagePath) { this.storagePath = storagePath; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

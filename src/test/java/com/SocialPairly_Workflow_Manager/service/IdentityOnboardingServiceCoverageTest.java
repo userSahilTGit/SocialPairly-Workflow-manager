@@ -1027,7 +1027,6 @@ class IdentityOnboardingServiceCoverageTest {
             MultipartFile mockFile = mock(MultipartFile.class);
             when(mockFile.isEmpty()).thenReturn(false);
             when(mockFile.getSize()).thenReturn(100L);
-            when(mockFile.getContentType()).thenReturn("image/jpeg");
             when(mockFile.getBytes()).thenThrow(new IOException("disk error"));
 
             assertThrows(BadRequestException.class,
