@@ -1429,6 +1429,46 @@ class IdentityOnboardingServiceCoverageTest {
         }
 
         @Test
+        void eventTravelRadiusAboveMaxRejects() {
+            CurrentResidenceDto residence = new CurrentResidenceDto(
+                    "1 Main", null, null, "Austin", "TX", "78701", "US",
+                    null, null, null, null, null, 101, null
+            );
+            IdentityBackgroundRequest req = new IdentityBackgroundRequest(
+                    "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
+                    null, null, null, null,
+                    null, null, null, null, null, null,
+                    residence, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
+        }
+
+        @Test
+        void childrenCountAboveMaxRejects() {
+            FamilyDto family = new FamilyDto(
+                    "YES", 11, null, null, null, null, null, null, null, null, null, null, null
+            );
+            IdentityBackgroundRequest req = new IdentityBackgroundRequest(
+                    "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
+                    null, null, null, null,
+                    null, null, null, null, null, null,
+                    null, null, null, null, null, family, null, null, null, null, null, null, null, null, null);
+            assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
+        }
+
+        @Test
+        void petsCountAboveMaxRejects() {
+            FamilyDto family = new FamilyDto(
+                    null, null, null, null, null, null, null, null, null, null, null, null, "6"
+            );
+            IdentityBackgroundRequest req = new IdentityBackgroundRequest(
+                    "SAVE_LATER", null, "Ada", null, "Lovelace", null, null,
+                    null, null, null, null,
+                    null, null, null, null, null, null,
+                    null, null, null, null, null, family, null, null, null, null, null, null, null, null, null);
+            assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
+        }
+
+        @Test
         void invalidMoveInMonthRejects() {
             CurrentResidenceDto residence = new CurrentResidenceDto(
                     "1 Main", null, null, "Austin", "TX", "78701", "US",
