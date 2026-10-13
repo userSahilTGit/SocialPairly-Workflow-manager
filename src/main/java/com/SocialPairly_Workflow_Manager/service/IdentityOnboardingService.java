@@ -40,6 +40,12 @@ public class IdentityOnboardingService {
     private static final int MAX_CONSENT_EVENTS = 20;
     private static final int MAX_DOCUMENT_META = 50;
     private static final int MAX_PREVIOUS_ADDRESSES = 10;
+    /** ADO #1547 — event travel radius upper bound (miles). */
+    private static final int MAX_EVENT_TRAVEL_RADIUS_MILES = 100;
+    /** ADO #1555 — own + adopted children combined. */
+    private static final int MAX_CHILDREN_COUNT = 10;
+    /** Max number of pets (stored in pets_info as digits). */
+    private static final int MAX_PETS_COUNT = 5;
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} .'-]{0,59}$");
     private static final Pattern SSN_PATTERN = Pattern.compile("^\\d{3}-\\d{2}-\\d{4}$");
@@ -592,6 +598,13 @@ public class IdentityOnboardingService {
         if (dto.willingToRelocate() != null) {
             background.setWillingToRelocate(blankToNull(dto.willingToRelocate().trim().toUpperCase(Locale.ROOT)));
         }
+        if (dto.eventTravelRadiusMiles() != null) {
+            int radius = dto.eventTravelRadiusMiles();
+            if (radius < 0 || radius > MAX_EVENT_TRAVEL_RADIUS_MILES) {
+                throw new BadRequestException(
+                        "eventTravelRadiusMiles must be between 0 and " + MAX_EVENT_TRAVEL_RADIUS_MILES);
+            }
+        }
         background.setEventTravelRadiusMiles(dto.eventTravelRadiusMiles());
 
         validatePreferredFutureLocations(dto.preferredFutureLocations());
@@ -807,6 +820,13 @@ public class IdentityOnboardingService {
         if (dto.hasChildren() != null) {
             life.setHasChildren(blankToNull(dto.hasChildren().trim().toUpperCase(Locale.ROOT)));
         }
+        if (dto.childrenCount() != null) {
+            int count = dto.childrenCount();
+            if (count < 0 || count > MAX_CHILDREN_COUNT) {
+                throw new BadRequestException(
+                        "childrenCount (own and adopted combined) must be between 0 and " + MAX_CHILDREN_COUNT);
+            }
+        }
         life.setChildrenCount(dto.childrenCount());
         life.setChildrenLiveWithUser(trimToNull(dto.childrenLiveWithUser()));
         life.setCustodyArrangement(trimToNull(dto.custodyArrangement()));
@@ -826,7 +846,15 @@ public class IdentityOnboardingService {
         }
         life.setElderCare(trimToNull(dto.elderCare()));
         life.setOtherDependents(trimToNull(dto.otherDependents()));
-        life.setPetsInfo(trimToNull(dto.petsInfo()));
+        String petsInfo = trimToNull(dto.petsInfo());
+        if (petsInfo != null && petsInfo.chars().allMatch(Character::isDigit)) {
+            int petsCount = Integer.parseInt(petsInfo);
+            if (petsCount < 0 || petsCount > MAX_PETS_COUNT) {
+                throw new BadRequestException(
+                        "petsInfo (number of pets) must be between 0 and " + MAX_PETS_COUNT);
+            }
+        }
+        life.setPetsInfo(petsInfo);
 
         List<String> ranges = new ArrayList<>();
         if (dto.childAgeRanges() != null) {
