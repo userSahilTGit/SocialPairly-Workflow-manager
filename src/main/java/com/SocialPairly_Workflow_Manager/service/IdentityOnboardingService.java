@@ -2,6 +2,8 @@ package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.constants.IdentityReferenceEnums;
 import com.SocialPairly_Workflow_Manager.constants.OnboardingSteps;
+import com.SocialPairly_Workflow_Manager.dto.AdminIdentityDocumentItemDto;
+import com.SocialPairly_Workflow_Manager.dto.AdminIdentityDocumentUserDto;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundRequest;
 import com.SocialPairly_Workflow_Manager.dto.IdentityBackgroundResponse;
 import com.SocialPairly_Workflow_Manager.dto.IdentitySectionDtos.*;
@@ -361,6 +363,86 @@ public class IdentityOnboardingService {
     }
 
     public record DocumentStreamResult(String contentType, byte[] bytes) {}
+
+    private static final Set<String> ADMIN_ID_DOC_PURPOSES = Set.of(
+            "DL_FRONT", "DL_BACK", "ID_FRONT", "ID_BACK", "PASSPORT"
+    );
+
+    /**
+     * Admin catalog of government ID uploads grouped by user (metadata only; images via stream).
+     */
+    @Transactional(readOnly = true)
+    public List<AdminIdentityDocumentUserDto> listIdentityDocumentsForAdmin() {
+        List<UserIdentityComplianceBlob> blobs = blobRepository.findAllForAdminByPurposes(ADMIN_ID_DOC_PURPOSES);
+        Map<Long, AdminIdentityDocumentUserDto> byUser = new LinkedHashMap<>();
+        Map<Long, List<AdminIdentityDocumentItemDto>> docsByUser = new LinkedHashMap<>();
+
+        for (UserIdentityComplianceBlob blob : blobs) {
+            UserIdentityCompliance compliance = blob.getCompliance();
+            if (compliance == null || compliance.getUser() == null) {
+                continue;
+            }
+            User u = compliance.getUser();
+            Long userId = u.getId();
+            docsByUser.computeIfAbsent(userId, id -> new ArrayList<>()).add(
+                    new AdminIdentityDocumentItemDto(
+                            blob.getId(),
+                            blob.getDocPurpose(),
+                            blob.getContentType(),
+                            blob.getFileSizeKb(),
+                            blob.getCreatedAt() == null ? null : blob.getCreatedAt().toString(),
+                            "/api/onboarding/identity/documents/" + blob.getId() + "/stream"
+                    )
+            );
+            byUser.computeIfAbsent(userId, id -> new AdminIdentityDocumentUserDto(
+                    userId,
+                    u.getFirstName(),
+                    u.getLastName(),
+                    buildDisplayName(u),
+                    u.getEmail(),
+                    compliance.getIdDocumentType(),
+                    maskIdDocumentNumber(compliance.getIdDocumentNumber()),
+                    List.of()
+            ));
+        }
+
+        List<AdminIdentityDocumentUserDto> result = new ArrayList<>();
+        for (Map.Entry<Long, AdminIdentityDocumentUserDto> e : byUser.entrySet()) {
+            AdminIdentityDocumentUserDto base = e.getValue();
+            result.add(new AdminIdentityDocumentUserDto(
+                    base.userId(),
+                    base.firstName(),
+                    base.lastName(),
+                    base.displayName(),
+                    base.email(),
+                    base.idDocumentType(),
+                    base.idDocumentNumberMasked(),
+                    List.copyOf(docsByUser.getOrDefault(e.getKey(), List.of()))
+            ));
+        }
+        return result;
+    }
+
+    private static String buildDisplayName(User u) {
+        if (u.getPreferredName() != null && !u.getPreferredName().isBlank()) {
+            return u.getPreferredName().trim();
+        }
+        String first = u.getFirstName() == null ? "" : u.getFirstName().trim();
+        String last = u.getLastName() == null ? "" : u.getLastName().trim();
+        String combined = (first + " " + last).trim();
+        return combined.isEmpty() ? (u.getEmail() == null ? "User" : u.getEmail()) : combined;
+    }
+
+    private static String maskIdDocumentNumber(String raw) {
+        String value = trimToNull(raw);
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= 4) {
+            return "****";
+        }
+        return "*".repeat(Math.min(8, value.length() - 4)) + value.substring(value.length() - 4);
+    }
 
     @Transactional
     public Map<String, Object> startVerification(User user) {

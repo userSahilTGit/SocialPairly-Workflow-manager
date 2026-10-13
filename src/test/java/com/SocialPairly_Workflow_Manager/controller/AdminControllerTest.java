@@ -8,6 +8,7 @@ import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.QuestionType;
 import com.SocialPairly_Workflow_Manager.service.AdminService;
+import com.SocialPairly_Workflow_Manager.service.IdentityOnboardingService;
 import com.SocialPairly_Workflow_Manager.service.PlanUpgradeService;
 import com.SocialPairly_Workflow_Manager.service.QuestionService;
 import com.SocialPairly_Workflow_Manager.service.RefundService;
@@ -32,13 +33,15 @@ class AdminControllerTest {
     @Mock private SubscriptionService subscriptionService;
     @Mock private RefundService refundService;
     @Mock private PlanUpgradeService planUpgradeService;
+    @Mock private IdentityOnboardingService identityOnboardingService;
 
     private AdminController controller;
 
     @BeforeEach
     void setUp() {
         controller = new AdminController(
-                adminService, questionService, subscriptionService, refundService, planUpgradeService);
+                adminService, questionService, subscriptionService, refundService, planUpgradeService,
+                identityOnboardingService);
     }
 
     @Test
@@ -52,6 +55,13 @@ class AdminControllerTest {
     void getUsersDelegates() {
         when(adminService.listUsers()).thenReturn(List.of(mock(UserDto.class)));
         assertEquals(1, controller.getUsers().getBody().size());
+    }
+
+    @Test
+    void getIdentityDocumentsDelegates() {
+        when(identityOnboardingService.listIdentityDocumentsForAdmin()).thenReturn(List.of());
+        assertNotNull(controller.getIdentityDocuments().getBody());
+        verify(identityOnboardingService).listIdentityDocumentsForAdmin();
     }
 
     @Test
