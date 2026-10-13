@@ -170,6 +170,10 @@ public final class IdentitySectionDtos {
             String explanation
     ) {}
 
+    /**
+     * {@code dlFrontDocumentId} / {@code dlBackDocumentId} are primary/secondary ID image blob ids
+     * (DL, State ID, or Passport page mapped to front). Names kept for API compatibility.
+     */
     public record VerificationSummaryDto(
             String provider,
             String sessionId,

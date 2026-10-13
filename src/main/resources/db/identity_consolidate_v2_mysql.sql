@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS user_identity_compliance_blobs (
   content_type    VARCHAR(100)  NOT NULL,
   file_size_kb    INT           NULL,
   storage_blob    LONGBLOB      NULL,
-  storage_path    VARCHAR(500)  NULL,
+  -- storage_path removed (ADO #1560): documents are DB LONGBLOB only
   created_at      DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (id),
   KEY idx_uicb_compliance (compliance_id),
@@ -379,7 +379,7 @@ WHERE v.id IS NOT NULL
 
 -- D) Copy document blobs (legacy id preserved in documents_meta for remapping DL FKs)
 INSERT INTO user_identity_compliance_blobs (
-  compliance_id, doc_purpose, content_type, file_size_kb, storage_blob, storage_path, created_at
+  compliance_id, doc_purpose, content_type, file_size_kb, storage_blob, created_at
 )
 SELECT
   c.id,
@@ -387,7 +387,6 @@ SELECT
   d.content_type,
   d.file_size_kb,
   d.storage_blob,
-  d.storage_path,
   d.created_at
 FROM user_private_documents d
 JOIN user_identity_compliance c ON c.user_id = d.user_id;

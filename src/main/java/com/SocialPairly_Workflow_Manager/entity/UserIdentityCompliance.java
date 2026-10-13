@@ -53,11 +53,19 @@ public class UserIdentityCompliance {
     @Column(name = "id_document_number", length = 255)
     private String idDocumentNumber;
 
+    /**
+     * Primary ID image blob id (DL front, State ID front, or Passport photo page).
+     * Column name kept as {@code dl_front_blob_id} for existing DBs/FKs (ADO #1560).
+     */
     @Column(name = "dl_front_blob_id")
-    private Long dlFrontBlobId;
+    private Long idFrontBlobId;
 
+    /**
+     * Secondary ID image blob id (DL back / State ID back).
+     * Column name kept as {@code dl_back_blob_id} for existing DBs/FKs (ADO #1560).
+     */
     @Column(name = "dl_back_blob_id")
-    private Long dlBackBlobId;
+    private Long idBackBlobId;
 
     @Column(name = "last_error_code", length = 60)
     private String lastErrorCode;
@@ -124,11 +132,25 @@ public class UserIdentityCompliance {
     public String getIdDocumentNumber() { return idDocumentNumber; }
     public void setIdDocumentNumber(String idDocumentNumber) { this.idDocumentNumber = idDocumentNumber; }
 
-    public Long getDlFrontBlobId() { return dlFrontBlobId; }
-    public void setDlFrontBlobId(Long dlFrontBlobId) { this.dlFrontBlobId = dlFrontBlobId; }
+    public Long getIdFrontBlobId() { return idFrontBlobId; }
+    public void setIdFrontBlobId(Long idFrontBlobId) { this.idFrontBlobId = idFrontBlobId; }
 
-    public Long getDlBackBlobId() { return dlBackBlobId; }
-    public void setDlBackBlobId(Long dlBackBlobId) { this.dlBackBlobId = dlBackBlobId; }
+    /** @deprecated use {@link #getIdFrontBlobId()} */
+    @Deprecated
+    public Long getDlFrontBlobId() { return idFrontBlobId; }
+    /** @deprecated use {@link #setIdFrontBlobId(Long)} */
+    @Deprecated
+    public void setDlFrontBlobId(Long dlFrontBlobId) { this.idFrontBlobId = dlFrontBlobId; }
+
+    public Long getIdBackBlobId() { return idBackBlobId; }
+    public void setIdBackBlobId(Long idBackBlobId) { this.idBackBlobId = idBackBlobId; }
+
+    /** @deprecated use {@link #getIdBackBlobId()} */
+    @Deprecated
+    public Long getDlBackBlobId() { return idBackBlobId; }
+    /** @deprecated use {@link #setIdBackBlobId(Long)} */
+    @Deprecated
+    public void setDlBackBlobId(Long dlBackBlobId) { this.idBackBlobId = dlBackBlobId; }
 
     public String getLastErrorCode() { return lastErrorCode; }
     public void setLastErrorCode(String lastErrorCode) { this.lastErrorCode = lastErrorCode; }

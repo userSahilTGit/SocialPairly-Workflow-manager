@@ -262,7 +262,50 @@ class IdentityOnboardingServiceTest {
 
         ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
         verify(complianceRepository, atLeastOnce()).save(captor.capture());
-        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(55L).equals(c.getDlFrontBlobId())));
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(55L).equals(c.getIdFrontBlobId())));
+        assertEquals(Boolean.TRUE, result.get("storedAsDbBlob"));
+        assertEquals(3, result.get("byteLength"));
+    }
+
+    @Test
+    void uploadInfersJpegFromFilenameWhenContentTypeMissing() {
+        when(blobRepository.save(any(UserIdentityComplianceBlob.class))).thenAnswer(inv -> {
+            UserIdentityComplianceBlob d = inv.getArgument(0);
+            d.setId(57L);
+            if (d.getCreatedAt() == null) {
+                d.setCreatedAt(LocalDateTime.now());
+            }
+            assertNotNull(d.getStorageBlob());
+            assertEquals(3, d.getStorageBlob().length);
+            assertEquals("image/jpeg", d.getContentType());
+            return d;
+        });
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "license.jpg", "application/octet-stream", new byte[]{1, 2, 3}
+        );
+        var result = service.uploadDocument(user, file, "DL_FRONT");
+        assertEquals("image/jpeg", result.get("contentType"));
+        assertEquals(Boolean.TRUE, result.get("storedAsDbBlob"));
+    }
+
+    @Test
+    void passportUploadSetsPrimaryIdFrontBlobFk() {
+        when(blobRepository.save(any(UserIdentityComplianceBlob.class))).thenAnswer(inv -> {
+            UserIdentityComplianceBlob d = inv.getArgument(0);
+            d.setId(58L);
+            if (d.getCreatedAt() == null) {
+                d.setCreatedAt(LocalDateTime.now());
+            }
+            return d;
+        });
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "passport.png", "image/png", new byte[]{1, 2, 3}
+        );
+        var result = service.uploadDocument(user, file, "PASSPORT");
+        assertEquals("PASSPORT", result.get("docPurpose"));
+        ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
+        verify(complianceRepository, atLeastOnce()).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(58L).equals(c.getIdFrontBlobId())));
     }
 
     @Test
@@ -283,7 +326,7 @@ class IdentityOnboardingServiceTest {
 
         ArgumentCaptor<UserIdentityCompliance> captor = ArgumentCaptor.forClass(UserIdentityCompliance.class);
         verify(complianceRepository, atLeastOnce()).save(captor.capture());
-        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(56L).equals(c.getDlFrontBlobId())));
+        assertTrue(captor.getAllValues().stream().anyMatch(c -> Long.valueOf(56L).equals(c.getIdFrontBlobId())));
     }
 
     @Test
