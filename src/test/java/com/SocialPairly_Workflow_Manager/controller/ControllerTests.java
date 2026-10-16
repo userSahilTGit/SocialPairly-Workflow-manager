@@ -106,7 +106,7 @@ class ControllerTests {
 
     @Test
     void authControllerShouldDelegateRegistrationAndLogin() {
-        RegisterRequest registerRequest = new RegisterRequest("A", "B", "a@example.com", "1234567", "password", "password", "addr", true, true, true, true, false);
+        RegisterRequest registerRequest = new RegisterRequest("A", "B", null, "a@example.com", "1234567", "password", "password", "addr", true, true, true, true, false);
         LoginRequest loginRequest = new LoginRequest("a@example.com", "password", null);
         UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0);
         AuthResponse authResponse = new AuthResponse("token", userDto);

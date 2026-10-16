@@ -66,7 +66,7 @@ class AuthServiceAdditionalTests {
 
     @Test
     void registerShouldThrowWhenEmailTaken() {
-        RegisterRequest request = new RegisterRequest("A", "B", "test@example.com", "1234567", "pass123", "pass123", "addr", true, true, true, true, false);
+        RegisterRequest request = new RegisterRequest("A", "B", null, "test@example.com", "1234567", "pass123", "pass123", "addr", true, true, true, true, false);
         when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
 
         assertThrows(BadRequestException.class, () -> authService.register(request));

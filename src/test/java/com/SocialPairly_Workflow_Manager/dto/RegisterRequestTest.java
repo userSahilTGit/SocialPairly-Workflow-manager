@@ -8,8 +8,7 @@ class RegisterRequestTest {
 
     @Test
     void assertTrueHelpersCoverPassAndFailBranches() {
-        RegisterRequest ok = new RegisterRequest(
-                "Ada", "Lovelace", "ada@example.com", "+919876543210",
+        RegisterRequest ok = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "+919876543210",
                 "secret1", "secret1", "addr",
                 true, true, true, true, false
         );
@@ -19,8 +18,7 @@ class RegisterRequestTest {
         assertTrue(ok.isPrivacyConfirmed());
         assertTrue(ok.isIdentityConfirmed());
 
-        RegisterRequest bad = new RegisterRequest(
-                "Ada", "Lovelace", "ada@example.com", "+919876543210",
+        RegisterRequest bad = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "+919876543210",
                 "secret1", "other", null,
                 false, false, false, false, true
         );
@@ -33,8 +31,7 @@ class RegisterRequestTest {
 
     @Test
     void passwordConfirmedFalseWhenPasswordNull() {
-        RegisterRequest req = new RegisterRequest(
-                "Ada", "Lovelace", "ada@example.com", "+919876543210",
+        RegisterRequest req = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "+919876543210",
                 null, "secret1", null,
                 true, true, true, true, false
         );
