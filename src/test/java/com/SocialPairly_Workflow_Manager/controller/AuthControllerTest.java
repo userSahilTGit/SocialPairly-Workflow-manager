@@ -97,8 +97,7 @@ class AuthControllerTest {
 
     @Test
     void registerShouldDelegateToAuthService() {
-        RegisterRequest request = new RegisterRequest(
-                "Ada", "Lovelace", "ada@example.com", "1234567", "secret", "secret", "London",
+        RegisterRequest request = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "1234567", "secret", "secret", "London",
                 true, true, true, true, false);
         UserDto userDto = sampleUserDto(1L, "Ada", "Lovelace", "ada@example.com");
         AuthResponse authResponse = new AuthResponse("token", userDto);

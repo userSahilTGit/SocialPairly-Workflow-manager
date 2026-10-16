@@ -16,7 +16,7 @@ class DtoTests {
 
     @Test
     void recordsShouldExposeSubmittedValues() {
-        RegisterRequest register = new RegisterRequest("Ada", "Lovelace", "ada@example.com", "1234567", "secret", "secret", "London", true, true, true, true, false);
+        RegisterRequest register = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "1234567", "secret", "secret", "London", true, true, true, true, false);
         LoginRequest login = new LoginRequest("ada@example.com", "secret", null);
         AnswerRequest answer = new AnswerRequest(10L, "yes");
         DeleteAccountRequest deleteAccount = new DeleteAccountRequest("secret");

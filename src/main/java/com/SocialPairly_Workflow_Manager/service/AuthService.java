@@ -137,6 +137,8 @@ public class AuthService {
         User user = new User();
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
+        String middle = request.middleName() == null ? null : request.middleName().trim();
+        user.setMiddleName(middle == null || middle.isBlank() ? null : middle);
         user.setEmail(request.email().toLowerCase().trim());
         user.setPhoneNumber(phoneStorage);
         user.setPassword(passwordEncoder.encode(request.password()));

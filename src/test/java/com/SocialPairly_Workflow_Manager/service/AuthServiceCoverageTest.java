@@ -81,8 +81,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldThrowWhenPhoneAlreadyRegistered() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "123 Main St",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "123 Main St",
                 true, true, true, true, false);
 
         when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
@@ -94,8 +93,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldSendEmailVerificationOtp() throws MessagingException {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "JANE@EXAMPLE.COM ", "+12025550123", "secret123", "secret123", "123 Main St",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "JANE@EXAMPLE.COM ", "+12025550123", "secret123", "secret123", "123 Main St",
                 true, true, true, true, false);
         User saved = new User();
         saved.setEmail("jane@example.com");
@@ -303,8 +301,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldRejectPasswordMismatch() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "other", "addr",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "other", "addr",
                 true, true, true, true, false);
 
         assertThrows(BadRequestException.class, () -> authService.register(request));
@@ -312,8 +309,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldRejectMissingConsents() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
                 false, true, true, true, false);
 
         assertThrows(BadRequestException.class, () -> authService.register(request));
@@ -321,8 +317,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldRejectInvalidPhoneNumber() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "123", "secret123", "secret123", "addr",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com", "123", "secret123", "secret123", "addr",
                 true, true, true, true, false);
         when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
 
@@ -331,8 +326,7 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldSwallowEmailSendFailure() throws MessagingException {
-        RegisterRequest request = new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
                 true, true, true, true, false);
         User saved = new User();
         saved.setEmail("jane@example.com");
@@ -547,14 +541,11 @@ class AuthServiceCoverageTest {
 
     @Test
     void registerShouldRejectEachMissingConsentIndependently() {
-        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
+        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
                 true, false, true, true, false)));
-        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
+        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
                 true, true, false, true, false)));
-        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest(
-                "Jane", "Doe", "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
+        assertThrows(BadRequestException.class, () -> authService.register(new RegisterRequest("Jane", "Doe", null, "jane@example.com", "+12025550123", "secret123", "secret123", "addr",
                 true, true, true, false, false)));
     }
 

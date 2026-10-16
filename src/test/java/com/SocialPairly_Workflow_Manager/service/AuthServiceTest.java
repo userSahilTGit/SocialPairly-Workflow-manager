@@ -104,11 +104,48 @@ class AuthServiceTest {
     }
 
     @Test
+    void listPhoneCountryCodesSkipsBlankDialAndOmitsUnknownLength() {
+        RefCountry blankDial = new RefCountry();
+        blankDial.setCode("XX");
+        blankDial.setName("Blank Dial");
+        blankDial.setPhoneCode("   ");
+        blankDial.setActive(true);
+
+        RefCountry nullDial = new RefCountry();
+        nullDial.setCode("YY");
+        nullDial.setName("Null Dial");
+        nullDial.setPhoneCode(null);
+        nullDial.setActive(true);
+
+        RefCountry knownViaNormalizer = new RefCountry();
+        knownViaNormalizer.setCode("IN");
+        knownViaNormalizer.setName("India");
+        knownViaNormalizer.setPhoneCode("+91");
+        knownViaNormalizer.setPhoneNationalLength(null);
+        knownViaNormalizer.setActive(true);
+
+        RefCountry unknownDial = new RefCountry();
+        unknownDial.setCode("ZZ");
+        unknownDial.setName("Unknown");
+        unknownDial.setPhoneCode("+999");
+        unknownDial.setPhoneNationalLength(null);
+        unknownDial.setActive(true);
+
+        when(refCountryRepository.findByActiveTrueAndPhoneCodeIsNotNullOrderByNameAsc())
+                .thenReturn(List.of(blankDial, nullDial, knownViaNormalizer, unknownDial));
+
+        List<Map<String, String>> rows = authService.listPhoneCountryCodes();
+        assertEquals(2, rows.size());
+        assertEquals("IN", rows.get(0).get("code"));
+        assertEquals("10", rows.get(0).get("nationalLength"));
+        assertEquals("ZZ", rows.get(1).get("code"));
+        assertEquals("+999", rows.get(1).get("dialCode"));
+        assertFalse(rows.get(1).containsKey("nationalLength"));
+    }
+
+    @Test
     void shouldRegisterNewUser() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane",
-                "Doe",
-                "jane@example.com",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com",
                 "+12025550123",
                 "secret123",
                 "secret123",
@@ -137,6 +174,7 @@ class AuthServiceTest {
         User savedUser = savedCaptor.getValue();
         assertEquals("Jane", savedUser.getFirstName());
         assertEquals("Doe", savedUser.getLastName());
+        assertNull(savedUser.getMiddleName());
         assertEquals("jane@example.com", savedUser.getEmail());
         assertEquals("+1-2025550123", savedUser.getPhoneNumber());
         assertEquals("encoded-password", savedUser.getPassword());
@@ -151,11 +189,61 @@ class AuthServiceTest {
     }
 
     @Test
+    void shouldPersistMiddleNameOnRegister() {
+        RegisterRequest request = new RegisterRequest("test", "three", "user", "middle@example.com",
+                "+12025550199",
+                "secret123",
+                "secret123",
+                "123 Main St",
+                true,
+                true,
+                true,
+                true,
+                false
+        );
+
+        when(userRepository.existsByEmail(eq("middle@example.com"))).thenReturn(false);
+        when(userRepository.existsByPhoneNumber(any())).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(otpService.generateAndStore(any(), any())).thenReturn("1234");
+
+        authService.register(request);
+
+        ArgumentCaptor<User> savedCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(savedCaptor.capture());
+        User savedUser = savedCaptor.getValue();
+        assertEquals("test", savedUser.getFirstName());
+        assertEquals("user", savedUser.getMiddleName());
+        assertEquals("three", savedUser.getLastName());
+    }
+
+    @Test
+    void shouldTreatBlankOrWhitespaceMiddleNameAsNull() {
+        when(userRepository.existsByEmail(any())).thenReturn(false);
+        when(userRepository.existsByPhoneNumber(any())).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("encoded-password");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(otpService.generateAndStore(any(), any())).thenReturn("1234");
+
+        authService.register(new RegisterRequest("Jane", "Doe", "", "blank-middle@example.com",
+                "+12025550111", "secret123", "secret123", "123 Main St",
+                true, true, true, true, false));
+        ArgumentCaptor<User> blankCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(blankCaptor.capture());
+        assertNull(blankCaptor.getValue().getMiddleName());
+
+        authService.register(new RegisterRequest("Jane", "Doe", "   ", "ws-middle@example.com",
+                "+12025550112", "secret123", "secret123", "123 Main St",
+                true, true, true, true, false));
+        ArgumentCaptor<User> wsCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository, times(2)).save(wsCaptor.capture());
+        assertNull(wsCaptor.getValue().getMiddleName());
+    }
+
+    @Test
     void shouldThrowWhenEmailAlreadyExists() {
-        RegisterRequest request = new RegisterRequest(
-                "Jane",
-                "Doe",
-                "jane@example.com",
+        RegisterRequest request = new RegisterRequest("Jane", "Doe", null, "jane@example.com",
                 "+12025550123",
                 "secret123",
                 "secret123",
