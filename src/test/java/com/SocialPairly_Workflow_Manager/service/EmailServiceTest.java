@@ -340,4 +340,89 @@ class EmailServiceTest {
         refund.setCreatedAt(LocalDateTime.of(2026, 8, 1, 10, 0));
         return refund;
     }
+
+    @Test
+    void sendCustomerCareEmailOpensSharedInboxThread() throws Exception {
+        MimeMessage agentMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        MimeMessage memberMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(agentMessage, memberMessage);
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada Lovelace",
+                "ada@example.com",
+                "+12025550123",
+                List.of("Billing", "Technical"),
+                "Checkout failed",
+                "Unable to complete Premium upgrade.",
+                "https://www.socialpairly.com/subscriptions"
+        ));
+
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
+        assertEquals("support@test.com", agentMessage.getAllRecipients()[0].toString());
+        assertTrue(agentMessage.getFrom()[0].toString().contains("support@test.com"));
+        assertEquals("ada@example.com", agentMessage.getReplyTo()[0].toString());
+        assertTrue(agentMessage.getSubject().contains("Checkout failed"));
+
+        assertEquals("ada@example.com", memberMessage.getAllRecipients()[0].toString());
+        assertTrue(memberMessage.getFrom()[0].toString().contains("support@test.com"));
+        assertEquals("support@test.com", memberMessage.getReplyTo()[0].toString());
+        assertTrue(memberMessage.getSubject().startsWith("Re:"));
+    }
+
+    @Test
+    void sendCustomerCareEmailOmitsBlankPhoneAndPageAndHandlesNullIssues() throws Exception {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())),
+                        new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada",
+                "ada@example.com",
+                "   ",
+                null,
+                "General help",
+                "Need assistance with my account please.",
+                null
+        ));
+
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendCustomerCareEmailTreatsBlankIssueTokensAsGeneral() throws Exception {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())),
+                        new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada",
+                "ada@example.com",
+                null,
+                java.util.Arrays.asList("  ", "", null),
+                "Blank issues",
+                "Message body with enough length.",
+                "   "
+        ));
+
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendCustomerCareEmailHandlesEmptyIssuesList() throws Exception {
+        when(mailSender.createMimeMessage())
+                .thenReturn(new MimeMessage(Session.getDefaultInstance(new Properties())),
+                        new MimeMessage(Session.getDefaultInstance(new Properties())));
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada",
+                "ada@example.com",
+                null,
+                List.of(),
+                "Empty issues",
+                "Message body with enough length.",
+                ""
+        ));
+
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
+    }
 }

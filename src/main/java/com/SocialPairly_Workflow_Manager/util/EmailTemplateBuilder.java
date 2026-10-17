@@ -42,7 +42,7 @@ public final class EmailTemplateBuilder {
                             <td style="padding:0 36px 32px;">
                               <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;">
                               <p style="margin:0;font-size:13px;color:#9ca3af;text-align:center;line-height:1.5;">
-                                Questions? Reply to this email or contact
+                                For any more queries, write us at
                                 <a href="mailto:%s" style="color:#6366f1;text-decoration:none;">%s</a>
                               </p>
                               <p style="margin:12px 0 0;font-size:12px;color:#d1d5db;text-align:center;">

@@ -71,6 +71,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/phone-verification/**").authenticated()
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/support/contact").permitAll()
                         .requestMatchers("/api/payment/webhook").permitAll()
                         .requestMatchers("/api/plans/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -103,6 +104,7 @@ public class SecurityConfig {
                 .requireCsrfProtectionMatcher(new CookieSessionCsrfRequestMatcher(authCookieName))
                 .ignoringRequestMatchers(
                         "/api/payment/webhook",
+                        "/api/support/contact",
                         "/api/auth/register",
                         "/api/auth/login",
                         "/api/auth/google",
@@ -146,14 +148,37 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
+                "http://localhost:3010",
                 "http://localhost:8081",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
+                "http://127.0.0.1:3002",
+                "http://127.0.0.1:3010",
                 "http://3.151.77.90",
                 "https://3.151.77.90",
                 "http://3.151.77.90.nip.io",
-                "https://3.151.77.90.nip.io"
+                "https://3.151.77.90.nip.io",
+                // Production domain — also keep IP origins above for direct access
+                "https://www.socialpairly.com",
+                "http://www.socialpairly.com",
+                "https://socialpairly.com",
+                "http://socialpairly.com"
         ));
         origins.addAll(parseAdditionalOrigins(additionalCorsOrigins));
         config.setAllowedOrigins(origins);
+        // Local Vite any port; EC2 IP any port; production domain (http/https, www optional)
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://3.151.77.90:*",
+                "https://3.151.77.90:*",
+                "http://3.151.77.90.nip.io:*",
+                "https://3.151.77.90.nip.io:*",
+                "https://*.socialpairly.com",
+                "http://*.socialpairly.com",
+                "https://socialpairly.com",
+                "http://socialpairly.com"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

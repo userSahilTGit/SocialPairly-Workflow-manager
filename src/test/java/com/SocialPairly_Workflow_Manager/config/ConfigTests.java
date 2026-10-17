@@ -101,6 +101,10 @@ class ConfigTests {
         assertTrue(config.getAllowedOrigins().contains("http://3.151.77.90"));
         assertTrue(config.getAllowedOrigins().contains("http://3.151.77.90.nip.io"));
         assertTrue(config.getAllowedOrigins().contains("https://3.151.77.90.nip.io"));
+        assertTrue(config.getAllowedOrigins().contains("https://www.socialpairly.com"));
+        assertTrue(config.getAllowedOrigins().contains("https://socialpairly.com"));
+        assertTrue(config.getAllowedOrigins().contains("http://127.0.0.1:3010"));
+        assertTrue(config.getAllowedOriginPatterns().contains("http://localhost:*"));
         assertTrue(config.getAllowedMethods().contains("GET"));
 
         assertNotNull(securityConfig.passwordEncoder());

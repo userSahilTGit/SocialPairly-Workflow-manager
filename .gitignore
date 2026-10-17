@@ -34,6 +34,8 @@ build/
 /uploads
 
 ### Secrets / local crash dumps ###
+.env
+src/main/resources/application-local.properties
 src/main/resources/firebase-service-account.json
 config/firebase-service-account.json
 hs_err_pid*.log

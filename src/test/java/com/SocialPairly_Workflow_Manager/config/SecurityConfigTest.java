@@ -88,6 +88,14 @@ class SecurityConfigTest {
         assertTrue(config.getAllowedOrigins().contains("http://localhost:3001"));
         assertTrue(config.getAllowedOrigins().contains("http://3.151.77.90.nip.io"));
         assertTrue(config.getAllowedOrigins().contains("https://3.151.77.90.nip.io"));
+        assertTrue(config.getAllowedOrigins().contains("https://www.socialpairly.com"));
+        assertTrue(config.getAllowedOrigins().contains("https://socialpairly.com"));
+        assertTrue(config.getAllowedOrigins().contains("http://3.151.77.90"));
+        assertTrue(config.getAllowedOrigins().contains("http://127.0.0.1:3010"));
+        assertTrue(config.getAllowedOriginPatterns().contains("http://127.0.0.1:*"));
+        assertTrue(config.getAllowedOriginPatterns().contains("http://localhost:*"));
+        assertTrue(config.getAllowedOriginPatterns().contains("http://3.151.77.90:*"));
+        assertTrue(config.getAllowedOriginPatterns().contains("https://*.socialpairly.com"));
         assertTrue(config.getAllowCredentials());
         assertTrue(config.getAllowedMethods().contains("GET"));
         assertTrue(config.getAllowedMethods().contains("OPTIONS"));
@@ -118,6 +126,7 @@ class SecurityConfigTest {
     @Test
     void testParseAdditionalOriginsIgnoresBlank() {
         assertTrue(SecurityConfig.parseAdditionalOrigins("").isEmpty());
+        assertTrue(SecurityConfig.parseAdditionalOrigins(null).isEmpty());
         assertTrue(SecurityConfig.parseAdditionalOrigins("  , , ").isEmpty());
         assertEquals(List.of("https://a.com"), SecurityConfig.parseAdditionalOrigins(" https://a.com "));
     }
@@ -142,5 +151,84 @@ class SecurityConfigTest {
         assertNotNull(result);
         assertSame(filterChain, result);
         verify(httpSecurity).requiresChannel(any());
+    }
+
+    @Test
+    void testCsrfDisabledFilterChainBuilds() throws Exception {
+        SecurityConfig noCsrf = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                false,
+                false,
+                "");
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        assertSame(filterChain, noCsrf.filterChain(httpSecurity));
+        verify(httpSecurity).csrf(any());
+    }
+
+    @Test
+    void testHstsOnlyWithoutRequireHttpsBuilds() throws Exception {
+        SecurityConfig hstsOnly = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                true,
+                0L,
+                true,
+                false,
+                null);
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        assertSame(filterChain, hstsOnly.filterChain(httpSecurity));
+        verify(httpSecurity, never()).requiresChannel(any());
+    }
+
+    @Test
+    void testSecureCsrfCookieWhenAuthCookieSecureWithoutHttps() throws Exception {
+        SecurityConfig secureCookie = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                true,
+                true,
+                "");
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        assertSame(filterChain, secureCookie.filterChain(httpSecurity));
+        verify(httpSecurity).csrf(any());
+    }
+
+    @Test
+    void testRequireHttpsForcesSecureCsrfCookieAndChannel() throws Exception {
+        // requireHttps=true, hstsEnabled=false, authCookieSecure=false
+        // covers setSecure via requireHttps and applyHsts via requireHttps alone
+        SecurityConfig httpsNoHstsFlag = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                true,
+                false,
+                31_536_000L,
+                true,
+                false,
+                "");
+        HttpSecurity httpSecurity = mock(HttpSecurity.class, RETURNS_DEEP_STUBS);
+        DefaultSecurityFilterChain filterChain = mock(DefaultSecurityFilterChain.class);
+        when(httpSecurity.build()).thenReturn(filterChain);
+
+        assertSame(filterChain, httpsNoHstsFlag.filterChain(httpSecurity));
+        verify(httpSecurity).requiresChannel(any());
+        verify(httpSecurity).csrf(any());
     }
 }

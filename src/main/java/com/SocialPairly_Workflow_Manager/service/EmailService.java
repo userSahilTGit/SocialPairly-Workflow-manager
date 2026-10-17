@@ -7,11 +7,13 @@ import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest;
 import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.SocialPairly_Workflow_Manager.util.EmailTemplateBuilder;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import java.io.UnsupportedEncodingException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,10 +50,10 @@ public class EmailService {
     @Value("${app.merchant.name:SocialPairly}")
     private String appName;
 
-    @Value("${app.support.email:sahil.t@socialpairly.com}")
+    @Value("${app.support.email:customercare@socialpairly.com}")
     private String supportEmail;
 
-    @Value("${app.email.base-url:https://socialpairly.com}")
+    @Value("${app.email.base-url:https://www.socialpairly.com}")
     private String appBaseUrl;
 
     @Value("${app.frontend.url:http://localhost:3002}")
@@ -507,13 +511,16 @@ public class EmailService {
 
         String userName = formatUserName(user);
         String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
-                + EmailTemplateBuilder.paragraph("Use this code to verify your Socialpairly account:")
+                + EmailTemplateBuilder.paragraph(
+                "Welcome to " + appName + "! Please use the verification One-Time Password (OTP) below to verify your email:")
                 + """
                 <div style="text-align:center;margin:24px 0;">
-                  <span style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#4c31df;display:inline-block;">%s</span>
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:5px;color:#6366f1;background-color:#eef2ff;padding:12px 32px;border-radius:8px;border:2px dashed #8b5cf6;display:inline-block;">%s</span>
                 </div>
                 """.formatted(otp)
-                + EmailTemplateBuilder.paragraph("This code expires in 10 minutes.");
+                + EmailTemplateBuilder.paragraph("This OTP is valid for the next 10 minutes.")
+                + EmailTemplateBuilder.paragraph(
+                "If you did not create an account, you can safely ignore this email.");
 
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -522,6 +529,102 @@ public class EmailService {
         helper.setSubject("Verify your Socialpairly email");
         helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
         mailSender.send(message);
+    }
+
+    /**
+     * Shared-inbox support channel (not noreply):
+     * <ul>
+     *   <li>Agent inbox ({@code supportEmail}) receives the ticket; Reply goes to the member.</li>
+     *   <li>Member receives an acknowledgement from {@code supportEmail} so further replies
+     *       stay on the same customercare thread.</li>
+     * </ul>
+     * OTP / system mail continues to use {@code senderEmail} (noreply).
+     */
+    public void sendCustomerCareEmail(CustomerCareRequest request) throws MessagingException {
+        String customerName = request.name().trim();
+        String customerEmail = request.email().trim();
+        String issuesLabel = formatIssues(request.issues());
+        String subjectLine = "[Customer Care] " + request.subject().trim();
+
+        List<String> detailLines = new ArrayList<>();
+        detailLines.add("From: " + customerName);
+        detailLines.add("Email: " + customerEmail);
+        if (request.phone() != null && !request.phone().isBlank()) {
+            detailLines.add("Phone: " + request.phone().trim());
+        }
+        detailLines.add("Issues: " + issuesLabel);
+        if (request.pageUrl() != null && !request.pageUrl().isBlank()) {
+            detailLines.add("Page: " + request.pageUrl().trim());
+        }
+
+        String agentBody = EmailTemplateBuilder.paragraph(
+                "A member contacted " + appName + " customer care. Reply to this email to continue the conversation with them.")
+                + EmailTemplateBuilder.infoBox("Contact details", detailLines)
+                + EmailTemplateBuilder.paragraph("<strong>Message</strong>")
+                + EmailTemplateBuilder.paragraph(escapeHtml(request.message().trim()));
+
+        MimeMessage agentMessage = mailSender.createMimeMessage();
+        MimeMessageHelper agentHelper = new MimeMessageHelper(agentMessage, true, "UTF-8");
+        agentHelper.setFrom(supportFromAddress(customerName));
+        agentHelper.setTo(supportEmail);
+        agentHelper.setReplyTo(customerEmail);
+        agentHelper.setSubject(subjectLine);
+        agentHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, agentBody), true);
+        mailSender.send(agentMessage);
+
+        String memberBody = EmailTemplateBuilder.paragraph("Hi " + escapeHtml(customerName) + ",")
+                + EmailTemplateBuilder.paragraph(
+                "We received your message about <strong>" + escapeHtml(request.subject().trim()) + "</strong>.")
+                + EmailTemplateBuilder.paragraph(
+                "Our customer care team will reply on this email thread. You can reply directly to this message to continue the conversation.")
+                + EmailTemplateBuilder.infoBox("Your message", List.of(
+                        "Issues: " + issuesLabel,
+                        escapeHtml(request.message().trim())
+                ));
+
+        MimeMessage memberMessage = mailSender.createMimeMessage();
+        MimeMessageHelper memberHelper = new MimeMessageHelper(memberMessage, true, "UTF-8");
+        memberHelper.setFrom(supportFromAddress(appName + " Customer Care"));
+        memberHelper.setTo(customerEmail);
+        memberHelper.setReplyTo(supportEmail);
+        memberHelper.setSubject("Re: " + subjectLine);
+        memberHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, memberBody), true);
+        mailSender.send(memberMessage);
+
+        log.info("Customer-care thread opened support={} member={}",
+                LogMasker.email(supportEmail), LogMasker.email(customerEmail));
+    }
+
+    /** Visible From for the support channel (customercare), not noreply. */
+    private InternetAddress supportFromAddress(String personalName) throws MessagingException {
+        try {
+            return new InternetAddress(supportEmail, personalName == null || personalName.isBlank()
+                    ? appName + " Customer Care"
+                    : personalName, "UTF-8");
+        } catch (UnsupportedEncodingException ex) {
+            throw new MessagingException("Unable to build support From address", ex);
+        }
+    }
+
+    private static String formatIssues(List<String> issues) {
+        if (issues == null || issues.isEmpty()) {
+            return "General / all issues";
+        }
+        List<String> cleaned = issues.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        return cleaned.isEmpty() ? "General / all issues" : String.join(", ", cleaned);
+    }
+
+    private static String escapeHtml(String raw) {
+        return raw
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("\n", "<br/>");
     }
 
     @Async

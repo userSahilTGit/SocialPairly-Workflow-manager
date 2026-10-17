@@ -12,21 +12,23 @@ import java.util.Optional;
 
 public interface AuthOtpCodeRepository extends JpaRepository<AuthOtpCode, Long> {
 
+    /**
+     * Unconsumed OTPs for purpose/identifier. Expiry is enforced in {@code OtpService}
+     * so callers can return "OTP has expired" instead of a generic "not found".
+     */
     @Query("""
             SELECT o FROM AuthOtpCode o
             WHERE o.purpose = :purpose
               AND o.identifier = :identifier
               AND o.consumedAt IS NULL
-              AND o.expiresAt > :now
             ORDER BY o.createdAt DESC
             """)
     List<AuthOtpCode> findActive(
             @Param("purpose") String purpose,
-            @Param("identifier") String identifier,
-            @Param("now") LocalDateTime now);
+            @Param("identifier") String identifier);
 
     default Optional<AuthOtpCode> findLatestActive(String purpose, String identifier, LocalDateTime now) {
-        List<AuthOtpCode> list = findActive(purpose, identifier, now);
+        List<AuthOtpCode> list = findActive(purpose, identifier);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 

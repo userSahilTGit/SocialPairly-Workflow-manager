@@ -12,6 +12,14 @@ import java.util.Collections;
  * Google Identity (OIDC) verifier used by {@code POST /api/auth/google}.
  * Extracted as a bean so integration tests can substitute a mock without
  * changing production verification behavior.
+ *
+ * <p>Authorized JavaScript origins / redirect URIs in Google Cloud Console must include:
+ * <ul>
+ *   <li>{@code https://www.socialpairly.com}</li>
+ *   <li>{@code https://socialpairly.com}</li>
+ *   <li>{@code http://3.151.77.90} (direct IP access)</li>
+ *   <li>local dev hosts ({@code http://localhost:3000}, {@code :3001}, …)</li>
+ * </ul>
  */
 @Configuration
 public class GoogleAuthConfig {

@@ -29,4 +29,13 @@ class EmailTemplateBuilderTest {
         assertDoesNotThrow(() -> EmailTemplateBuilder.paragraph(null));
         assertDoesNotThrow(() -> EmailTemplateBuilder.infoBox("Title", java.util.Arrays.asList("a", null)));
     }
+
+    @Test
+    void buildFooterDirectsQueriesToSupportWithoutReplyPrompt() {
+        String html = EmailTemplateBuilder.build("SocialPairly", "customercare@socialpairly.com", "<p>Hi</p>");
+        assertTrue(html.contains("For any more queries, write us at"));
+        assertTrue(html.contains("customercare@socialpairly.com"));
+        assertFalse(html.contains("Reply to this email"));
+        assertFalse(html.contains("Questions?"));
+    }
 }

@@ -51,7 +51,7 @@ public class PlanUpgradeService {
     @Value("${app.merchant.name:SocialPairly}")
     private String merchantName;
 
-    @Value("${app.support.email:sahil.t@socialpairly.com}")
+    @Value("${app.support.email:customercare@socialpairly.com}")
     private String supportEmail;
 
     public PlanUpgradeService(PlanUpgradeRequestRepository upgradeRequestRepository,
