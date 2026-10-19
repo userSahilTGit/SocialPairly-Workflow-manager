@@ -9,15 +9,20 @@ import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest;
 import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
+import com.SocialPairly_Workflow_Manager.dto.SupportAttachment;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
 import com.SocialPairly_Workflow_Manager.util.EmailTemplateBuilder;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import org.eclipse.angus.mail.smtp.SMTPSendFailedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
+import org.springframework.mail.MailSendException;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -58,6 +63,19 @@ public class EmailService {
 
     @Value("${app.frontend.url:http://localhost:3002}")
     private String frontendUrl;
+
+    /** Only one SMTP dialog at a time. Gmail answers 421 when many sessions open together. */
+    private final Object smtpSendLock = new Object();
+    private long lastSmtpSendAtMillis;
+
+    @Value("${app.mail.send-gap-ms:400}")
+    private long minSendGapMs;
+
+    @Value("${app.mail.retry.max-attempts:4}")
+    private int maxSendAttempts = 4;
+
+    @Value("${app.mail.retry.initial-backoff-ms:2000}")
+    private long initialBackoffMs = 2000L;
 
     public EmailService(JavaMailSender mailSender, PlanRepository planRepository) {
         this.mailSender = mailSender;
@@ -501,7 +519,7 @@ public class EmailService {
         helper.setTo(user.getEmail());
         helper.setSubject("Password Reset Verification Code");
         helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
-        mailSender.send(message);
+        deliver(message);
     }
 
     public void sendEmailVerificationOtpEmail(User user, String otp) throws MessagingException {
@@ -528,7 +546,7 @@ public class EmailService {
         helper.setTo(user.getEmail());
         helper.setSubject("Verify your Socialpairly email");
         helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
-        mailSender.send(message);
+        deliver(message);
     }
 
     /**
@@ -541,27 +559,43 @@ public class EmailService {
      * OTP / system mail continues to use {@code senderEmail} (noreply).
      */
     public void sendCustomerCareEmail(CustomerCareRequest request) throws MessagingException {
+        sendCustomerCareEmail(request, List.of());
+    }
+
+    public void sendCustomerCareEmail(CustomerCareRequest request, List<SupportAttachment> attachments)
+            throws MessagingException {
         String customerName = request.name().trim();
         String customerEmail = request.email().trim();
         String issuesLabel = formatIssues(request.issues());
         String subjectLine = "[Customer Care] " + request.subject().trim();
+        String messageText = request.message().trim();
+        List<SupportAttachment> files = attachments == null ? List.of() : attachments;
+        String attachmentLabel = formatAttachmentNames(files);
 
         List<String> detailLines = new ArrayList<>();
-        detailLines.add("From: " + customerName);
-        detailLines.add("Email: " + customerEmail);
+        detailLines.add(EmailTemplateBuilder.plainToHtml("From: " + customerName));
+        detailLines.add("Email: " + EmailTemplateBuilder.textLink("mailto:" + customerEmail, customerEmail));
         if (request.phone() != null && !request.phone().isBlank()) {
-            detailLines.add("Phone: " + request.phone().trim());
+            String phone = request.phone().trim();
+            detailLines.add("Phone: " + EmailTemplateBuilder.textLink(telHref(phone), phone));
         }
-        detailLines.add("Issues: " + issuesLabel);
+        detailLines.add(EmailTemplateBuilder.plainToHtml("Issues: " + issuesLabel));
         if (request.pageUrl() != null && !request.pageUrl().isBlank()) {
-            detailLines.add("Page: " + request.pageUrl().trim());
+            String page = request.pageUrl().trim();
+            if (isHttpUrl(page)) {
+                detailLines.add("Page: " + EmailTemplateBuilder.textLink(page, page));
+            } else {
+                detailLines.add(EmailTemplateBuilder.plainToHtml("Page: " + page));
+            }
+        }
+        if (!attachmentLabel.isBlank()) {
+            detailLines.add(EmailTemplateBuilder.plainToHtml("Attachments: " + attachmentLabel));
         }
 
         String agentBody = EmailTemplateBuilder.paragraph(
                 "A member contacted " + appName + " customer care. Reply to this email to continue the conversation with them.")
-                + EmailTemplateBuilder.infoBox("Contact details", detailLines)
-                + EmailTemplateBuilder.paragraph("<strong>Message</strong>")
-                + EmailTemplateBuilder.paragraph(escapeHtml(request.message().trim()));
+                + EmailTemplateBuilder.htmlInfoBox("Contact details", detailLines)
+                + EmailTemplateBuilder.labeledBlock("Message", messageText);
 
         MimeMessage agentMessage = mailSender.createMimeMessage();
         MimeMessageHelper agentHelper = new MimeMessageHelper(agentMessage, true, "UTF-8");
@@ -570,17 +604,24 @@ public class EmailService {
         agentHelper.setReplyTo(customerEmail);
         agentHelper.setSubject(subjectLine);
         agentHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, agentBody), true);
-        mailSender.send(agentMessage);
+        addSupportAttachments(agentHelper, files);
+        deliver(agentMessage);
 
-        String memberBody = EmailTemplateBuilder.paragraph("Hi " + escapeHtml(customerName) + ",")
-                + EmailTemplateBuilder.paragraph(
-                "We received your message about <strong>" + escapeHtml(request.subject().trim()) + "</strong>.")
+        List<String> memberLines = new ArrayList<>();
+        memberLines.add(EmailTemplateBuilder.plainToHtml("Issues: " + issuesLabel));
+        memberLines.add(EmailTemplateBuilder.plainToHtml(messageText));
+        if (!attachmentLabel.isBlank()) {
+            memberLines.add(EmailTemplateBuilder.plainToHtml("Attachments: " + attachmentLabel));
+        }
+
+        String memberBody = EmailTemplateBuilder.paragraph("Hi " + customerName + ",")
+                + EmailTemplateBuilder.htmlParagraph(
+                "We received your message about <strong>"
+                        + EmailTemplateBuilder.plainToHtml(request.subject().trim())
+                        + "</strong>.")
                 + EmailTemplateBuilder.paragraph(
                 "Our customer care team will reply on this email thread. You can reply directly to this message to continue the conversation.")
-                + EmailTemplateBuilder.infoBox("Your message", List.of(
-                        "Issues: " + issuesLabel,
-                        escapeHtml(request.message().trim())
-                ));
+                + EmailTemplateBuilder.htmlInfoBox("Your message", memberLines);
 
         MimeMessage memberMessage = mailSender.createMimeMessage();
         MimeMessageHelper memberHelper = new MimeMessageHelper(memberMessage, true, "UTF-8");
@@ -589,10 +630,61 @@ public class EmailService {
         memberHelper.setReplyTo(supportEmail);
         memberHelper.setSubject("Re: " + subjectLine);
         memberHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, memberBody), true);
-        mailSender.send(memberMessage);
+        addSupportAttachments(memberHelper, files);
+        deliver(memberMessage);
 
-        log.info("Customer-care thread opened support={} member={}",
-                LogMasker.email(supportEmail), LogMasker.email(customerEmail));
+        log.info("Customer-care thread opened support={} member={} attachments={}",
+                LogMasker.email(supportEmail), LogMasker.email(customerEmail), files.size());
+    }
+
+    private static void addSupportAttachments(MimeMessageHelper helper, List<SupportAttachment> attachments)
+            throws MessagingException {
+        int index = 1;
+        for (SupportAttachment attachment : attachments) {
+            if (attachment == null || attachment.data() == null || attachment.data().length == 0) {
+                continue;
+            }
+            String filename = attachment.filename() == null || attachment.filename().isBlank()
+                    ? "attachment-" + index
+                    : attachment.filename().trim();
+            String contentType = attachment.contentType() == null || attachment.contentType().isBlank()
+                    ? "application/octet-stream"
+                    : attachment.contentType();
+            helper.addAttachment(filename, new ByteArrayResource(attachment.data()), contentType);
+            index++;
+        }
+    }
+
+    private static String formatAttachmentNames(List<SupportAttachment> attachments) {
+        List<String> names = new ArrayList<>();
+        int index = 1;
+        for (SupportAttachment attachment : attachments) {
+            if (attachment == null || attachment.data() == null || attachment.data().length == 0) {
+                continue;
+            }
+            String filename = attachment.filename() == null || attachment.filename().isBlank()
+                    ? "attachment-" + index
+                    : attachment.filename().trim();
+            names.add(filename);
+            index++;
+        }
+        return String.join(", ", names);
+    }
+
+    private static String telHref(String phone) {
+        StringBuilder href = new StringBuilder("tel:");
+        for (int i = 0; i < phone.length(); i++) {
+            char c = phone.charAt(i);
+            if ((c == '+' && href.length() == 4) || Character.isDigit(c)) {
+                href.append(c);
+            }
+        }
+        return href.toString();
+    }
+
+    private static boolean isHttpUrl(String url) {
+        String lower = url.toLowerCase(Locale.ROOT);
+        return lower.startsWith("https://") || lower.startsWith("http://");
     }
 
     /** Visible From for the support channel (customercare), not noreply. */
@@ -616,15 +708,6 @@ public class EmailService {
                 .distinct()
                 .toList();
         return cleaned.isEmpty() ? "General / all issues" : String.join(", ", cleaned);
-    }
-
-    private static String escapeHtml(String raw) {
-        return raw
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("\n", "<br/>");
     }
 
     @Async
@@ -659,11 +742,105 @@ public class EmailService {
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
-            mailSender.send(message);
+            deliver(message);
             log.info("Email sent successfully to {} subject={}", LogMasker.email(to), subject);
         } catch (Exception e) {
             log.error("Failed to send email to {} subject={}", LogMasker.email(to), subject, e);
         }
+    }
+
+    /**
+     * Gmail SMTP returns 421 4.3.0 when several messages are submitted at once.
+     * Event fan-out runs each recipient on the async pool, so sends are serialized
+     * and temporary 4xx responses are retried. Permanent failures still fail immediately.
+     */
+    private void deliver(MimeMessage message) {
+        synchronized (smtpSendLock) {
+            int attempts = Math.max(1, maxSendAttempts);
+            for (int attempt = 1; attempt <= attempts; attempt++) {
+                waitForSendGap();
+                try {
+                    mailSender.send(message);
+                    lastSmtpSendAtMillis = System.currentTimeMillis();
+                    return;
+                } catch (MailException ex) {
+                    if (!isTransientSmtpFailure(ex) || attempt == attempts) {
+                        throw ex;
+                    }
+                    long backoff = initialBackoffMs * (1L << (attempt - 1));
+                    log.warn("Transient SMTP failure (attempt {}/{}). Retrying in {} ms. {}",
+                            attempt, attempts, backoff, ex.getMessage());
+                    sleepForMail(backoff);
+                }
+            }
+        }
+    }
+
+    private void waitForSendGap() {
+        if (minSendGapMs <= 0 || lastSmtpSendAtMillis <= 0) {
+            return;
+        }
+        long elapsed = System.currentTimeMillis() - lastSmtpSendAtMillis;
+        if (elapsed < minSendGapMs) {
+            sleepForMail(minSendGapMs - elapsed);
+        }
+    }
+
+    private static void sleepForMail(long millis) {
+        if (millis <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new MailSendException("Interrupted while waiting to send email", ex);
+        }
+    }
+
+    private static boolean isTransientSmtpFailure(Throwable error) {
+        if (error instanceof MailSendException mailSend && mailSend.getFailedMessages() != null) {
+            for (Exception failed : mailSend.getFailedMessages().values()) {
+                if (hasTransientSmtpSignal(failed)) {
+                    return true;
+                }
+            }
+        }
+        return hasTransientSmtpSignal(error);
+    }
+
+    private static boolean hasTransientSmtpSignal(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof SMTPSendFailedException smtp) {
+                int code = smtp.getReturnCode();
+                if (code >= 400 && code < 500) {
+                    return true;
+                }
+            }
+            String message = current.getMessage();
+            if (message != null && looksLikeTransientSmtp(message)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean looksLikeTransientSmtp(String message) {
+        String lower = message.toLowerCase(Locale.ROOT);
+        return lower.contains("temporary system problem")
+                || lower.contains("try again later")
+                || lower.contains("4.3.0")
+                || lower.contains("4.7.0")
+                || lower.contains("4.7.1")
+                || lower.contains("rate limit")
+                || lower.contains("too many")
+                || lower.contains("resources temporarily unavailable")
+                || lower.contains("421")
+                || lower.contains("450 ")
+                || lower.contains("451 ")
+                || lower.contains("452 ");
     }
 
     private Plan findTrendingPlan() {

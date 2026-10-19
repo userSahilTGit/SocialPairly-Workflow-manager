@@ -29,6 +29,7 @@ public class UserMediaService {
     private final TextModerationService textModerationService;
     private final ImageModerationService imageModerationService;
     private static final long MAX_VIDEO_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+    private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
     private static final int MAX_PHOTOS_PER_USER = 8;
     private static final int MAX_VIDEOS_PER_USER = 3;
 
@@ -41,6 +42,9 @@ public class UserMediaService {
         MediaType mediaType;
         if (contentType.startsWith("image/")) {
             mediaType = MediaType.PHOTO;
+            if (file.getSize() > MAX_IMAGE_SIZE_BYTES) {
+                throw new BadRequestException("Image file size exceeds the 5MB limit.");
+            }
         } else if (contentType.startsWith("video/")) {
             mediaType = MediaType.VIDEO;
             if (file.getSize() > MAX_VIDEO_SIZE_BYTES) {
@@ -121,6 +125,9 @@ public class UserMediaService {
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new BadRequestException("Only image files are allowed for the profile photo.");
+        }
+        if (file.getSize() > MAX_IMAGE_SIZE_BYTES) {
+            throw new BadRequestException("Image file size exceeds the 5MB limit.");
         }
 
         try {

@@ -6,7 +6,11 @@ import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.PlanRepository;
+import com.SocialPairly_Workflow_Manager.dto.SupportAttachment;
+import jakarta.mail.BodyPart;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -289,6 +294,32 @@ class EmailServiceTest {
         doThrow(new RuntimeException("SMTP down")).when(mailSender).send(any(MimeMessage.class));
 
         assertDoesNotThrow(() -> emailService.sendWelcomeEmail(validUser));
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendHtmlEmailShouldRetryTransientGmail421ThenSucceed() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        ReflectionTestUtils.setField(emailService, "initialBackoffMs", 1L);
+        ReflectionTestUtils.setField(emailService, "minSendGapMs", 0L);
+        doThrow(new MailSendException("421-4.3.0 Temporary System Problem. Try again later"))
+                .doNothing()
+                .when(mailSender).send(any(MimeMessage.class));
+
+        assertDoesNotThrow(() -> emailService.sendWelcomeEmail(validUser));
+
+        verify(mailSender, times(2)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendHtmlEmailShouldNotRetryPermanentSmtpFailure() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        doThrow(new MailSendException("550 5.1.1 The email account that you tried to reach does not exist"))
+                .when(mailSender).send(any(MimeMessage.class));
+
+        assertDoesNotThrow(() -> emailService.sendWelcomeEmail(validUser));
+
+        verify(mailSender, times(1)).send(any(MimeMessage.class));
     }
 
     @Test
@@ -424,5 +455,79 @@ class EmailServiceTest {
         ));
 
         verify(mailSender, times(2)).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendCustomerCareEmailRendersMarkupAndAttachesFiles() throws Exception {
+        MimeMessage agentMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        MimeMessage memberMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(agentMessage, memberMessage);
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada <script>",
+                "ada@example.com",
+                "+91-8973927367",
+                List.of("Other"),
+                "Checkout failed",
+                "Line one\nLine two",
+                "https://www.socialpairly.com/contact"
+        ), List.of(new SupportAttachment("shot.png", "image/png", new byte[] {1, 2, 3})));
+
+        String agentHtml = htmlOf(agentMessage);
+        String memberHtml = htmlOf(memberMessage);
+
+        assertFalse(agentHtml.contains("&lt;strong&gt;"));
+        assertFalse(memberHtml.contains("&lt;strong&gt;"));
+        assertTrue(memberHtml.contains("<strong>Checkout failed</strong>"));
+        assertTrue(agentHtml.contains(">Message</"));
+        assertTrue(agentHtml.contains("mailto:ada@example.com"));
+        assertTrue(agentHtml.contains("tel:+918973927367"));
+        assertTrue(agentHtml.contains("https://www.socialpairly.com/contact"));
+        assertTrue(agentHtml.contains("Ada &lt;script&gt;"));
+        assertFalse(agentHtml.contains("<script>"));
+        assertTrue(agentHtml.contains("Line one<br/>Line two"));
+        assertTrue(agentHtml.contains("Attachments: shot.png"));
+        assertTrue(memberHtml.contains("Attachments: shot.png"));
+        assertTrue(hasAttachment(agentMessage, "shot.png"));
+        assertTrue(hasAttachment(memberMessage, "shot.png"));
+    }
+
+    private static String htmlOf(MimeMessage message) throws Exception {
+        message.saveChanges();
+        Object content = message.getContent();
+        if (content instanceof String text) {
+            return text;
+        }
+        if (content instanceof Multipart multipart) {
+            StringBuilder html = new StringBuilder();
+            collectText(multipart, html);
+            return html.toString();
+        }
+        return String.valueOf(content);
+    }
+
+    private static void collectText(Multipart multipart, StringBuilder html) throws Exception {
+        for (int i = 0; i < multipart.getCount(); i++) {
+            Object body = multipart.getBodyPart(i).getContent();
+            if (body instanceof String text) {
+                html.append(text);
+            } else if (body instanceof Multipart nested) {
+                collectText(nested, html);
+            }
+        }
+    }
+
+    private static boolean hasAttachment(MimeMessage message, String filename) throws Exception {
+        Object content = message.getContent();
+        if (!(content instanceof Multipart multipart)) {
+            return false;
+        }
+        for (int i = 0; i < multipart.getCount(); i++) {
+            BodyPart part = multipart.getBodyPart(i);
+            if (filename.equals(part.getFileName()) || Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition())) {
+                return filename.equals(part.getFileName()) || part.getFileName() == null;
+            }
+        }
+        return false;
     }
 }
