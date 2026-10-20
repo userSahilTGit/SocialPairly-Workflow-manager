@@ -549,6 +549,34 @@ public class EmailService {
         deliver(message);
     }
 
+    public void sendAccountDeleteOtpEmail(User user, String otp) throws MessagingException {
+        if (!hasValidEmail(user)) {
+            throw new MessagingException("User does not have a valid email address");
+        }
+
+        String userName = formatUserName(user);
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "We received a request to permanently delete your " + appName + " account. "
+                        + "Use the One-Time Password (OTP) below to confirm:")
+                + """
+                <div style="text-align:center;margin:24px 0;">
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:5px;color:#e11d48;background-color:#fff1f2;padding:12px 32px;border-radius:8px;border:2px dashed #fb7185;display:inline-block;">%s</span>
+                </div>
+                """.formatted(otp)
+                + EmailTemplateBuilder.paragraph("This OTP is valid for the next 5 minutes.")
+                + EmailTemplateBuilder.paragraph(
+                "If you did not request account deletion, you can safely ignore this email. Your account will remain active.");
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(senderEmail);
+        helper.setTo(user.getEmail());
+        helper.setSubject("Confirm account deletion");
+        helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
+        deliver(message);
+    }
+
     /**
      * Shared-inbox support channel (not noreply):
      * <ul>

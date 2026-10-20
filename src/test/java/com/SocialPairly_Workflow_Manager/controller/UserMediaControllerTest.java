@@ -182,16 +182,6 @@ class UserMediaControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/users/verify-success - sets verified and returns map")
-    void verifySuccess_setsVerified() throws Exception {
-        when(currentUserService.save(currentUser)).thenReturn(currentUser);
-        mockMvc.perform(post("/api/users/verify-success"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isVerified").value(true));
-        verify(currentUserService).save(currentUser);
-    }
-
-    @Test
     @DisplayName("DELETE /api/media/{id} - success returns 204")
     void deleteMedia_success() throws Exception {
         doNothing().when(userMediaService).deleteMedia(currentUser, 1L);

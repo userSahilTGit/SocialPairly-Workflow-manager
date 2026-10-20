@@ -19,7 +19,7 @@ class DtoTests {
         RegisterRequest register = new RegisterRequest("Ada", "Lovelace", null, "ada@example.com", "1234567", "secret", "secret", "London", true, true, true, true, false);
         LoginRequest login = new LoginRequest("ada@example.com", "secret", null);
         AnswerRequest answer = new AnswerRequest(10L, "yes");
-        DeleteAccountRequest deleteAccount = new DeleteAccountRequest("secret");
+        DeleteAccountRequest deleteAccount = new DeleteAccountRequest("1234");
         ForgotPasswordSendOtpRequest sendOtp = new ForgotPasswordSendOtpRequest("ada@example.com");
         ForgotPasswordVerifyOtpRequest verifyOtp = new ForgotPasswordVerifyOtpRequest("ada@example.com", "222222");
         ForgotPasswordResetRequest reset = new ForgotPasswordResetRequest("ada@example.com", "222222", "newSecret", "newSecret");
@@ -29,7 +29,7 @@ class DtoTests {
         assertEquals("Ada", register.firstName());
         assertEquals("ada@example.com", login.identifier());
         assertEquals(10L, answer.questionId());
-        assertEquals("secret", deleteAccount.password());
+        assertEquals("1234", deleteAccount.otp());
         assertEquals("222222", verifyOtp.otp());
         assertEquals("newSecret", reset.newPassword());
         assertEquals("Engineer", profile.occupation());

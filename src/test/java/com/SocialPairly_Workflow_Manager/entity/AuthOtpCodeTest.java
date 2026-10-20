@@ -45,10 +45,22 @@ class AuthOtpCodeTest {
     @Test
     void accessorsRoundTrip() {
         AuthOtpCode code = new AuthOtpCode();
+        LocalDateTime created = LocalDateTime.now().minusMinutes(1);
         code.setId(9L);
+        code.setPurpose(AuthOtpCode.PURPOSE_ACCOUNT_DELETE);
+        code.setIdentifier("member@example.com");
+        code.setCodeHash("hash");
+        code.setExpiresAt(LocalDateTime.now().plusMinutes(5));
         code.setConsumedAt(LocalDateTime.now());
+        code.setCreatedAt(created);
+
         assertEquals(9L, code.getId());
+        assertEquals(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, code.getPurpose());
+        assertEquals("member@example.com", code.getIdentifier());
+        assertEquals("hash", code.getCodeHash());
+        assertNotNull(code.getExpiresAt());
         assertNotNull(code.getConsumedAt());
-        assertEquals(AuthOtpCode.PURPOSE_EMAIL_VERIFY, AuthOtpCode.PURPOSE_EMAIL_VERIFY);
+        assertEquals(created, code.getCreatedAt());
+        assertEquals("ACCOUNT_DELETE", AuthOtpCode.PURPOSE_ACCOUNT_DELETE);
     }
 }
