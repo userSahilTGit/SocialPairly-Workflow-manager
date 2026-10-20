@@ -37,6 +37,12 @@ public class OtpService {
 
     @Transactional
     public String generateAndStore(String purpose, String identifier) {
+        return generateAndStore(purpose, identifier, OTP_TTL_MINUTES);
+    }
+
+    @Transactional
+    public String generateAndStore(String purpose, String identifier, int ttlMinutes) {
+        int ttl = Math.max(1, ttlMinutes);
         String key = normalize(identifier);
         LocalDateTime now = LocalDateTime.now();
         authOtpCodeRepository.consumeAllActive(purpose, key, now);
@@ -46,11 +52,11 @@ public class OtpService {
         row.setPurpose(purpose);
         row.setIdentifier(key);
         row.setCodeHash(passwordEncoder.encode(otp));
-        row.setExpiresAt(now.plusMinutes(OTP_TTL_MINUTES));
+        row.setExpiresAt(now.plusMinutes(ttl));
         row.setVerified(false);
         row.setAttemptCount(0);
         authOtpCodeRepository.save(row);
-        log.info("OTP generated purpose={} identifier={} (valid {} minutes)", purpose, LogMasker.identifier(key), OTP_TTL_MINUTES);
+        log.info("OTP generated purpose={} identifier={} (valid {} minutes)", purpose, LogMasker.identifier(key), ttl);
         return otp;
     }
 

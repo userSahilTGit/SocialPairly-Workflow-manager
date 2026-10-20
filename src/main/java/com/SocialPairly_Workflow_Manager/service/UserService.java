@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.service;
 import com.SocialPairly_Workflow_Manager.dto.ChangePasswordRequest;
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
+import com.SocialPairly_Workflow_Manager.entity.AuthOtpCode;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
@@ -20,9 +21,11 @@ import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.repository.VideoAccessRequestRepository;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
+import jakarta.mail.MessagingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,10 @@ public class UserService {
     private final PlanUpgradeRequestRepository planUpgradeRequestRepository;
     private final UserPersonalityProfileRepository personalityProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OtpService otpService;
+    private final EmailService emailService;
+
+    private static final int ACCOUNT_DELETE_OTP_TTL_MINUTES = 5;
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -62,7 +69,9 @@ public class UserService {
                        EventParticipantRepository eventParticipantRepository,
                        PlanUpgradeRequestRepository planUpgradeRequestRepository,
                        UserPersonalityProfileRepository personalityProfileRepository,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       OtpService otpService,
+                       EmailService emailService) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.answerRepository = answerRepository;
@@ -76,19 +85,49 @@ public class UserService {
         this.planUpgradeRequestRepository = planUpgradeRequestRepository;
         this.personalityProfileRepository = personalityProfileRepository;
         this.passwordEncoder = passwordEncoder;
+        this.otpService = otpService;
+        this.emailService = emailService;
+    }
+
+    @Transactional
+    public Map<String, String> sendAccountDeleteOtp(User currentUser) {
+        if (currentUser.getRole().name().equals("ADMIN")) {
+            throw new BadRequestException("Admin accounts cannot be deleted");
+        }
+        if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+            throw new BadRequestException("No email on your account to send a deletion code");
+        }
+        String otp = otpService.generateAndStore(
+                AuthOtpCode.PURPOSE_ACCOUNT_DELETE,
+                currentUser.getEmail(),
+                ACCOUNT_DELETE_OTP_TTL_MINUTES);
+        try {
+            emailService.sendAccountDeleteOtpEmail(currentUser, otp);
+        } catch (MessagingException | MailException ex) {
+            log.warn("Failed to send account-delete OTP to {}: {}",
+                    LogMasker.identifier(currentUser.getEmail()), ex.getMessage());
+            throw new BadRequestException("Failed to send deletion code. Please try again later.");
+        }
+        log.info("Account-delete OTP sent userId={}", currentUser.getId());
+        return Map.of(
+                "message", "Deletion code sent to your email. It is valid for 5 minutes.",
+                "expiresInMinutes", "5"
+        );
     }
 
     @Transactional
     public void deleteAccount(User currentUser, DeleteAccountRequest request) {
         log.info("Deleting account for currentUserId={}", currentUser.getId());
 
-        if (!passwordEncoder.matches(request.password(), currentUser.getPassword())) {
-            throw new BadRequestException("Incorrect password");
-        }
-
         if (currentUser.getRole().name().equals("ADMIN")) {
             throw new BadRequestException("Admin accounts cannot be deleted");
         }
+        if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+            throw new BadRequestException("No email on your account to verify deletion");
+        }
+
+        String email = currentUser.getEmail();
+        otpService.verify(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, email, request.otp());
 
         Long userId = currentUser.getId();
 
@@ -109,6 +148,7 @@ public class UserService {
             profileRepository.delete(profile);
         });
         userRepository.delete(currentUser);
+        otpService.clear(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, email);
     }
 
     @Transactional

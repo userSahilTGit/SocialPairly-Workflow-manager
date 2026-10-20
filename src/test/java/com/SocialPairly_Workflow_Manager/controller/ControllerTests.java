@@ -226,19 +226,57 @@ class ControllerTests {
         User user = new User();
         user.setId(2L);
         user.setEmail("b@example.com");
-        DeleteAccountRequest deleteRequest = new DeleteAccountRequest("password");
+        DeleteAccountRequest deleteRequest = new DeleteAccountRequest("1234");
 
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(subscriptionService.findPrimaryActiveSubscription(2L)).thenReturn(java.util.Optional.empty());
         when(userProfileRepository.findByUserId(2L)).thenReturn(java.util.Optional.empty());
 
+        when(userService.sendAccountDeleteOtp(user)).thenReturn(Map.of(
+                "message", "Deletion code sent to your email. It is valid for 5 minutes.",
+                "expiresInMinutes", "5"));
+
         ResponseEntity<UserDto> meResponse = userController.me();
-        ResponseEntity<Map<String, String>> deleteResponse = userController.deleteAccount(deleteRequest);
+        ResponseEntity<Map<String, String>> sendOtpResponse = userController.sendDeleteAccountOtp(
+                new MockHttpServletRequest());
+        ResponseEntity<Map<String, String>> deleteResponse = userController.deleteAccount(
+                deleteRequest, new MockHttpServletRequest());
 
         assertEquals(200, meResponse.getStatusCode().value());
         assertEquals("b@example.com", meResponse.getBody().email());
+        assertEquals("5", sendOtpResponse.getBody().get("expiresInMinutes"));
         assertEquals("Account deleted successfully", deleteResponse.getBody().get("message"));
+        verify(authRateLimitService).check(
+                eq(AuthRateLimitService.ACTION_DELETE_SEND_OTP), any(), eq("2"));
+        verify(authRateLimitService).check(
+                eq(AuthRateLimitService.ACTION_DELETE_VERIFY), any(), eq("2"));
+        verify(userService).sendAccountDeleteOtp(user);
         verify(userService).deleteAccount(eq(user), eq(deleteRequest));
+    }
+
+    @Test
+    void userControllerShouldChangePasswordAndHonorForwardedIp() {
+        User user = new User();
+        user.setId(8L);
+        user.setEmail("pwd@example.com");
+        ChangePasswordRequest passwordRequest = new ChangePasswordRequest("old", "new-pass", "new-pass");
+        MockHttpServletRequest forwarded = new MockHttpServletRequest();
+        forwarded.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(userService.changePassword(user, passwordRequest))
+                .thenReturn(Map.of("message", "Password updated successfully"));
+        when(userService.sendAccountDeleteOtp(user))
+                .thenReturn(Map.of("message", "ok", "expiresInMinutes", "5"));
+
+        ResponseEntity<Map<String, String>> passwordResponse = userController.changePassword(passwordRequest);
+        ResponseEntity<Map<String, String>> otpResponse = userController.sendDeleteAccountOtp(forwarded);
+
+        assertEquals(200, passwordResponse.getStatusCode().value());
+        assertEquals("Password updated successfully", passwordResponse.getBody().get("message"));
+        assertEquals(200, otpResponse.getStatusCode().value());
+        verify(authRateLimitService).check(
+                eq(AuthRateLimitService.ACTION_DELETE_SEND_OTP), eq("203.0.113.9"), eq("8"));
     }
 
     @Test

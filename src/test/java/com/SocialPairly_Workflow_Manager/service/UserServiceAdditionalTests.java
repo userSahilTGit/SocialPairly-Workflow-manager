@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
+import com.SocialPairly_Workflow_Manager.entity.AuthOtpCode;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
@@ -75,6 +76,12 @@ class UserServiceAdditionalTests {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private OtpService otpService;
+
+    @Mock
+    private EmailService emailService;
 
     @InjectMocks
     private UserService userService;
@@ -173,18 +180,20 @@ class UserServiceAdditionalTests {
         User currentUser = new User();
         currentUser.setId(2L);
         currentUser.setRole(Role.USER);
+        currentUser.setEmail("member@example.com");
         currentUser.setPassword("encoded");
 
-        DeleteAccountRequest request = new DeleteAccountRequest("pass");
+        DeleteAccountRequest request = new DeleteAccountRequest("1234");
 
-        when(passwordEncoder.matches("pass", "encoded")).thenReturn(true);
         when(answerRepository.findByUserId(2L)).thenReturn(java.util.List.of());
         when(profileRepository.findByUserId(2L)).thenReturn(Optional.of(new UserProfile()));
 
         userService.deleteAccount(currentUser, request);
 
+        verify(otpService).verify(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, "member@example.com", "1234");
         verify(answerRepository).deleteAll(anyList());
         verify(profileRepository).delete(any(UserProfile.class));
         verify(userRepository).delete(currentUser);
+        verify(otpService).clear(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, "member@example.com");
     }
 }

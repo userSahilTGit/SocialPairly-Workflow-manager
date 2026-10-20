@@ -130,20 +130,6 @@ public class UserMediaController {
         return ResponseEntity.ok(userMediaService.getVisibleMediaForViewer(id, viewer.getId()));
     }
 
-    // 👈 Photo verification (Step 5): face comparison runs 100% client-side via
-    // face-api.js. The frontend calls this endpoint after confirming the match
-    // to award the verified badge. No image bytes are sent to the backend.
-    @PostMapping("/users/verify-success")
-    public ResponseEntity<?> verifySuccess() {
-        User currentUser = currentUserService.getCurrentUser();
-        currentUser.setVerified(true);
-        currentUserService.save(currentUser);
-        return ResponseEntity.ok(Map.of(
-                "isVerified", true,
-                "message", "Identity verified successfully."
-        ));
-    }
-
     @DeleteMapping("/media/{id}")
     public ResponseEntity<Void> deleteMedia(@PathVariable Long id) {
         User currentUser = currentUserService.getCurrentUser();

@@ -308,11 +308,6 @@ public class UserMediaService {
         return mapToDto(updated);
     }
 
-    // 👈 Photo verification (Step 5): face comparison now runs 100% client-side
-    // using face-api.js in the browser. The backend simply marks the user as
-    // verified once the frontend confirms the match (POST /api/users/verify-success).
-    // No image bytes are sent to any external service.
-
     private MediaUploadResponseDto mapAdminListItemToDto(UserMediaAdminListItem item) {
         return MediaUploadResponseDto.builder()
                 .id(item.getId())

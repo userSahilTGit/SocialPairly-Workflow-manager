@@ -22,6 +22,8 @@ public class AuthRateLimitService {
     public static final String ACTION_FORGOT_VERIFY = "forgot-verify";
     public static final String ACTION_VERIFY_EMAIL = "verify-email";
     public static final String ACTION_RESEND_VERIFICATION = "resend-verification";
+    public static final String ACTION_DELETE_SEND_OTP = "delete-send-otp";
+    public static final String ACTION_DELETE_VERIFY = "delete-verify";
 
     private final long windowMs;
     private final Map<String, Integer> limits;
@@ -34,7 +36,9 @@ public class AuthRateLimitService {
             @Value("${app.rate-limit.forgot-verify-max:10}") int forgotVerifyMax,
             @Value("${app.rate-limit.verify-email-max:10}") int verifyEmailMax,
             @Value("${app.rate-limit.resend-verification-max:5}") int resendMax,
-            @Value("${app.rate-limit.register-max:5}") int registerMax
+            @Value("${app.rate-limit.register-max:5}") int registerMax,
+            @Value("${app.rate-limit.delete-send-otp-max:5}") int deleteSendOtpMax,
+            @Value("${app.rate-limit.delete-verify-max:10}") int deleteVerifyMax
     ) {
         this.windowMs = windowMs;
         this.limits = Map.of(
@@ -43,7 +47,9 @@ public class AuthRateLimitService {
                 ACTION_FORGOT_SEND, forgotSendMax,
                 ACTION_FORGOT_VERIFY, forgotVerifyMax,
                 ACTION_VERIFY_EMAIL, verifyEmailMax,
-                ACTION_RESEND_VERIFICATION, resendMax
+                ACTION_RESEND_VERIFICATION, resendMax,
+                ACTION_DELETE_SEND_OTP, deleteSendOtpMax,
+                ACTION_DELETE_VERIFY, deleteVerifyMax
         );
     }
 

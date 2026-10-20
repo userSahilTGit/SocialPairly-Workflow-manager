@@ -289,6 +289,24 @@ class EmailServiceTest {
     }
 
     @Test
+    void sendAccountDeleteOtpEmailShouldSendSuccessfully() throws MessagingException {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        emailService.sendAccountDeleteOtpEmail(validUser, "4321");
+
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
+    void sendAccountDeleteOtpEmailShouldThrowWhenEmailInvalid() {
+        User user = new User();
+        user.setEmail(null);
+
+        assertThrows(MessagingException.class,
+                () -> emailService.sendAccountDeleteOtpEmail(user, "4321"));
+    }
+
+    @Test
     void sendHtmlEmailShouldLogErrorWhenSendFails() {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
         doThrow(new RuntimeException("SMTP down")).when(mailSender).send(any(MimeMessage.class));

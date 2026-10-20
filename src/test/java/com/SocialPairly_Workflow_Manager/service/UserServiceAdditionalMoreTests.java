@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
+import com.SocialPairly_Workflow_Manager.entity.AuthOtpCode;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
@@ -68,6 +69,12 @@ class UserServiceAdditionalMoreTests {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private OtpService otpService;
+
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private UserService userService;
 
@@ -76,25 +83,28 @@ class UserServiceAdditionalMoreTests {
         User admin = new User();
         admin.setId(2L);
         admin.setRole(Role.ADMIN);
+        admin.setEmail("admin@example.com");
         admin.setPassword("encoded");
 
-        DeleteAccountRequest request = new DeleteAccountRequest("pass");
-
-        when(passwordEncoder.matches("pass", "encoded")).thenReturn(true);
+        DeleteAccountRequest request = new DeleteAccountRequest("1234");
 
         assertThrows(BadRequestException.class, () -> userService.deleteAccount(admin, request));
+        verify(otpService, never()).verify(any(), any(), any());
     }
 
     @Test
-    void shouldRejectDeleteWhenPasswordDoesNotMatch() {
+    void shouldRejectDeleteWhenOtpIsInvalid() {
         User user = new User();
         user.setId(2L);
         user.setRole(Role.USER);
+        user.setEmail("member@example.com");
         user.setPassword("encoded");
 
-        DeleteAccountRequest request = new DeleteAccountRequest("wrongpass");
+        DeleteAccountRequest request = new DeleteAccountRequest("0000");
 
-        when(passwordEncoder.matches("wrongpass", "encoded")).thenReturn(false);
+        doThrow(new BadRequestException("Invalid OTP"))
+                .when(otpService)
+                .verify(AuthOtpCode.PURPOSE_ACCOUNT_DELETE, "member@example.com", "0000");
 
         assertThrows(BadRequestException.class, () -> userService.deleteAccount(user, request));
         verify(userRepository, never()).delete(any());
