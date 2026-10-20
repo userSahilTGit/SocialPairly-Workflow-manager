@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.util;
 
 import org.springframework.web.util.HtmlUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class EmailTemplateBuilder {
@@ -82,11 +83,52 @@ public final class EmailTemplateBuilder {
     }
 
     public static String infoBox(String title, List<String> lines) {
+        List<String> safeLines = new ArrayList<>();
+        if (lines != null) {
+            for (String line : lines) {
+                safeLines.add(escape(line));
+            }
+        }
+        return htmlInfoBox(title, safeLines);
+    }
+
+    /**
+     * Paragraph whose markup is already safe. Use this for emphasis and links built
+     * with {@link #plainToHtml(String)} and {@link #textLink(String, String)}.
+     * {@link #paragraph(String)} escapes its argument, so tags passed to it show up as text.
+     */
+    public static String htmlParagraph(String safeHtml) {
+        return "<p style=\"margin:0 0 16px;\">" + (safeHtml == null ? "" : safeHtml) + "</p>";
+    }
+
+    /** Escape plain text and keep line breaks as HTML. */
+    public static String plainToHtml(String value) {
+        return escape(value).replace("\n", "<br/>");
+    }
+
+    public static String textLink(String href, String label) {
+        return "<a href=\"" + escapeUrl(href) + "\" style=\"color:#6366f1;text-decoration:none;\">"
+                + escape(label) + "</a>";
+    }
+
+    public static String labeledBlock(String label, String plainBody) {
+        return "<p style=\"margin:18px 0 8px;font-size:16px;font-weight:700;color:#111827;\">"
+                + escape(label) + "</p>"
+                + "<p style=\"margin:0 0 16px;\">" + plainToHtml(plainBody) + "</p>";
+    }
+
+    /** Info card whose lines are already safe HTML (links or {@link #plainToHtml(String)}). */
+    public static String htmlInfoBox(String title, List<String> safeHtmlLines) {
         StringBuilder rows = new StringBuilder();
-        for (String line : lines) {
-            rows.append("<tr><td style=\"padding:6px 0;font-size:15px;color:#374151;\">")
-                    .append(escape(line))
-                    .append("</td></tr>");
+        if (safeHtmlLines != null) {
+            for (String line : safeHtmlLines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                rows.append("<tr><td style=\"padding:6px 0;font-size:15px;color:#374151;\">")
+                        .append(line)
+                        .append("</td></tr>");
+            }
         }
         return """
                 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="margin:20px 0;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">

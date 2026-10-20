@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.dto.ChangePasswordRequest;
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
@@ -108,6 +109,26 @@ public class UserService {
             profileRepository.delete(profile);
         });
         userRepository.delete(currentUser);
+    }
+
+    @Transactional
+    public Map<String, String> changePassword(User currentUser, ChangePasswordRequest request) {
+        log.info("Changing password for userId={}", currentUser.getId());
+        if (currentUser.getPassword() == null || currentUser.getPassword().isBlank()) {
+            throw new BadRequestException("This account does not have a password to change.");
+        }
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            throw new BadRequestException("Passwords do not match");
+        }
+        if (!passwordEncoder.matches(request.currentPassword(), currentUser.getPassword())) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+        if (passwordEncoder.matches(request.newPassword(), currentUser.getPassword())) {
+            throw new BadRequestException("New password must be different from your current password");
+        }
+        currentUser.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(currentUser);
+        return Map.of("message", "Password updated successfully");
     }
 
     /**

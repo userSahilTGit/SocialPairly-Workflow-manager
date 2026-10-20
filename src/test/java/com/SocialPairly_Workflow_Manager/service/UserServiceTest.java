@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.dto.ChangePasswordRequest;
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -142,5 +144,44 @@ class UserServiceTest {
 
         assertThrows(BadRequestException.class, () -> userService.deleteAccount(user, request));
         verify(userRepository, never()).delete(any());
+    }
+
+    @Test
+    void shouldChangePasswordWhenCurrentPasswordMatches() {
+        User user = new User();
+        user.setId(3L);
+        user.setPassword("encoded-old");
+        ChangePasswordRequest request = new ChangePasswordRequest("old-pass", "new-pass", "new-pass");
+
+        when(passwordEncoder.matches("old-pass", "encoded-old")).thenReturn(true);
+        when(passwordEncoder.matches("new-pass", "encoded-old")).thenReturn(false);
+        when(passwordEncoder.encode("new-pass")).thenReturn("encoded-new");
+
+        Map<String, String> result = userService.changePassword(user, request);
+
+        assertEquals("Password updated successfully", result.get("message"));
+        assertEquals("encoded-new", user.getPassword());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void shouldRejectPasswordChangeWhenConfirmationDiffers() {
+        User user = new User();
+        user.setPassword("encoded-old");
+        ChangePasswordRequest request = new ChangePasswordRequest("old-pass", "new-pass", "other-pass");
+
+        assertThrows(BadRequestException.class, () -> userService.changePassword(user, request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectPasswordChangeWhenCurrentPasswordIsWrong() {
+        User user = new User();
+        user.setPassword("encoded-old");
+        ChangePasswordRequest request = new ChangePasswordRequest("wrong", "new-pass", "new-pass");
+        when(passwordEncoder.matches("wrong", "encoded-old")).thenReturn(false);
+
+        assertThrows(BadRequestException.class, () -> userService.changePassword(user, request));
+        verify(userRepository, never()).save(any());
     }
 }

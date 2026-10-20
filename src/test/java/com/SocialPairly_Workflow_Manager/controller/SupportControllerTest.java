@@ -9,12 +9,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,5 +86,41 @@ class SupportControllerTest {
 
         assertThrows(com.SocialPairly_Workflow_Manager.exception.BadRequestException.class,
                 () -> supportController.contactCustomerCare(request));
+    }
+
+    @Test
+    void contactCustomerCareAttachesScreenshot() throws Exception {
+        CustomerCareRequest request = new CustomerCareRequest(
+                "Ada", "ada@example.com", null, List.of("Other"), "Help",
+                "Something went wrong with my account access.", null
+        );
+        MockMultipartFile file = new MockMultipartFile(
+                "attachments", "shot.png", "image/png", new byte[] {1, 2, 3}
+        );
+
+        ResponseEntity<Map<String, String>> response = supportController.contactCustomerCareWithAttachments(
+                request, List.of(file)
+        );
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(emailService).sendCustomerCareEmail(eq(request), argThat(files ->
+                files.size() == 1 && "shot.png".equals(files.get(0).filename())
+                        && "image/png".equals(files.get(0).contentType())
+        ));
+    }
+
+    @Test
+    void contactCustomerCareRejectsUnsupportedAttachment() {
+        CustomerCareRequest request = new CustomerCareRequest(
+                "Ada", "ada@example.com", null, List.of("Other"), "Help",
+                "Something went wrong with my account access.", null
+        );
+        MockMultipartFile file = new MockMultipartFile(
+                "attachments", "notes.txt", "text/plain", "hello".getBytes()
+        );
+
+        assertThrows(com.SocialPairly_Workflow_Manager.exception.BadRequestException.class,
+                () -> supportController.contactCustomerCareWithAttachments(request, List.of(file)));
+        verifyNoInteractions(emailService);
     }
 }

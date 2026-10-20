@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.ChangePasswordRequest;
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
 import com.SocialPairly_Workflow_Manager.dto.UpdatePhoneRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
@@ -58,6 +59,13 @@ public class UserController {
         User user = currentUserService.getCurrentUser();
         log.info("Update phone request for userId={}", user.getId());
         return ResponseEntity.ok(userService.updatePhone(user, request.phoneNumber()));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        User user = currentUserService.getCurrentUser();
+        log.info("Change password request for userId={}", user.getId());
+        return ResponseEntity.ok(userService.changePassword(user, request));
     }
 
     @DeleteMapping("/me")
