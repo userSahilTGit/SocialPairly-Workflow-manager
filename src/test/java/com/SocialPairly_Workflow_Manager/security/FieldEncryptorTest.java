@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -109,5 +110,28 @@ class FieldEncryptorTest {
         EncryptedBytesConverter bytes = new EncryptedBytesConverter();
         byte[] stored = bytes.convertToDatabaseColumn(new byte[] {9, 8, 7});
         assertArrayEquals(new byte[] {9, 8, 7}, bytes.convertToEntityAttribute(stored));
+    }
+
+    @Test
+    void shortBase64AndBlankKeysAreStretched() {
+        FieldEncryptor.configure(Base64.getEncoder().encodeToString(new byte[16]));
+        assertEquals("short-key", FieldEncryptor.decrypt(FieldEncryptor.encrypt("short-key")));
+        FieldEncryptor.configure("   ");
+        assertEquals("blank", FieldEncryptor.decrypt(FieldEncryptor.encrypt("blank")));
+    }
+
+    @Test
+    void lazyKeyInitAndTruncatedPayload() throws Exception {
+        Field key = FieldEncryptor.class.getDeclaredField("key");
+        key.setAccessible(true);
+        key.set(null, null);
+        assertEquals("lazy", FieldEncryptor.decrypt(FieldEncryptor.encrypt("lazy")));
+
+        assertFalse(FieldEncryptor.isEncrypted((byte[]) null));
+        assertFalse(FieldEncryptor.isEncrypted(new byte[] {1, 2}));
+        assertFalse(FieldEncryptor.isEncrypted("enc:v0:nope".getBytes(StandardCharsets.US_ASCII)));
+
+        String truncated = FieldEncryptor.STRING_PREFIX + Base64.getEncoder().encodeToString(new byte[] {1, 2, 3});
+        assertThrows(IllegalStateException.class, () -> FieldEncryptor.decrypt(truncated));
     }
 }

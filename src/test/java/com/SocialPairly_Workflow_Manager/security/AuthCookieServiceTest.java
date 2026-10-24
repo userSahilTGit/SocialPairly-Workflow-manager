@@ -85,4 +85,50 @@ class AuthCookieServiceTest {
 
         assertEquals("cookie-token", cookieService.resolveToken(request));
     }
+
+    @Test
+    void blankNamesFallBackToDefaultsAndNullResponsesAreIgnored() {
+        AuthCookieService defaults = new AuthCookieService(jwtUtil, "  ", false, " ");
+        assertEquals(AuthCookieService.DEFAULT_COOKIE_NAME, defaults.getCookieName());
+        assertEquals("Lax", defaults.getSameSite());
+        assertFalse(defaults.isSecureConfigured());
+
+        defaults.writeAuthCookie(null, "token", false);
+        defaults.writeAuthCookie(new MockHttpServletResponse(), "  ", false);
+        defaults.clearAuthCookie(null, null);
+        assertNull(defaults.readToken(null));
+        assertNull(defaults.resolveToken(null));
+        assertFalse(defaults.resolveSecure(null));
+    }
+
+    @Test
+    void secureRequestForwardedProtoAndCookieEdges() {
+        MockHttpServletRequest secure = new MockHttpServletRequest();
+        secure.setSecure(true);
+        assertTrue(cookieService.resolveSecure(secure));
+
+        MockHttpServletRequest http = new MockHttpServletRequest();
+        http.addHeader("X-Forwarded-Proto", " http , https");
+        assertFalse(cookieService.resolveSecure(http));
+
+        MockHttpServletRequest blankProto = new MockHttpServletRequest();
+        blankProto.addHeader("X-Forwarded-Proto", "  ");
+        assertFalse(cookieService.resolveSecure(blankProto));
+
+        MockHttpServletRequest noCookies = new MockHttpServletRequest();
+        assertNull(cookieService.readToken(noCookies));
+
+        MockHttpServletRequest blankCookie = new MockHttpServletRequest();
+        blankCookie.setCookies(new Cookie("OTHER", "x"), new Cookie("SP_AUTH", "  "));
+        assertNull(cookieService.readToken(blankCookie));
+
+        MockHttpServletRequest emptyBearer = new MockHttpServletRequest();
+        emptyBearer.addHeader("Authorization", "Bearer    ");
+        emptyBearer.setCookies(new Cookie("SP_AUTH", "cookie-token"));
+        assertEquals("cookie-token", cookieService.resolveToken(emptyBearer));
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        cookieService.clearAuthCookie(secure, response);
+        assertTrue(response.getHeader("Set-Cookie").toLowerCase().contains("secure"));
+    }
 }

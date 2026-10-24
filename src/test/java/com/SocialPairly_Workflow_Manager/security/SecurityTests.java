@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,6 +46,27 @@ class SecurityTests {
         when(userRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
         assertThrows(UsernameNotFoundException.class, () -> userDetailsService.loadUserByUsername("missing@example.com"));
+    }
+
+    @Test
+    void disabledAndLockedUsersAreReportedToSpringSecurity() {
+        User user = new User();
+        user.setEmail("locked@example.com");
+        user.setPassword("encoded");
+        user.setRole(Role.USER);
+        user.setAccountDisabled(true);
+        user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(5));
+        when(userRepository.findByEmail("locked@example.com")).thenReturn(Optional.of(user));
+
+        UserDetails locked = userDetailsService.loadUserByUsername("locked@example.com");
+        assertFalse(locked.isEnabled());
+        assertFalse(locked.isAccountNonLocked());
+
+        user.setAccountDisabled(false);
+        user.setAccountLockedUntil(LocalDateTime.now().minusMinutes(5));
+        UserDetails open = userDetailsService.loadUserByUsername("locked@example.com");
+        assertTrue(open.isEnabled());
+        assertTrue(open.isAccountNonLocked());
     }
 
     @Test

@@ -192,4 +192,102 @@ class LoginAccountSecurityServiceTest {
         verify(loginSecurityEventRepository).save(argThat(e ->
                 LoginSecurityEvent.LOCK_EXPIRED_CLEARED.equals(e.getEventType())));
     }
+
+    @Test
+    void fewerThanThreeFailuresStayAGenericCredentialError() {
+        User user = baseUser(true);
+        user.setFailedLoginAttempts(0);
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(false);
+
+        BadCredentialsException ex = assertThrows(BadCredentialsException.class,
+                () -> service.recordFailedPasswordAttempt(user, "user@example.com", "ip"));
+
+        assertEquals(LoginAccountSecurityService.GENERIC_CREDENTIALS_MESSAGE, ex.getMessage());
+        assertNull(user.getAccountLockedUntil());
+        assertEquals(1, user.getFailedLoginAttempts());
+    }
+
+    @Test
+    void verifiedUnsubscribedLockLastsTwoHours() {
+        User user = baseUser(true);
+        user.setFailedLoginAttempts(2);
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(false);
+        when(loginSecurityEventRepository.countByUserIdAndEventTypeSince(eq(10L), eq(LoginSecurityEvent.ACCOUNT_LOCKED), any()))
+                .thenReturn(0L);
+        when(loginSecurityEventRepository.countByUserIdAndEventType(10L, LoginSecurityEvent.ACCOUNT_LOCKED))
+                .thenReturn(0L);
+
+        assertThrows(BadCredentialsException.class,
+                () -> service.recordFailedPasswordAttempt(user, null, "ip"));
+
+        assertNotNull(user.getAccountLockedUntil());
+        assertTrue(user.getAccountLockedUntil().isBefore(LocalDateTime.now().plusHours(3)));
+        assertTrue(user.getAccountLockedUntil().isAfter(LocalDateTime.now().plusMinutes(90)));
+        verify(loginSecurityEventRepository, atLeastOnce()).save(argThat(event ->
+                event.getIdentifier() != null && event.getIdentifier().isEmpty()));
+    }
+
+    @Test
+    void disableStillCompletesWhenTheEmailFails() {
+        User user = baseUser(false);
+        user.setFailedLoginAttempts(2);
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(false);
+        when(loginSecurityEventRepository.countByUserIdAndEventType(10L, LoginSecurityEvent.ACCOUNT_LOCKED))
+                .thenReturn(1L);
+        when(loginSecurityEventRepository.countByUserIdAndEventTypeSince(eq(10L), eq(LoginSecurityEvent.ACCOUNT_LOCKED), any()))
+                .thenReturn(0L);
+        doThrow(new RuntimeException("smtp")).when(emailService).sendAccountDisabledEmail(user);
+
+        assertThrows(BadCredentialsException.class,
+                () -> service.recordFailedPasswordAttempt(user, "user@example.com", "ip"));
+
+        assertTrue(user.isAccountDisabled());
+    }
+
+    @Test
+    void subscribedDisabledAndUnsubscribedLockedAreRejectedBeforeThePassword() {
+        User subscribed = baseUser(true);
+        subscribed.setAccountDisabled(true);
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(true);
+        AccountSecurityException disabled = assertThrows(AccountSecurityException.class,
+                () -> service.assertAccountAllowsLogin(subscribed, "user@example.com", "ip"));
+        assertEquals(LoginAccountSecurityService.CODE_DISABLED, disabled.getCode());
+
+        User locked = baseUser(false);
+        locked.setAccountLockedUntil(LocalDateTime.now().plusMinutes(10));
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(false);
+        BadCredentialsException stealth = assertThrows(BadCredentialsException.class,
+                () -> service.assertAccountAllowsLogin(locked, "user@example.com", "ip"));
+        assertEquals(LoginAccountSecurityService.GENERIC_CREDENTIALS_MESSAGE, stealth.getMessage());
+    }
+
+    @Test
+    void successfulLoginClearsTheFailureWindow() {
+        User user = baseUser(true);
+        user.setFailedLoginAttempts(2);
+        user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(1));
+        when(subscriptionService.hasActiveSubscription(10L)).thenReturn(true);
+
+        service.recordSuccessfulLogin(user, "  user@example.com  ", "ip");
+
+        assertEquals(0, user.getFailedLoginAttempts());
+        assertNull(user.getAccountLockedUntil());
+        verify(loginSecurityEventRepository).save(argThat(event ->
+                LoginSecurityEvent.LOGIN_SUCCESS.equals(event.getEventType())
+                        && "user@example.com".equals(event.getIdentifier())));
+    }
+
+    @Test
+    void longAuditDetailsAreTruncated() throws Exception {
+        java.lang.reflect.Method persist = LoginAccountSecurityService.class.getDeclaredMethod(
+                "persistEvent", Long.class, String.class, String.class, String.class, String.class, String.class);
+        persist.setAccessible(true);
+        persist.invoke(service, 10L, "  id  ", LoginSecurityEvent.FAILED_LOGIN, "SUBSCRIBED", "ip", "d".repeat(600));
+        persist.invoke(service, 10L, null, LoginSecurityEvent.FAILED_LOGIN, "SUBSCRIBED", "ip", null);
+
+        verify(loginSecurityEventRepository, atLeastOnce()).save(argThat(event ->
+                event.getDetails() != null && event.getDetails().length() == 500));
+        verify(loginSecurityEventRepository, atLeastOnce()).save(argThat(event ->
+                "".equals(event.getIdentifier()) && event.getDetails() == null));
+    }
 }

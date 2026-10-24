@@ -441,4 +441,57 @@ class UserMediaControllerTest {
                 .andExpect(jsonPath("$.photoCount").value(2))
                 .andExpect(jsonPath("$.meetsMinimumRequirements").value(false));
     }
+
+    @Test
+    void streamMedia_emptyBytesAndRangeVariants() throws Exception {
+        UserMedia empty = UserMedia.builder()
+                .id(8L).user(currentUser).mediaData(new byte[0]).mediaType(MediaType.PHOTO)
+                .fileSizeKb(0.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
+                .build();
+        when(userMediaService.getMediaEntityById(8L)).thenReturn(empty);
+        mockMvc.perform(get("/api/media/8/stream")).andExpect(status().isNotFound());
+
+        UserMedia nullData = UserMedia.builder()
+                .id(9L).user(currentUser).mediaData(null).mediaType(MediaType.VIDEO)
+                .fileSizeKb(0.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
+                .build();
+        when(userMediaService.getMediaEntityById(9L)).thenReturn(nullData);
+        mockMvc.perform(get("/api/media/9/stream")).andExpect(status().isNotFound());
+
+        byte[] bytes = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
+        UserMedia video = UserMedia.builder()
+                .id(2L).user(currentUser).mediaData(bytes).mediaType(MediaType.VIDEO)
+                .fileSizeKb(1.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
+                .build();
+        when(userMediaService.getMediaEntityById(2L)).thenReturn(video);
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=3-"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 3-7/8"))
+                .andExpect(content().bytes(new byte[]{4, 5, 6, 7, 8}));
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=-3"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 5-7/8"))
+                .andExpect(content().bytes(new byte[]{6, 7, 8}));
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=abc-"))
+                .andExpect(status().isRequestedRangeNotSatisfiable())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */8"));
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=9-10"))
+                .andExpect(status().isRequestedRangeNotSatisfiable());
+
+        mockMvc.perform(get("/api/media/2/stream").header(HttpHeaders.RANGE, "bytes=5-2"))
+                .andExpect(status().isRequestedRangeNotSatisfiable());
+
+        UserMedia photo = UserMedia.builder()
+                .id(1L).user(currentUser).mediaData(bytes).mediaType(MediaType.PHOTO)
+                .fileSizeKb(1.0).status(MediaStatus.APPROVED).requiresAccessApproval(false)
+                .build();
+        when(userMediaService.getMediaEntityById(1L)).thenReturn(photo);
+        mockMvc.perform(get("/api/media/1/stream").header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(bytes));
+    }
 }
