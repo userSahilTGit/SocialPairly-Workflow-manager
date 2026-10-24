@@ -24,6 +24,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletRequest;
+
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -190,9 +193,91 @@ public class SecurityConfig {
                 "X-Identity-Within-Target"
         ));
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new SameHostCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    /**
+     * Browsers send {@code Origin} on same-host POST requests such as
+     * {@code https://www.socialpairly.com/api/auth/login}. Spring answers
+     * {@code 403 Invalid CORS request} when that origin is not allowed, before
+     * the password is checked. A request whose origin host matches the host
+     * that received it is the site itself, so it is allowed. The apex hosts
+     * {@code http://socialpairly.com} and {@code https://socialpairly.com}
+     * are allowed when calling {@code www} as well. Other sites stay
+     * limited to the list above.
+     */
+    private static final class SameHostCorsConfigurationSource extends UrlBasedCorsConfigurationSource {
+
+        @Override
+        public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+            CorsConfiguration base = super.getCorsConfiguration(request);
+            if (base == null || request == null) {
+                return base;
+            }
+            String origin = request.getHeader("Origin");
+            if (origin == null || origin.isBlank() || base.checkOrigin(origin) != null) {
+                return base;
+            }
+            // Apex and www are the same site. Also accept the default ports (:80 / :443),
+            // which an exact allow-list entry does not match.
+            if (!sameHost(request, origin) && !socialPairlyPublicOrigin(origin)) {
+                return base;
+            }
+            CorsConfiguration copy = new CorsConfiguration(base);
+            copy.addAllowedOrigin(origin.trim());
+            return copy;
+        }
+
+        private static boolean socialPairlyPublicOrigin(String origin) {
+            URI uri;
+            try {
+                uri = URI.create(origin.trim());
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+            if (uri.getHost() == null || uri.getScheme() == null) {
+                return false;
+            }
+            boolean site = "socialpairly.com".equalsIgnoreCase(uri.getHost())
+                    || "www.socialpairly.com".equalsIgnoreCase(uri.getHost());
+            if (!site) {
+                return false;
+            }
+            if ("https".equalsIgnoreCase(uri.getScheme())) {
+                return uri.getPort() == -1 || uri.getPort() == 443;
+            }
+            if ("http".equalsIgnoreCase(uri.getScheme())) {
+                return uri.getPort() == -1 || uri.getPort() == 80;
+            }
+            return false;
+        }
+
+        private static boolean sameHost(HttpServletRequest request, String origin) {
+            URI uri;
+            try {
+                uri = URI.create(origin.trim());
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+            if (uri.getHost() == null || uri.getScheme() == null) {
+                return false;
+            }
+            String forwardedHost = request.getHeader("X-Forwarded-Host");
+            String host = (forwardedHost == null || forwardedHost.isBlank())
+                    ? request.getServerName()
+                    : forwardedHost.split(",")[0].trim();
+            int colon = host.indexOf(':');
+            if (colon > 0) {
+                host = host.substring(0, colon);
+            }
+            String forwardedProto = request.getHeader("X-Forwarded-Proto");
+            String scheme = (forwardedProto == null || forwardedProto.isBlank())
+                    ? request.getScheme()
+                    : forwardedProto.split(",")[0].trim();
+            return uri.getHost().equalsIgnoreCase(host) && uri.getScheme().equalsIgnoreCase(scheme);
+        }
     }
 
     static List<String> parseAdditionalOrigins(String raw) {

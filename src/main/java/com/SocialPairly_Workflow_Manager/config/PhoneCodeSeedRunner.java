@@ -65,12 +65,17 @@ public class PhoneCodeSeedRunner implements ApplicationRunner {
     }
 
     static Map<String, PhoneSeed> loadPhoneSeeds() throws Exception {
-        Map<String, PhoneSeed> map = new LinkedHashMap<>();
         ClassPathResource resource = new ClassPathResource("reference/world-phone-codes.txt");
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
+            return loadPhoneSeeds(reader);
+        }
+    }
+
+    static Map<String, PhoneSeed> loadPhoneSeeds(BufferedReader reader) throws Exception {
+        Map<String, PhoneSeed> map = new LinkedHashMap<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) {
                     continue;
@@ -97,9 +102,8 @@ public class PhoneCodeSeedRunner implements ApplicationRunner {
                 if (nationalLength < 4 || nationalLength > 15) {
                     nationalLength = 10;
                 }
-                if (code.length() == 2 && dial.length() > 1) {
-                    map.put(code, new PhoneSeed(dial, nationalLength));
-                }
+            if (code.length() == 2 && dial.length() > 1) {
+                map.put(code, new PhoneSeed(dial, nationalLength));
             }
         }
         return map;

@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.DefaultApplicationArguments;
 
+import java.io.BufferedReader;
+import java.io.StringReader;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,5 +88,30 @@ class PhoneCodeSeedRunnerTest {
         runner.run(new DefaultApplicationArguments());
 
         verify(refCountryRepository, never()).save(argThat(c -> c != null && "IN".equals(c.getCode())));
+    }
+
+    @Test
+    void parserSkipsCommentsBlankAndMalformedRows() throws Exception {
+        String raw = """
+                # comment
+
+                ONLY|TWO
+                USA|United States|1|10
+                in|India|91|10
+                gb|United Kingdom|+44|bad
+                fr|France|33|99
+                de|Germany|+49 30|7
+                zz|Nowhere|+|10
+                """;
+        var seeds = PhoneCodeSeedRunner.loadPhoneSeeds(new BufferedReader(new StringReader(raw)));
+        assertEquals("+91", seeds.get("IN").dialCode());
+        assertEquals(10, seeds.get("IN").nationalLength());
+        assertEquals("+44", seeds.get("GB").dialCode());
+        assertEquals(10, seeds.get("GB").nationalLength());
+        assertEquals(10, seeds.get("FR").nationalLength());
+        assertEquals("+4930", seeds.get("DE").dialCode());
+        assertEquals(7, seeds.get("DE").nationalLength());
+        assertFalse(seeds.containsKey("USA"));
+        assertFalse(seeds.containsKey("ZZ"));
     }
 }

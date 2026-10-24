@@ -5,9 +5,26 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
+import javax.sql.DataSource;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class SensitiveDataEncryptionMigratorTest {
 
@@ -79,5 +96,146 @@ class SensitiveDataEncryptionMigratorTest {
         jdbc.execute("DROP TABLE bank_details");
         jdbc.execute("DROP TABLE user_identity_compliance_blobs");
         assertDoesNotThrow(() -> new SensitiveDataEncryptionMigrator(dataSource, true).run(null));
+    }
+
+    @Test
+    void connectionFailureIsLoggedAndDoesNotStopStartup() {
+        DataSource broken = new DriverManagerDataSource() {
+            @Override
+            public Connection getConnection() throws SQLException {
+                throw new SQLException("down");
+            }
+        };
+        assertDoesNotThrow(() -> new SensitiveDataEncryptionMigrator(broken, true).run(null));
+    }
+
+    @Test
+    void mysqlProductNameRunsColumnWidenAndEncryptsRows() {
+        DataSource mysqlLooking = (DataSource) Proxy.newProxyInstance(
+                DataSource.class.getClassLoader(),
+                new Class[]{DataSource.class},
+                (proxy, method, args) -> {
+                    if ("getConnection".equals(method.getName())) {
+                        Connection connection = dataSource.getConnection();
+                        connection.setAutoCommit(true);
+                        return mysqlConnection(connection);
+                    }
+                    if ("unwrap".equals(method.getName())) {
+                        return dataSource;
+                    }
+                    if ("isWrapperFor".equals(method.getName())) {
+                        return false;
+                    }
+                    return null;
+                });
+        jdbc.update("INSERT INTO user_identity_compliance VALUES (9, '111-22-3333', 'DOC')");
+        jdbc.execute("ALTER TABLE bank_details DROP COLUMN aba_routing_number");
+
+        assertDoesNotThrow(() -> new SensitiveDataEncryptionMigrator(mysqlLooking, true).run(null));
+    }
+
+    @Test
+    void columnCapacityAndPlaintextHelpersCoverSkipPaths() {
+        SensitiveDataEncryptionMigrator migrator = new SensitiveDataEncryptionMigrator(dataSource, true);
+        JdbcTemplate template = mock(JdbcTemplate.class);
+        SensitiveDataEncryptionMigrator.TextColumn ssn =
+                SensitiveDataEncryptionMigrator.TEXT_COLUMNS.get(0);
+        SensitiveDataEncryptionMigrator.TextColumn address =
+                SensitiveDataEncryptionMigrator.TEXT_COLUMNS.get(5);
+
+        when(template.queryForList(contains("INFORMATION_SCHEMA"), eq(ssn.table()), eq(ssn.column())))
+                .thenReturn(List.of());
+        assertFalse(migrator.ensureVarcharCapacity(template, ssn));
+
+        when(template.queryForList(contains("INFORMATION_SCHEMA"), eq(address.table()), eq(address.column())))
+                .thenReturn(List.of(Map.of("DATA_TYPE", "text", "IS_NULLABLE", "YES")));
+        assertTrue(migrator.ensureVarcharCapacity(template, address));
+
+        when(template.queryForList(contains("INFORMATION_SCHEMA"), eq(ssn.table()), eq(ssn.column())))
+                .thenReturn(List.of(Map.of(
+                        "DATA_TYPE", "varchar",
+                        "CHARACTER_MAXIMUM_LENGTH", 255,
+                        "IS_NULLABLE", "YES")));
+        assertTrue(migrator.ensureVarcharCapacity(template, ssn));
+
+        when(template.queryForList(contains("INFORMATION_SCHEMA"), eq(ssn.table()), eq(ssn.column())))
+                .thenReturn(List.of(Map.of(
+                        "DATA_TYPE", "varchar",
+                        "CHARACTER_MAXIMUM_LENGTH", 20,
+                        "IS_NULLABLE", "NO")));
+        assertTrue(migrator.ensureVarcharCapacity(template, ssn));
+
+        Map<String, Object> missingLength = new HashMap<>();
+        missingLength.put("DATA_TYPE", "varchar");
+        missingLength.put("CHARACTER_MAXIMUM_LENGTH", null);
+        missingLength.put("IS_NULLABLE", "YES");
+        when(template.queryForList(contains("INFORMATION_SCHEMA"), eq(ssn.table()), eq(ssn.column())))
+                .thenReturn(List.of(missingLength));
+        assertTrue(migrator.ensureVarcharCapacity(template, ssn));
+
+        String already = FieldEncryptor.encrypt("kept");
+        when(template.queryForList(contains("AS val"), eq(FieldEncryptor.STRING_PREFIX + "%")))
+                .thenReturn(List.of(
+                        Map.of("row_id", 1, "val", already),
+                        Map.of("row_id", 2),
+                        Map.of("row_id", 3, "val", "plain-ssn")));
+        when(template.update(anyString(), any(), any(), any())).thenReturn(1);
+        assertEquals(1, migrator.encryptPlaintextRows(template, ssn));
+
+        when(template.queryForList(contains("SPENC1"), eq(Long.class))).thenReturn(List.of(1L, 2L, 3L));
+        when(template.query(anyString(), any(ResultSetExtractor.class), any())).thenAnswer(invocation -> {
+            Object id = invocation.getArgument(2);
+            if (Long.valueOf(1L).equals(id)) {
+                return null;
+            }
+            if (Long.valueOf(2L).equals(id)) {
+                return new byte[0];
+            }
+            return FieldEncryptor.encrypt(new byte[]{1, 2, 3, 4, 5, 6});
+        });
+        assertEquals(0, migrator.encryptPlaintextBlobs(template, true));
+
+        when(template.queryForList(contains("storage_blob IS NOT NULL"), eq(Long.class))).thenReturn(List.of(4L));
+        when(template.query(anyString(), any(ResultSetExtractor.class), eq(4L))).thenReturn(new byte[]{7, 7, 7});
+        when(template.update(anyString(), any(byte[].class), eq(4L))).thenReturn(1);
+        assertEquals(1, migrator.encryptPlaintextBlobs(template, false));
+    }
+
+    private static Connection mysqlConnection(Connection real) {
+        return (Connection) Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class[]{Connection.class},
+                (proxy, method, args) -> {
+                    if ("close".equals(method.getName())) {
+                        try {
+                            if (!real.getAutoCommit()) {
+                                real.commit();
+                            }
+                        } catch (SQLException ignored) {
+                            // auto-commit connections reject an extra commit
+                        }
+                    }
+                    if ("getMetaData".equals(method.getName())) {
+                        DatabaseMetaData meta = real.getMetaData();
+                        return Proxy.newProxyInstance(
+                                DatabaseMetaData.class.getClassLoader(),
+                                new Class[]{DatabaseMetaData.class},
+                                (metaProxy, metaMethod, metaArgs) -> {
+                                    if ("getDatabaseProductName".equals(metaMethod.getName())) {
+                                        return "MySQL";
+                                    }
+                                    try {
+                                        return metaMethod.invoke(meta, metaArgs);
+                                    } catch (InvocationTargetException ex) {
+                                        throw ex.getCause();
+                                    }
+                                });
+                    }
+                    try {
+                        return method.invoke(real, args);
+                    } catch (InvocationTargetException ex) {
+                        throw ex.getCause();
+                    }
+                });
     }
 }

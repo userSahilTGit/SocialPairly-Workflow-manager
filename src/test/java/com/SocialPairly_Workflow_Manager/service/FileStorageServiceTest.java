@@ -56,4 +56,33 @@ class FileStorageServiceTest {
 
         assertThrows(BadRequestException.class, () -> service.store(file));
     }
+
+    @Test
+    void rejectsEmptyNullTypeAndPathEscapeAndCopyFailure() throws IOException {
+        FileStorageService service = new FileStorageService(tempDir.toString());
+        assertThrows(BadRequestException.class, () -> service.store(null));
+        assertThrows(BadRequestException.class, () -> service.store(new MockMultipartFile("file", "a.png", "image/png", new byte[0])));
+        assertThrows(BadRequestException.class, () -> service.store(new MockMultipartFile("file", "a.png", null, new byte[]{1})));
+
+        MockMultipartFile nameless = new MockMultipartFile("file", null, "image/png", new byte[]{1, 2});
+        assertTrue(service.store(nameless).startsWith("/uploads/"));
+
+        MockMultipartFile escape = new MockMultipartFile("file", "a.png\\..\\..\\outside", "image/png", new byte[]{1});
+        assertThrows(IllegalStateException.class, () -> service.store(escape));
+
+        MockMultipartFile broken = new MockMultipartFile("file", "a.png", "image/png", new byte[]{1}) {
+            @Override
+            public java.io.InputStream getInputStream() throws IOException {
+                throw new IOException("disk");
+            }
+        };
+        assertThrows(IllegalStateException.class, () -> service.store(broken));
+    }
+
+    @Test
+    void missingUploadDirectoryFailsStartup() throws IOException {
+        Path file = tempDir.resolve("not-a-directory");
+        Files.writeString(file, "x");
+        assertThrows(IllegalStateException.class, () -> new FileStorageService(file.toString()));
+    }
 }
