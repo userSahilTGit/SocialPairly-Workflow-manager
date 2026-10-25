@@ -298,6 +298,43 @@ class EmailServiceTest {
     }
 
     @Test
+    void sendPlanPromotionEmailShouldDescribeActivePlans() throws MessagingException {
+        Plan weekly = new Plan();
+        weekly.setPlanName("Spark Weekly");
+        weekly.setPlanType("WEEKLY");
+        weekly.setDurationDays(7);
+        weekly.setAmount(new BigDecimal("9.99"));
+        weekly.setTokensIncluded("20");
+        weekly.setDescription("Profile boosts|Photo sharing");
+        when(planRepository.findByIsActiveTrueOrderByDurationDaysAsc()).thenReturn(List.of(weekly));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        emailService.sendPlanPromotionEmail(validUser);
+
+        verify(mailSender).send(any(MimeMessage.class));
+        assertEquals("Choose a SocialPairly plan and start connecting", mimeMessage.getSubject());
+    }
+
+    @Test
+    void sendPlanPromotionEmailShouldSkipWhenEmailInvalid() {
+        User user = new User();
+        user.setEmail("not-an-email");
+
+        emailService.sendPlanPromotionEmail(user);
+
+        verify(mailSender, never()).createMimeMessage();
+    }
+
+    @Test
+    void sendPasswordChangeOtpEmailShouldSendSuccessfully() throws MessagingException {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        emailService.sendPasswordChangeOtpEmail(validUser, "2468");
+
+        verify(mailSender).send(mimeMessage);
+    }
+
+    @Test
     void sendAccountDeleteOtpEmailShouldThrowWhenEmailInvalid() {
         User user = new User();
         user.setEmail(null);

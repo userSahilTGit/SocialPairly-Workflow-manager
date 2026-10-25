@@ -180,6 +180,27 @@ class SecurityConfigTest {
     }
 
     @Test
+    void configuredFrontendPortIsAllowed() {
+        SecurityConfig customPort = new SecurityConfig(
+                mock(JwtAuthenticationFilter.class),
+                "SP_AUTH",
+                false,
+                false,
+                31_536_000L,
+                true,
+                false,
+                "",
+                4242);
+
+        CorsConfiguration config = ((UrlBasedCorsConfigurationSource) customPort.corsConfigurationSource())
+                .getCorsConfiguration(new MockHttpServletRequest());
+
+        assertNotNull(config);
+        assertTrue(config.getAllowedOrigins().contains("http://localhost:4242"));
+        assertTrue(config.getAllowedOrigins().contains("http://127.0.0.1:4242"));
+    }
+
+    @Test
     void testParseAdditionalOriginsIgnoresBlank() {
         assertTrue(SecurityConfig.parseAdditionalOrigins("").isEmpty());
         assertTrue(SecurityConfig.parseAdditionalOrigins(null).isEmpty());

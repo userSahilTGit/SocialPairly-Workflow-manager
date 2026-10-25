@@ -179,6 +179,149 @@ class PlanUpgradeServiceTest {
     }
 
     @Test
+    void getEligibleUpgradePlansShouldIgnoreWalletBalanceAndUseCurrentPlan() {
+        user.setUserTokens(50_000);
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(22L), any()))
+                .thenReturn(List.of(subscription));
+
+        Plan pricedLower = new Plan();
+        pricedLower.setId(8L);
+        pricedLower.setPlanName("Cheap Tokens");
+        pricedLower.setTokensIncluded("500");
+        pricedLower.setAmount(new BigDecimal("5.00"));
+        pricedLower.setDurationDays(30);
+        pricedLower.setActive(true);
+
+        Plan unlimited = new Plan();
+        unlimited.setId(9L);
+        unlimited.setPlanName("Ultimate Unlimited Plus");
+        unlimited.setTokensIncluded("UNLIMITED");
+        unlimited.setAmount(new BigDecimal("399.99"));
+        unlimited.setDurationDays(365);
+        unlimited.setActive(true);
+
+        when(planRepository.findByIsActiveTrueOrderByDurationDaysAsc())
+                .thenReturn(List.of(currentPlan, upgradePlan, pricedLower, unlimited));
+
+        List<PlanDto> eligible = planUpgradeService.getEligibleUpgradePlans();
+
+        assertEquals(2, eligible.size());
+        assertEquals("Basic Monthly", eligible.get(0).planName());
+        assertEquals("Ultimate Unlimited Plus", eligible.get(1).planName());
+    }
+
+    @Test
+    void getEligibleUpgradePlansShouldReadTokenCountsFromPlanDescriptions() {
+        currentPlan.setTokensIncluded(null);
+        currentPlan.setDescription("Save 20%! Includes 16,000 connection tokens (6,000/mo).");
+        currentPlan.setAmount(new BigDecimal("120.00"));
+
+        Plan sixMonth = new Plan();
+        sixMonth.setId(6L);
+        sixMonth.setPlanName("Pro 6-Month Pass");
+        sixMonth.setTokensIncluded(null);
+        sixMonth.setDescription("Includes 40,000 connection tokens and unlimited photo/video sharing.");
+        sixMonth.setAmount(new BigDecimal("210.00"));
+        sixMonth.setDurationDays(180);
+        sixMonth.setActive(true);
+
+        Plan ultimate = new Plan();
+        ultimate.setId(7L);
+        ultimate.setPlanName("Ultimate Unlimited Plus");
+        ultimate.setTokensIncluded("");
+        ultimate.setDescription("Full VIP for 1 year. Unlimited connection tokens and priority support.");
+        ultimate.setAmount(new BigDecimal("399.99"));
+        ultimate.setDurationDays(365);
+        ultimate.setActive(true);
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(22L), any()))
+                .thenReturn(List.of(subscription));
+        when(planRepository.findByIsActiveTrueOrderByDurationDaysAsc())
+                .thenReturn(List.of(currentPlan, sixMonth, ultimate));
+
+        List<PlanDto> eligible = planUpgradeService.getEligibleUpgradePlans();
+
+        assertEquals(2, eligible.size());
+        assertEquals("Pro 6-Month Pass", eligible.get(0).planName());
+        assertEquals("Ultimate Unlimited Plus", eligible.get(1).planName());
+    }
+
+    @Test
+    void getEligibleUpgradePlansShouldUseDescriptionWhenTokenFieldIsSmaller() {
+        currentPlan.setTokensIncluded("80");
+        currentPlan.setDescription("Save 20%! Includes 16,000 connection tokens (6,000/mo).");
+        currentPlan.setAmount(new BigDecimal("120.00"));
+
+        Plan sixMonth = new Plan();
+        sixMonth.setId(6L);
+        sixMonth.setPlanName("Pro 6-Month Pass");
+        sixMonth.setTokensIncluded("80");
+        sixMonth.setDescription("Includes 40,000 connection tokens and unlimited photo/video sharing.");
+        sixMonth.setAmount(new BigDecimal("210.00"));
+        sixMonth.setDurationDays(180);
+        sixMonth.setActive(true);
+
+        Plan ultimate = new Plan();
+        ultimate.setId(7L);
+        ultimate.setPlanName("Ultimate Unlimited Plus");
+        ultimate.setTokensIncluded(null);
+        ultimate.setDescription("Full VIP for 1 year. Unlimited connection tokens and priority support.");
+        ultimate.setAmount(new BigDecimal("399.99"));
+        ultimate.setDurationDays(365);
+        ultimate.setActive(true);
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(22L), any()))
+                .thenReturn(List.of(subscription));
+        when(planRepository.findByIsActiveTrueOrderByDurationDaysAsc())
+                .thenReturn(List.of(ultimate, currentPlan, sixMonth));
+
+        List<PlanDto> eligible = planUpgradeService.getEligibleUpgradePlans();
+
+        assertEquals(List.of("Pro 6-Month Pass", "Ultimate Unlimited Plus"),
+                eligible.stream().map(PlanDto::planName).toList());
+    }
+
+    @Test
+    void getEligibleUpgradePlansShouldRankByCardTokenTextWhenStoredFieldDiffers() {
+        currentPlan.setPlanName("Quarterly Preferred");
+        currentPlan.setTokensIncluded("180000");
+        currentPlan.setDescription("Save 20%! Includes 18,000 connection tokens (6,000/mo), 35 total community posts.");
+        currentPlan.setAmount(new BigDecimal("120.00"));
+
+        Plan sixMonth = new Plan();
+        sixMonth.setId(6L);
+        sixMonth.setPlanName("Pro 6-Month Pass");
+        sixMonth.setTokensIncluded("150000");
+        sixMonth.setDescription("Best value for active dating! Includes 40,000 connection tokens and unlimited photo/video sharing.");
+        sixMonth.setAmount(new BigDecimal("210.00"));
+        sixMonth.setDurationDays(180);
+        sixMonth.setActive(true);
+
+        Plan ultimate = new Plan();
+        ultimate.setId(7L);
+        ultimate.setPlanName("Ultimate Unlimited Plus");
+        ultimate.setTokensIncluded(null);
+        ultimate.setDescription("Full VIP experience for 1 year. Unlimited connection tokens, unlimited posts, and priority support.");
+        ultimate.setAmount(new BigDecimal("399.99"));
+        ultimate.setDurationDays(365);
+        ultimate.setActive(true);
+
+        when(currentUserService.getCurrentUser()).thenReturn(user);
+        when(subscriptionRepository.findActiveSubscriptionsForUser(eq(22L), any()))
+                .thenReturn(List.of(subscription));
+        when(planRepository.findByIsActiveTrueOrderByDurationDaysAsc())
+                .thenReturn(List.of(currentPlan, sixMonth, ultimate));
+
+        List<PlanDto> eligible = planUpgradeService.getEligibleUpgradePlans();
+
+        assertEquals(List.of("Pro 6-Month Pass", "Ultimate Unlimited Plus"),
+                eligible.stream().map(PlanDto::planName).toList());
+    }
+
+    @Test
     void getEligibleUpgradePlansShouldAllowAllWhenNoActiveSubscription() {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(subscriptionRepository.findActiveSubscriptionsForUser(eq(22L), any()))

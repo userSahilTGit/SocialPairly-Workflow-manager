@@ -270,11 +270,18 @@ class ControllerTests {
                 .thenReturn(Map.of("message", "ok", "expiresInMinutes", "5"));
 
         ResponseEntity<Map<String, String>> passwordResponse = userController.changePassword(passwordRequest);
+        when(userService.sendPasswordChangeOtp(user))
+                .thenReturn(Map.of("message", "Verification code sent to your email. It is valid for 10 minutes.", "expiresInMinutes", "10"));
+        ResponseEntity<Map<String, String>> passwordOtpResponse = userController.sendPasswordChangeOtp(forwarded);
         ResponseEntity<Map<String, String>> otpResponse = userController.sendDeleteAccountOtp(forwarded);
 
         assertEquals(200, passwordResponse.getStatusCode().value());
         assertEquals("Password updated successfully", passwordResponse.getBody().get("message"));
         assertEquals(200, otpResponse.getStatusCode().value());
+        assertEquals(200, passwordOtpResponse.getStatusCode().value());
+        verify(authRateLimitService).check(
+                eq(AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP), eq("203.0.113.9"), eq("8"));
+        verify(userService).sendPasswordChangeOtp(user);
         verify(authRateLimitService).check(
                 eq(AuthRateLimitService.ACTION_DELETE_SEND_OTP), eq("203.0.113.9"), eq("8"));
     }

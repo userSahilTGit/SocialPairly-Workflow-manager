@@ -61,7 +61,7 @@ public class EmailService {
     @Value("${app.email.base-url:https://www.socialpairly.com}")
     private String appBaseUrl;
 
-    @Value("${app.frontend.url:http://localhost:3002}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
 
     /** Only one SMTP dialog at a time. Gmail answers 421 when many sessions open together. */
@@ -105,6 +105,68 @@ public class EmailService {
         sendHtmlEmail(
                 user.getEmail(),
                 "Welcome to " + appName + "! Let's get you set up",
+                EmailTemplateBuilder.build(appName, supportEmail, body)
+        );
+    }
+
+    /**
+     * Sent once, immediately after a new account is created.
+     * Explains the live membership plans and invites the member to subscribe.
+     */
+    @Async
+    public void sendPlanPromotionEmail(User user) {
+        if (!hasValidEmail(user)) {
+            return;
+        }
+
+        String userName = formatUserName(user);
+        String subscriptionsUrl = appBaseUrl + "/subscriptions";
+        List<Plan> plans = loadPromotedPlans();
+
+        StringBuilder planCards = new StringBuilder();
+        for (Plan plan : plans) {
+            List<String> lines = new ArrayList<>();
+            lines.add("Billing: " + formatBillingCycle(plan));
+            if (plan.getAmount() != null) {
+                lines.add("Price: " + formatCurrency(plan.getAmount(), "usd"));
+            }
+            if (plan.getDurationDays() != null) {
+                lines.add("Access length: " + plan.getDurationDays() + " days");
+            }
+            if (plan.getTokensIncluded() != null && !plan.getTokensIncluded().isBlank()) {
+                lines.add("Tokens included: " + plan.getTokensIncluded());
+            }
+            if (plan.getCommunityPosts() != null && !plan.getCommunityPosts().isBlank()) {
+                lines.add("Community posts: " + plan.getCommunityPosts());
+            }
+            if (plan.getSubBadgeTag() != null && !plan.getSubBadgeTag().isBlank()) {
+                lines.add("Profile badge: " + plan.getSubBadgeTag());
+            }
+            planCards.append(EmailTemplateBuilder.infoBox(
+                    plan.getPlanName() == null ? "Membership" : plan.getPlanName(),
+                    lines));
+            planCards.append(EmailTemplateBuilder.featureList(parsePlanFeatures(plan)));
+        }
+
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "Welcome to " + appName + ". Your account is ready, and a membership is how you get the most from it.")
+                + EmailTemplateBuilder.paragraph(
+                "Subscribing unlocks tokens, photo and video sharing, and profile visibility so the right people can notice you sooner. "
+                        + "Plans activate as soon as payment succeeds, and you can cancel anytime from your account.")
+                + EmailTemplateBuilder.paragraph("Here are the plans available right now:")
+                + planCards
+                + EmailTemplateBuilder.paragraph(
+                "Compare them side by side, pick the pass that fits how you want to connect, and subscribe in a minute.")
+                + EmailTemplateBuilder.button("See plans and subscribe", subscriptionsUrl)
+                + EmailTemplateBuilder.paragraph(
+                "If you have questions about which plan to choose, reply to this email and we will help.")
+                + EmailTemplateBuilder.paragraph("Best regards,")
+                + EmailTemplateBuilder.paragraph("The " + appName + " Team");
+
+        sendHtmlEmail(
+                user.getEmail(),
+                "Choose a " + appName + " plan and start connecting",
                 EmailTemplateBuilder.build(appName, supportEmail, body)
         );
     }
@@ -577,6 +639,34 @@ public class EmailService {
         deliver(message);
     }
 
+    public void sendPasswordChangeOtpEmail(User user, String otp) throws MessagingException {
+        if (!hasValidEmail(user)) {
+            throw new MessagingException("User does not have a valid email address");
+        }
+
+        String userName = formatUserName(user);
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "We received a request to change the password on your " + appName + " account. "
+                        + "Use the verification code below:")
+                + """
+                <div style="text-align:center;margin:24px 0;">
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:5px;color:#6366f1;background-color:#eef2ff;padding:12px 32px;border-radius:8px;border:2px dashed #8b5cf6;display:inline-block;">%s</span>
+                </div>
+                """.formatted(otp)
+                + EmailTemplateBuilder.paragraph("This code is valid for the next 10 minutes.")
+                + EmailTemplateBuilder.paragraph(
+                "If you did not request a password change, you can safely ignore this email. Your password will remain unchanged.");
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(senderEmail);
+        helper.setTo(user.getEmail());
+        helper.setSubject("Your " + appName + " password verification code");
+        helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
+        deliver(message);
+    }
+
     /**
      * Shared-inbox support channel (not noreply):
      * <ul>
@@ -871,8 +961,19 @@ public class EmailService {
                 || lower.contains("452 ");
     }
 
+    private List<Plan> loadPromotedPlans() {
+        List<Plan> activePlans = planRepository.findByIsActiveTrueOrderByDurationDaysAsc();
+        if (activePlans != null && !activePlans.isEmpty()) {
+            return activePlans;
+        }
+        return List.of(findTrendingPlan());
+    }
+
     private Plan findTrendingPlan() {
         List<Plan> activePlans = planRepository.findByIsActiveTrueOrderByDurationDaysAsc();
+        if (activePlans == null) {
+            activePlans = List.of();
+        }
         Optional<Plan> featured = activePlans.stream()
                 .filter(Plan::isFeatured)
                 .reduce((first, second) -> second);

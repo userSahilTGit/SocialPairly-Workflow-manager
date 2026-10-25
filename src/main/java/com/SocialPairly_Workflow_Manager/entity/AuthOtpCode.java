@@ -13,6 +13,7 @@ public class AuthOtpCode {
     public static final String PURPOSE_EMAIL_VERIFY = "EMAIL_VERIFY";
     public static final String PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
     public static final String PURPOSE_ACCOUNT_DELETE = "ACCOUNT_DELETE";
+    public static final String PURPOSE_PASSWORD_CHANGE = "PASSWORD_CHANGE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.service;
 
 import com.SocialPairly_Workflow_Manager.exception.TooManyRequestsException;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -83,5 +84,26 @@ class AuthRateLimitServiceTest {
         assertDoesNotThrow(() -> limiter.check(AuthRateLimitService.ACTION_DELETE_VERIFY, "1.1.1.1", "11"));
         assertThrows(TooManyRequestsException.class,
                 () -> limiter.check(AuthRateLimitService.ACTION_DELETE_VERIFY, "1.1.1.1", "11"));
+    }
+
+    @Test
+    void passwordChangeOtpSendAndVerifyAreRateLimitedSeparately() {
+        AuthRateLimitService limiter = new AuthRateLimitService(60_000L, 10, 5, 10, 10, 5, 5, 5, 10);
+        ReflectionTestUtils.setField(limiter, "passwordChangeSendOtpMax", 1);
+
+        limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP, "1.1.1.1", "9");
+        assertThrows(TooManyRequestsException.class,
+                () -> limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP, "1.1.1.1", "9"));
+        assertDoesNotThrow(() -> limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_VERIFY_OTP, "1.1.1.1", "9"));
+        assertThrows(TooManyRequestsException.class,
+                () -> limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_VERIFY_OTP, "1.1.1.1", "9"));
+    }
+
+    @Test
+    void passwordChangeOtpLimitCanBeDisabled() {
+        AuthRateLimitService limiter = new AuthRateLimitService(60_000L, 10, 5, 10, 10, 5, 5, 5, 10);
+        ReflectionTestUtils.setField(limiter, "passwordChangeSendOtpMax", 0);
+        assertDoesNotThrow(() -> limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP, "1.1.1.1", "9"));
+        assertDoesNotThrow(() -> limiter.check(AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP, "1.1.1.1", "9"));
     }
 }

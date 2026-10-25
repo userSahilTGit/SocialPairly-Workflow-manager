@@ -26,7 +26,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class PlanUpgradeService {
@@ -36,6 +39,8 @@ public class PlanUpgradeService {
             List.of(PlanUpgradeStatus.Completed, PlanUpgradeStatus.Rejected);
     private static final List<RefundStatus> REFUND_TERMINAL_STATUSES =
             List.of(RefundStatus.Completed, RefundStatus.Rejected);
+    /** First number in a token phrase, so "16,000 (6,000/mo)" ranks as 16000. */
+    private static final Pattern FIRST_TOKEN_NUMBER = Pattern.compile("(\\d{1,3}(?:,\\d{3})+|\\d+)");
 
     private final PlanUpgradeRequestRepository upgradeRequestRepository;
     private final RefundRepository refundRepository;
@@ -81,19 +86,125 @@ public class PlanUpgradeService {
     public List<PlanDto> getEligibleUpgradePlans() {
         User user = currentUserService.getCurrentUser();
         int userTokens = user.getUserTokens();
-        String currentPlanName = subscriptionRepository
+        Plan currentPlan = subscriptionRepository
                 .findActiveSubscriptionsForUser(user.getId(), LocalDateTime.now())
                 .stream()
                 .findFirst()
-                .map(sub -> sub.getPlan() != null ? sub.getPlan().getPlanName() : null)
+                .map(Subscription::getPlan)
                 .orElse(null);
+        String currentPlanName = currentPlan != null ? currentPlan.getPlanName() : null;
 
         return planRepository.findByIsActiveTrueOrderByDurationDaysAsc().stream()
-                .filter(plan -> UserTokenService.parsePlanTokens(plan.getTokensIncluded()) > userTokens)
+                .filter(plan -> isEligibleUpgrade(plan, currentPlan, userTokens))
                 .filter(plan -> currentPlanName == null
+                        || plan.getPlanName() == null
                         || !currentPlanName.equalsIgnoreCase(plan.getPlanName()))
+                .sorted((left, right) -> {
+                    BigDecimal leftAmount = left.getAmount() == null ? BigDecimal.ZERO : left.getAmount();
+                    BigDecimal rightAmount = right.getAmount() == null ? BigDecimal.ZERO : right.getAmount();
+                    int byAmount = leftAmount.compareTo(rightAmount);
+                    if (byAmount != 0) {
+                        return byAmount;
+                    }
+                    int leftDays = left.getDurationDays() == null ? 0 : left.getDurationDays();
+                    int rightDays = right.getDurationDays() == null ? 0 : right.getDurationDays();
+                    return Integer.compare(leftDays, rightDays);
+                })
                 .map(PlanDto::from)
                 .toList();
+    }
+
+    /**
+     * A member can move to a plan that grants more tokens and costs more than the plan
+     * they already have. Wallet balance is not the comparison, because unused tokens
+     * would otherwise hide a more expensive plan. Unlimited outranks any finite grant.
+     * With no current plan, the previous balance check is kept.
+     */
+    static boolean isEligibleUpgrade(Plan candidate, Plan currentPlan, int userTokens) {
+        if (candidate == null) {
+            return false;
+        }
+        if (currentPlan == null) {
+            return UserTokenService.parsePlanTokens(candidate.getTokensIncluded()) > userTokens;
+        }
+        return hasHigherTokenValue(candidate, currentPlan) && hasHigherAmount(candidate, currentPlan);
+    }
+
+    private static boolean hasHigherTokenValue(Plan candidate, Plan currentPlan) {
+        int candidateRank = tokenRank(candidate);
+        int currentRank = tokenRank(currentPlan);
+        return candidateRank > currentRank;
+    }
+
+    private static boolean hasHigherAmount(Plan candidate, Plan currentPlan) {
+        if (candidate.getAmount() == null || currentPlan.getAmount() == null) {
+            return false;
+        }
+        return candidate.getAmount().compareTo(currentPlan.getAmount()) > 0;
+    }
+
+    /**
+     * Rank used only to decide upgrades. Unlimited connection tokens outrank any
+     * finite grant. The number shown on the plan card wins, because the stored
+     * tokens field can be a different figure than the description the member sees.
+     * The tokens field is used only when the description has no token count.
+     */
+    private static int tokenRank(Plan plan) {
+        if (plan == null) {
+            return 0;
+        }
+        if (isUnlimitedTokenGrant(plan.getTokensIncluded()) || isUnlimitedTokenGrant(plan.getDescription())) {
+            return Integer.MAX_VALUE;
+        }
+        int shownOnCard = largestGroupedTokenNumber(plan.getDescription());
+        if (shownOnCard > 0) {
+            return shownOnCard;
+        }
+        return firstTokenNumber(plan.getTokensIncluded());
+    }
+
+    private static boolean isUnlimitedTokenGrant(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.trim().equals("unlimited") || lower.contains("unlimited connection token");
+    }
+
+    private static int firstTokenNumber(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        Matcher matcher = FIRST_TOKEN_NUMBER.matcher(value);
+        if (!matcher.find()) {
+            return 0;
+        }
+        return parseTokenNumber(matcher.group(1));
+    }
+
+    private static int largestGroupedTokenNumber(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        Matcher matcher = FIRST_TOKEN_NUMBER.matcher(value);
+        int best = 0;
+        while (matcher.find()) {
+            String raw = matcher.group(1);
+            int parsed = parseTokenNumber(raw);
+            boolean grouped = raw.contains(",") || parsed >= 1000;
+            if (grouped && parsed > best) {
+                best = parsed;
+            }
+        }
+        return best;
+    }
+
+    private static int parseTokenNumber(String raw) {
+        try {
+            return Integer.parseInt(raw.replace(",", ""));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     @Transactional
@@ -119,13 +230,14 @@ public class PlanUpgradeService {
             throw new BadRequestException("Selected upgrade plan is not available");
         }
 
-        int planTokens = UserTokenService.parsePlanTokens(upgradePlan.getTokensIncluded());
-        if (planTokens <= user.getUserTokens()) {
-            throw new BadRequestException("Upgrade plan must include more tokens than your current balance");
+        Plan currentPlan = subscription.getPlan();
+        if (!isEligibleUpgrade(upgradePlan, currentPlan, user.getUserTokens())) {
+            throw new BadRequestException(
+                    "Upgrade plan must include more tokens and a higher price than your current plan");
         }
 
-        String currentPlanName = subscription.getPlan() != null
-                ? subscription.getPlan().getPlanName()
+        String currentPlanName = currentPlan != null && currentPlan.getPlanName() != null
+                ? currentPlan.getPlanName()
                 : "Unknown";
 
         if (upgradePlan.getPlanName() != null

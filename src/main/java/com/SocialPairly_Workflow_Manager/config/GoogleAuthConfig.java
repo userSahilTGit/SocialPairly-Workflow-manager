@@ -18,7 +18,7 @@ import java.util.Collections;
  *   <li>{@code https://www.socialpairly.com}</li>
  *   <li>{@code https://socialpairly.com}</li>
  *   <li>{@code http://3.151.77.90} (direct IP access)</li>
- *   <li>local dev hosts ({@code http://localhost:3000}, {@code :3001}, …)</li>
+ *   <li>local dev host {@code http://localhost:} plus {@code app.frontend.port} from ports.properties</li>
  * </ul>
  */
 @Configuration
