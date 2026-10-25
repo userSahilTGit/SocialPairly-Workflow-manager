@@ -108,6 +108,7 @@ class AuthServiceCoverageTest {
         AuthResponse response = authService.register(request);
 
         verify(emailService).sendEmailVerificationOtpEmail(saved, "1234");
+        verify(emailService).sendPlanPromotionEmail(saved);
         assertEquals("jwt-token", response.token());
     }
 
@@ -129,6 +130,7 @@ class AuthServiceCoverageTest {
         assertEquals("google@example.com", response.user().email());
         verify(userRepository, never()).save(any());
         verify(emailService, never()).sendWelcomeEmail(any());
+        verify(emailService, never()).sendPlanPromotionEmail(any());
     }
 
     @Test
@@ -156,6 +158,7 @@ class AuthServiceCoverageTest {
         assertEquals("", created.getPassword());
 
         verify(emailService).sendWelcomeEmail(any(User.class));
+        verify(emailService).sendPlanPromotionEmail(any(User.class));
         assertEquals("new-token", response.token());
     }
 

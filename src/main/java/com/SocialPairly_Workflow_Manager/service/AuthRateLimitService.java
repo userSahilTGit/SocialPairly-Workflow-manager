@@ -24,6 +24,11 @@ public class AuthRateLimitService {
     public static final String ACTION_RESEND_VERIFICATION = "resend-verification";
     public static final String ACTION_DELETE_SEND_OTP = "delete-send-otp";
     public static final String ACTION_DELETE_VERIFY = "delete-verify";
+    public static final String ACTION_PASSWORD_CHANGE_SEND_OTP = "password-change-send-otp";
+    public static final String ACTION_PASSWORD_CHANGE_VERIFY_OTP = "password-change-verify-otp";
+
+    @Value("${app.rate-limit.password-change-send-otp-max:5}")
+    private int passwordChangeSendOtpMax = 5;
 
     private final long windowMs;
     private final Map<String, Integer> limits;
@@ -54,7 +59,13 @@ public class AuthRateLimitService {
     }
 
     public void check(String action, String clientIp, String identifier) {
-        Integer max = limits.get(action);
+        Integer max;
+        if (ACTION_PASSWORD_CHANGE_SEND_OTP.equals(action)
+                || ACTION_PASSWORD_CHANGE_VERIFY_OTP.equals(action)) {
+            max = passwordChangeSendOtpMax;
+        } else {
+            max = limits.get(action);
+        }
         if (max == null || max <= 0) {
             return;
         }

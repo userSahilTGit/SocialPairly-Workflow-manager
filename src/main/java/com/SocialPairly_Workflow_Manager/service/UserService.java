@@ -53,6 +53,7 @@ public class UserService {
     private final EmailService emailService;
 
     private static final int ACCOUNT_DELETE_OTP_TTL_MINUTES = 5;
+    private static final int PASSWORD_CHANGE_OTP_TTL_MINUTES = 10;
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -152,22 +153,82 @@ public class UserService {
     }
 
     @Transactional
+    public Map<String, String> sendPasswordChangeOtp(User currentUser) {
+        if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+            throw new BadRequestException("No email on your account to send a verification code");
+        }
+        String otp = otpService.generateAndStore(
+                AuthOtpCode.PURPOSE_PASSWORD_CHANGE,
+                currentUser.getEmail(),
+                PASSWORD_CHANGE_OTP_TTL_MINUTES);
+        try {
+            emailService.sendPasswordChangeOtpEmail(currentUser, otp);
+        } catch (MessagingException | MailException ex) {
+            log.warn("Failed to send password-change OTP to {}: {}",
+                    LogMasker.identifier(currentUser.getEmail()), ex.getMessage());
+            throw new BadRequestException("Failed to send verification code. Please try again later.");
+        }
+        log.info("Password-change OTP sent userId={}", currentUser.getId());
+        return Map.of(
+                "message", "Verification code sent to your email. It is valid for 10 minutes.",
+                "expiresInMinutes", "10"
+        );
+    }
+
+    @Transactional
+    public Map<String, String> verifyPasswordChangeOtp(User currentUser, String otp) {
+        if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+            throw new BadRequestException("No email on your account to verify this change");
+        }
+        String code = otp == null ? "" : otp.trim();
+        if (!code.matches("\\d{4}")) {
+            throw new BadRequestException("Enter the 4-digit verification code from your email");
+        }
+        otpService.verify(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, currentUser.getEmail(), code);
+        log.info("Password-change OTP verified userId={}", currentUser.getId());
+        return Map.of("message", "Verification code matched. You can now choose a new password.");
+    }
+
+    @Transactional
     public Map<String, String> changePassword(User currentUser, ChangePasswordRequest request) {
         log.info("Changing password for userId={}", currentUser.getId());
-        if (currentUser.getPassword() == null || currentUser.getPassword().isBlank()) {
-            throw new BadRequestException("This account does not have a password to change.");
-        }
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new BadRequestException("Passwords do not match");
         }
-        if (!passwordEncoder.matches(request.currentPassword(), currentUser.getPassword())) {
-            throw new BadRequestException("Current password is incorrect");
+
+        String otp = request.otp() == null ? "" : request.otp().trim();
+        boolean viaOtp = !otp.isBlank();
+        boolean hasPassword = currentUser.getPassword() != null && !currentUser.getPassword().isBlank();
+
+        if (viaOtp) {
+            if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+                throw new BadRequestException("No email on your account to verify this change");
+            }
+            if (!otp.matches("\\d{4}")) {
+                throw new BadRequestException("Enter the 4-digit verification code from your email");
+            }
+            otpService.verify(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, currentUser.getEmail(), otp);
+        } else {
+            if (request.currentPassword() == null || request.currentPassword().isBlank()) {
+                throw new BadRequestException("Current password is required");
+            }
+            if (!hasPassword) {
+                throw new BadRequestException("This account does not have a password to change.");
+            }
+            if (!passwordEncoder.matches(request.currentPassword(), currentUser.getPassword())) {
+                throw new BadRequestException("Current password is incorrect");
+            }
         }
-        if (passwordEncoder.matches(request.newPassword(), currentUser.getPassword())) {
+
+        if (hasPassword && passwordEncoder.matches(request.newPassword(), currentUser.getPassword())) {
             throw new BadRequestException("New password must be different from your current password");
         }
+
         currentUser.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(currentUser);
+        if (viaOtp) {
+            otpService.clear(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, currentUser.getEmail());
+        }
         return Map.of("message", "Password updated successfully");
     }
 

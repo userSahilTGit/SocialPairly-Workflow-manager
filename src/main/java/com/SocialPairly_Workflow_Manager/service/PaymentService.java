@@ -36,7 +36,7 @@ public class PaymentService {
     @Value("${stripe.secretKey}")
     private String secretKey;
 
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
 
     public PaymentService(CurrentUserService currentUserService,

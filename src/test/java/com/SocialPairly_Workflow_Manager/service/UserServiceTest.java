@@ -310,4 +310,68 @@ class UserServiceTest {
         assertThrows(BadRequestException.class, () -> userService.changePassword(user, request));
         verify(userRepository, never()).save(any());
     }
+
+    @Test
+    void shouldSendPasswordChangeOtp() throws Exception {
+        User user = new User();
+        user.setId(9L);
+        user.setEmail("test@example.com");
+
+        when(otpService.generateAndStore(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, "test@example.com", 10))
+                .thenReturn("4321");
+
+        Map<String, String> result = userService.sendPasswordChangeOtp(user);
+
+        assertEquals("10", result.get("expiresInMinutes"));
+        verify(emailService).sendPasswordChangeOtpEmail(user, "4321");
+    }
+
+    @Test
+    void shouldVerifyPasswordChangeOtp() {
+        User user = new User();
+        user.setId(9L);
+        user.setEmail("jane@example.com");
+
+        Map<String, String> result = userService.verifyPasswordChangeOtp(user, "1234");
+
+        assertEquals("Verification code matched. You can now choose a new password.", result.get("message"));
+        verify(otpService).verify(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, "jane@example.com", "1234");
+    }
+
+    @Test
+    void shouldChangePasswordWithEmailOtp() {
+        User user = new User();
+        user.setId(9L);
+        user.setEmail("jane@example.com");
+        user.setPassword("encoded-old");
+        ChangePasswordRequest request = new ChangePasswordRequest(null, "new-pass", "new-pass", "1234");
+
+        when(passwordEncoder.matches("new-pass", "encoded-old")).thenReturn(false);
+        when(passwordEncoder.encode("new-pass")).thenReturn("encoded-new");
+
+        Map<String, String> result = userService.changePassword(user, request);
+
+        assertEquals("Password updated successfully", result.get("message"));
+        assertEquals("encoded-new", user.getPassword());
+        verify(otpService).verify(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, "jane@example.com", "1234");
+        verify(otpService).clear(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, "jane@example.com");
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void shouldRejectPasswordChangeWhenOtpIsInvalid() {
+        User user = new User();
+        user.setId(9L);
+        user.setEmail("jane@example.com");
+        user.setPassword("encoded-old");
+        ChangePasswordRequest request = new ChangePasswordRequest("", "new-pass", "new-pass", "0000");
+
+        doThrow(new BadRequestException("Invalid OTP"))
+                .when(otpService).verify(AuthOtpCode.PURPOSE_PASSWORD_CHANGE, "jane@example.com", "0000");
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> userService.changePassword(user, request));
+        assertEquals("Invalid OTP", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
 }

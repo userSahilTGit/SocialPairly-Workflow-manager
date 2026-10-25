@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.ChangePasswordRequest;
 import com.SocialPairly_Workflow_Manager.dto.DeleteAccountRequest;
+import com.SocialPairly_Workflow_Manager.dto.PasswordOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.UpdatePhoneRequest;
 import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
@@ -71,6 +72,30 @@ public class UserController {
         User user = currentUserService.getCurrentUser();
         log.info("Change password request for userId={}", user.getId());
         return ResponseEntity.ok(userService.changePassword(user, request));
+    }
+
+    @PostMapping("/me/password/send-otp")
+    public ResponseEntity<Map<String, String>> sendPasswordChangeOtp(HttpServletRequest httpRequest) {
+        User user = currentUserService.getCurrentUser();
+        log.info("Send password-change OTP for userId={}", user.getId());
+        authRateLimitService.check(
+                AuthRateLimitService.ACTION_PASSWORD_CHANGE_SEND_OTP,
+                clientIp(httpRequest),
+                String.valueOf(user.getId()));
+        return ResponseEntity.ok(userService.sendPasswordChangeOtp(user));
+    }
+
+    @PostMapping("/me/password/verify-otp")
+    public ResponseEntity<Map<String, String>> verifyPasswordChangeOtp(
+            @Valid @RequestBody PasswordOtpRequest request,
+            HttpServletRequest httpRequest) {
+        User user = currentUserService.getCurrentUser();
+        log.info("Verify password-change OTP for userId={}", user.getId());
+        authRateLimitService.check(
+                AuthRateLimitService.ACTION_PASSWORD_CHANGE_VERIFY_OTP,
+                clientIp(httpRequest),
+                String.valueOf(user.getId()));
+        return ResponseEntity.ok(userService.verifyPasswordChangeOtp(user, request.otp()));
     }
 
     @PostMapping("/me/delete/send-otp")

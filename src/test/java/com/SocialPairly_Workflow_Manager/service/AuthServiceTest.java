@@ -186,6 +186,7 @@ class AuthServiceTest {
         assertFalse(savedUser.isMarketingConsent());
         assertNotNull(savedUser.getProfile());
         assertEquals("STEP_1_ACCOUNT", savedUser.getProfile().getOnboardingStep());
+        verify(emailService).sendPlanPromotionEmail(savedUser);
     }
 
     @Test

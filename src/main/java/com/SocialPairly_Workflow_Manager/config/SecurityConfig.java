@@ -3,6 +3,7 @@ package com.SocialPairly_Workflow_Manager.config;
 import com.SocialPairly_Workflow_Manager.security.CookieSessionCsrfRequestMatcher;
 import com.SocialPairly_Workflow_Manager.security.JwtAuthenticationFilter;
 import com.SocialPairly_Workflow_Manager.security.SpaCsrfTokenRequestHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,7 +46,27 @@ public class SecurityConfig {
     private final boolean csrfEnabled;
     private final boolean authCookieSecure;
     private final String additionalCorsOrigins;
+    private final int frontendPort;
 
+    /**
+     * Unit tests construct the shorter overload and do not load ports.properties.
+     * The running app injects {@code app.frontend.port} from that file.
+     */
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            String authCookieName,
+            boolean requireHttps,
+            boolean hstsEnabled,
+            long hstsMaxAgeSeconds,
+            boolean csrfEnabled,
+            boolean authCookieSecure,
+            String additionalCorsOrigins
+    ) {
+        this(jwtAuthenticationFilter, authCookieName, requireHttps, hstsEnabled, hstsMaxAgeSeconds,
+                csrfEnabled, authCookieSecure, additionalCorsOrigins, 3001);
+    }
+
+    @Autowired
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             @Value("${app.auth.cookie.name:SP_AUTH}") String authCookieName,
@@ -54,7 +75,8 @@ public class SecurityConfig {
             @Value("${app.security.hsts-max-age-seconds:31536000}") long hstsMaxAgeSeconds,
             @Value("${app.security.csrf.enabled:true}") boolean csrfEnabled,
             @Value("${app.auth.cookie.secure:false}") boolean authCookieSecure,
-            @Value("${app.security.cors.additional-origins:}") String additionalCorsOrigins
+            @Value("${app.security.cors.additional-origins:}") String additionalCorsOrigins,
+            @Value("${app.frontend.port:3001}") int frontendPort
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authCookieName = authCookieName;
@@ -64,6 +86,7 @@ public class SecurityConfig {
         this.csrfEnabled = csrfEnabled;
         this.authCookieSecure = authCookieSecure;
         this.additionalCorsOrigins = additionalCorsOrigins == null ? "" : additionalCorsOrigins;
+        this.frontendPort = frontendPort;
     }
 
     @Bean
@@ -167,6 +190,7 @@ public class SecurityConfig {
                 "https://socialpairly.com",
                 "http://socialpairly.com"
         ));
+        addConfiguredFrontendOrigin(origins, frontendPort);
         origins.addAll(parseAdditionalOrigins(additionalCorsOrigins));
         config.setAllowedOrigins(origins);
         // Local Vite any port; EC2 IP any port; production domain (http/https, www optional)
@@ -277,6 +301,23 @@ public class SecurityConfig {
                     ? request.getScheme()
                     : forwardedProto.split(",")[0].trim();
             return uri.getHost().equalsIgnoreCase(host) && uri.getScheme().equalsIgnoreCase(scheme);
+        }
+    }
+
+    /**
+     * Always allow the UI port from ports.properties, including a port that is
+     * not in the historical localhost list above. Wildcard patterns also allow
+     * any localhost / 127.0.0.1 port.
+     */
+    private static void addConfiguredFrontendOrigin(List<String> origins, int port) {
+        if (port <= 0 || port > 65535) {
+            return;
+        }
+        for (String host : List.of("localhost", "127.0.0.1")) {
+            String origin = "http://" + host + ":" + port;
+            if (!origins.contains(origin)) {
+                origins.add(origin);
+            }
         }
     }
 

@@ -169,6 +169,11 @@ public class AuthService {
         } catch (MessagingException e) {
             log.warn("Failed to send email verification OTP to {}: {}", LogMasker.email(saved.getEmail()), e.getMessage());
         }
+        try {
+            emailService.sendPlanPromotionEmail(saved);
+        } catch (Exception mailEx) {
+            log.warn("Plan promotion email failed for {}: {}", LogMasker.email(saved.getEmail()), mailEx.getMessage());
+        }
         // Phone SMS is handled by Firebase on the client (optional verification)
 
         String token = jwtUtil.generateToken(saved.getEmail(), false);
@@ -360,6 +365,11 @@ public class AuthService {
                         emailService.sendWelcomeEmail(saved);
                     } catch (Exception mailEx) {
                         log.warn("Welcome email failed for google user {}: {}", LogMasker.email(normalizedEmail), mailEx.getMessage());
+                    }
+                    try {
+                        emailService.sendPlanPromotionEmail(saved);
+                    } catch (Exception mailEx) {
+                        log.warn("Plan promotion email failed for google user {}: {}", LogMasker.email(normalizedEmail), mailEx.getMessage());
                     }
                     return saved;
                 });
