@@ -38,5 +38,7 @@ build/
 src/main/resources/application-local.properties
 src/main/resources/firebase-service-account.json
 config/firebase-service-account.json
+config/application-preprod.properties
+config/application-prod.properties
 hs_err_pid*.log
 *.mdmp

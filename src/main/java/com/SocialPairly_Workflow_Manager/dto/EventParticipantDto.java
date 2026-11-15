@@ -1,15 +1,11 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
-import com.SocialPairly_Workflow_Manager.entity.EventDetail;
 import com.SocialPairly_Workflow_Manager.entity.EventParticipant;
-import com.SocialPairly_Workflow_Manager.entity.EventStatus;
 import com.SocialPairly_Workflow_Manager.entity.RsvpStatus;
 import com.SocialPairly_Workflow_Manager.entity.VerificationStatus;
+import com.SocialPairly_Workflow_Manager.util.MediaUrls;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.List;
 
 public record EventParticipantDto(
         Long id,
@@ -31,7 +27,7 @@ public record EventParticipantDto(
         String displayName = buildDisplayName(user.getPreferredName(), user.getFirstName(), user.getLastName());
         String gender = profile != null ? profile.getGender() : null;
         String occupation = profile != null ? profile.getOccupation() : null;
-        String photoUrl = profile != null ? profile.getProfilePhotoUrl() : null;
+        String photoUrl = MediaUrls.usableProfilePhotoUrl(profile != null ? profile.getProfilePhotoUrl() : null);
         String participantCode = eventCode + "-" + user.getId();
 
         return new EventParticipantDto(

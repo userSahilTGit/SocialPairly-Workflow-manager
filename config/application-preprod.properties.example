@@ -1,0 +1,8 @@
+# Copy to config/application-preprod.properties (gitignored) on the pre-prod host,
+# or set the same values as STRIPE_* environment variables (see .env.example).
+# Spring Boot loads ./config/application-preprod.properties ahead of the classpath
+# file when app.preprod-flag=true.
+
+stripe.secretKey=sk_test_replace_me
+stripe.publiableKey=pk_test_replace_me
+stripe.webhookSecret=whsec_replace_me

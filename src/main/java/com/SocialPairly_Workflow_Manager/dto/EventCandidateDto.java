@@ -5,6 +5,7 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserIdentityBackground;
 import com.SocialPairly_Workflow_Manager.entity.UserLifeProfile;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
+import com.SocialPairly_Workflow_Manager.util.MediaUrls;
 
 import java.time.LocalDate;
 import java.time.Period;
@@ -52,7 +53,7 @@ public record EventCandidateDto(
 
         String stateRegion = identity != null ? identity.getStateRegion() : null;
         String maritalStatus = life != null ? life.getMaritalStatus() : null;
-        String photoUrl = profile != null ? profile.getProfilePhotoUrl() : null;
+        String photoUrl = MediaUrls.usableProfilePhotoUrl(profile != null ? profile.getProfilePhotoUrl() : null);
 
         return new EventCandidateDto(
                 user.getId(),
