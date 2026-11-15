@@ -2,6 +2,7 @@ package com.SocialPairly_Workflow_Manager.dto;
 
 import com.SocialPairly_Workflow_Manager.entity.Education;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
+import com.SocialPairly_Workflow_Manager.util.MediaUrls;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,7 +36,7 @@ public record ProfileDto(
 
         return new ProfileDto(
             profile.getId(),
-            profile.getProfilePhotoUrl(),
+            MediaUrls.usableProfilePhotoUrl(profile.getProfilePhotoUrl()),
             profile.getAboutMe(),
             profile.getOccupation(),
             profile.getLifestyle(),

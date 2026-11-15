@@ -76,7 +76,7 @@ class AuthControllerTest {
     private static UserDto sampleUserDto(long id, String firstName, String lastName, String email) {
         return new UserDto(
                 id, firstName, lastName, null, firstName, email, "1234567", "London",
-                null, false, false, false, false, false, false, false, false, false, null, false, "", 0);
+                null, false, false, false, false, false, false, false, false, false, null, false, "", 0, null);
     }
 
     @Test

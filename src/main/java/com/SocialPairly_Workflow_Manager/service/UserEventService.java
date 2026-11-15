@@ -21,6 +21,7 @@ import com.SocialPairly_Workflow_Manager.entity.UserPersonalityProfile;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.util.MediaUrls;
 import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
 import com.SocialPairly_Workflow_Manager.repository.EventReactionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserIdentityBackgroundRepository;
@@ -259,8 +260,9 @@ public class UserEventService {
                 .stream()
                 .map(MediaUploadResponseDto::getMediaUrl)
                 .toList();
-        if (mediaUrls.isEmpty() && profile != null && profile.getProfilePhotoUrl() != null) {
-            mediaUrls = List.of(profile.getProfilePhotoUrl());
+        String fallbackPhoto = MediaUrls.usableProfilePhotoUrl(profile != null ? profile.getProfilePhotoUrl() : null);
+        if (mediaUrls.isEmpty() && fallbackPhoto != null) {
+            mediaUrls = List.of(fallbackPhoto);
         }
 
         List<String> sentReactions = myReactions.stream()
@@ -295,7 +297,7 @@ public class UserEventService {
     private EventMemberPreviewDto toMemberPreview(EventParticipant participant) {
         User user = participant.getUser();
         UserProfile profile = user.getProfile();
-        String photo = profile != null ? profile.getProfilePhotoUrl() : null;
+        String photo = MediaUrls.usableProfilePhotoUrl(profile != null ? profile.getProfilePhotoUrl() : null);
         String name = displayName(user);
         String initial = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase();
         return new EventMemberPreviewDto(user.getId(), photo, initial);

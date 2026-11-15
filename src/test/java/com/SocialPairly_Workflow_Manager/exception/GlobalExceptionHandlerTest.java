@@ -2,12 +2,14 @@ package com.SocialPairly_Workflow_Manager.exception;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 
@@ -91,6 +93,16 @@ class GlobalExceptionHandlerTest {
         @SuppressWarnings("unchecked")
         Map<String, String> fields = (Map<String, String>) resp.getBody().get("fields");
         assertEquals("must not be blank", fields.get("caption"));
+    }
+
+    @Test
+    @DisplayName("NoResourceFoundException -> quiet 404")
+    void noStaticResource() {
+        ResponseEntity<Map<String, Object>> resp =
+                handler.handleNoResourceFound(new NoResourceFoundException(HttpMethod.GET, "missing.jpg"));
+        assertEquals(HttpStatus.NOT_FOUND, resp.getStatusCode());
+        assertEquals("Resource not found", resp.getBody().get("message"));
+        assertEquals(404, resp.getBody().get("status"));
     }
 
     @Test

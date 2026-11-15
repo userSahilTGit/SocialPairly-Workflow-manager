@@ -6,6 +6,8 @@ import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.LocalDateTime;
+
 public record UserDto(
     Long id,
     String firstName,
@@ -28,7 +30,8 @@ public record UserDto(
     String onboardingStep,
     boolean identityPage1Complete,
     String subscriptionDetails,
-    int userTokens
+    int userTokens,
+    LocalDateTime createdAt
 ) {
     public static UserDto from(User u) {
         UserProfile profile = null;
@@ -74,7 +77,8 @@ public record UserDto(
             onboardingStep,
             identityComplete,
             "",
-            u.getUserTokens()
+            u.getUserTokens(),
+            u.getCreatedAt()
         );
     }
 
@@ -102,7 +106,8 @@ public record UserDto(
             base.onboardingStep(),
             base.identityPage1Complete(),
             subscribed ? "Subscribed" : "Unsubscribed",
-            base.userTokens()
+            base.userTokens(),
+            base.createdAt()
         );
     }
 }

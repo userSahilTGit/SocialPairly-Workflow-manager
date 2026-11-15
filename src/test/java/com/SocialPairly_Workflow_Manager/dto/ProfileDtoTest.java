@@ -48,7 +48,8 @@ class ProfileDtoTest {
 
         assertNotNull(dto);
         assertEquals(42L, dto.id());
-        assertEquals("/uploads/avatar.png", dto.profilePhotoUrl());
+        // Legacy disk paths are omitted so clients do not request missing /uploads files
+        assertNull(dto.profilePhotoUrl());
         assertEquals("Hello", dto.aboutMe());
         assertEquals("Designer", dto.occupation());
         assertEquals("Creative", dto.lifestyle());
