@@ -37,17 +37,20 @@ public class AdminService {
     private final UserAnswerRepository answerRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentRepository paymentRepository;
+    private final EmployeeAccessService employeeAccessService;
 
     public AdminService(UserRepository userRepository,
                         QuestionRepository questionRepository,
                         UserAnswerRepository answerRepository,
                         SubscriptionRepository subscriptionRepository,
-                        PaymentRepository paymentRepository) {
+                        PaymentRepository paymentRepository,
+                        EmployeeAccessService employeeAccessService) {
         this.userRepository = userRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
+        this.employeeAccessService = employeeAccessService;
     }
 
     public List<UserDto> listUsers() {
@@ -56,7 +59,8 @@ public class AdminService {
                 subscriptionRepository.findActiveSubscribedUserIds(LocalDateTime.now())
         );
         return userRepository.findAll().stream()
-                .map(user -> UserDto.from(user, subscribedUserIds.contains(user.getId())))
+                .map(user -> employeeAccessService.enrich(
+                        UserDto.from(user, subscribedUserIds.contains(user.getId()))))
                 .collect(Collectors.toList());
     }
 

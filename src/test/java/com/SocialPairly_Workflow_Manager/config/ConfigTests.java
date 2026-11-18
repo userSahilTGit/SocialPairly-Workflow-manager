@@ -4,7 +4,9 @@ import com.SocialPairly_Workflow_Manager.entity.Question;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import com.SocialPairly_Workflow_Manager.security.DashboardAccessInterceptor;
 import com.SocialPairly_Workflow_Manager.security.JwtAuthenticationFilter;
+import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +41,9 @@ class ConfigTests {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private DataInitializer dataInitializer;
 
@@ -56,6 +61,7 @@ class ConfigTests {
         dataInitializer.run();
 
         verify(userRepository).save(any(User.class));
+        verify(employeeAccessService).ensureSeedSuperAdmin(any(User.class));
         verify(questionRepository, times(3)).save(any(Question.class));
     }
 
@@ -112,7 +118,7 @@ class ConfigTests {
 
     @Test
     void webConfigShouldRegisterUploadsResourceHandler() {
-        WebConfig webConfig = new WebConfig();
+        WebConfig webConfig = new WebConfig(mock(DashboardAccessInterceptor.class));
         ReflectionTestUtils.setField(webConfig, "uploadDir", "uploads");
 
         ResourceHandlerRegistry registry = mock(ResourceHandlerRegistry.class);

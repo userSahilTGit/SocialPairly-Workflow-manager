@@ -59,6 +59,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("ForbiddenException -> 403 with message")
+    void forbidden() {
+        ResponseEntity<Map<String, Object>> resp =
+                handler.handleForbidden(new ForbiddenException("No dashboard access"));
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
+        assertEquals("No dashboard access", resp.getBody().get("message"));
+        assertEquals(403, resp.getBody().get("status"));
+    }
+
+    @Test
     @DisplayName("AccountSecurityException -> status + code + message")
     void accountSecurity() {
         AccountSecurityException ex = new AccountSecurityException(
