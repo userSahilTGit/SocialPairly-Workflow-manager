@@ -4,6 +4,7 @@ import com.SocialPairly_Workflow_Manager.dto.PlanDto;
 import com.SocialPairly_Workflow_Manager.dto.PlanRequest;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.security.JwtAuthenticationFilter;
+import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import com.SocialPairly_Workflow_Manager.service.PlanService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,9 @@ class PlanControllerTest {
 
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private EmployeeAccessService employeeAccessService;
 
     private PlanDto buildSampleDto(Long id, String name, String type, int days, BigDecimal amount, boolean active) {
         return new PlanDto(

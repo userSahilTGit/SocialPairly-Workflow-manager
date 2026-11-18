@@ -82,6 +82,9 @@ class DtoBranchCoverageTest {
 
         assertEquals("Subscribed", UserDto.from(user, true).subscriptionDetails());
         assertEquals("Unsubscribed", UserDto.from(user, false).subscriptionDetails());
+        assertNull(UserDto.from(user).employeeRole());
+        assertTrue(UserDto.from(user).allowedDashboards().isEmpty());
+        assertEquals("ADMIN", UserDto.from(user).withEmployeeAccess("ADMIN", java.util.List.of("DASHBOARD")).employeeRole());
     }
 
     @Test

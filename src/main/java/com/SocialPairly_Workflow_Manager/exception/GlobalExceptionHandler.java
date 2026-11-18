@@ -42,6 +42,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(AccountSecurityException.class)
     public ResponseEntity<Map<String, Object>> handleAccountSecurity(AccountSecurityException ex) {
         Map<String, Object> body = baseBody(ex.getStatus(), ex.getMessage());

@@ -5,6 +5,7 @@ import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordSendOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordVerifyOtpRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
+import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
@@ -69,6 +70,9 @@ class AuthServiceCoverageTest {
     @Mock
     private LoginAccountSecurityService loginAccountSecurityService;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -77,6 +81,12 @@ class AuthServiceCoverageTest {
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
         lenient().doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
         lenient().doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
+        lenient().when(employeeAccessService.applyEmployeeAccessOnAuth(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(employeeAccessService.toEnrichedDto(any(User.class)))
+                .thenAnswer(invocation -> UserDto.from(invocation.getArgument(0)));
+        lenient().when(employeeAccessService.toEnrichedDto(any(User.class), any()))
+                .thenAnswer(invocation -> UserDto.from(invocation.getArgument(0), invocation.getArgument(1)));
     }
 
     @Test

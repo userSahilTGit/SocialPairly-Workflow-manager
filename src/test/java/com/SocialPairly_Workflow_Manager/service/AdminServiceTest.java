@@ -42,6 +42,9 @@ class AdminServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private AdminService adminService;
 

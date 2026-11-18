@@ -10,6 +10,7 @@ import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.CurrentUserService;
+import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
 import com.SocialPairly_Workflow_Manager.service.UserService;
 import com.SocialPairly_Workflow_Manager.service.UserTokenService;
@@ -33,6 +34,7 @@ public class UserController {
     private final SubscriptionService subscriptionService;
     private final UserTokenService userTokenService;
     private final AuthRateLimitService authRateLimitService;
+    private final EmployeeAccessService employeeAccessService;
 
     public UserController(
             CurrentUserService currentUserService,
@@ -40,7 +42,8 @@ public class UserController {
             UserProfileRepository userProfileRepository,
             SubscriptionService subscriptionService,
             UserTokenService userTokenService,
-            AuthRateLimitService authRateLimitService
+            AuthRateLimitService authRateLimitService,
+            EmployeeAccessService employeeAccessService
     ) {
         this.currentUserService = currentUserService;
         this.userService = userService;
@@ -48,6 +51,7 @@ public class UserController {
         this.subscriptionService = subscriptionService;
         this.userTokenService = userTokenService;
         this.authRateLimitService = authRateLimitService;
+        this.employeeAccessService = employeeAccessService;
     }
 
     @GetMapping("/me")
@@ -56,8 +60,9 @@ public class UserController {
         subscriptionService.findPrimaryActiveSubscription(user.getId())
                 .ifPresent(sub -> userTokenService.ensureSubscriptionTokensCredited(user, sub));
         log.debug("Fetching current user profile for userId={}", user.getId());
-        UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
-        return ResponseEntity.ok(UserDto.from(user, profile));
+        User resolved = employeeAccessService.applyEmployeeAccessOnAuth(user);
+        UserProfile profile = userProfileRepository.findByUserId(resolved.getId()).orElse(null);
+        return ResponseEntity.ok(employeeAccessService.toEnrichedDto(resolved, profile));
     }
 
     @PutMapping("/me/phone")

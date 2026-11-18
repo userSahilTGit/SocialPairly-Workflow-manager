@@ -7,6 +7,7 @@ import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record UserDto(
     Long id,
@@ -31,7 +32,9 @@ public record UserDto(
     boolean identityPage1Complete,
     String subscriptionDetails,
     int userTokens,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String employeeRole,
+    List<String> allowedDashboards
 ) {
     public static UserDto from(User u) {
         UserProfile profile = null;
@@ -78,7 +81,9 @@ public record UserDto(
             identityComplete,
             "",
             u.getUserTokens(),
-            u.getCreatedAt()
+            u.getCreatedAt(),
+            null,
+            List.of()
         );
     }
 
@@ -107,7 +112,39 @@ public record UserDto(
             base.identityPage1Complete(),
             subscribed ? "Subscribed" : "Unsubscribed",
             base.userTokens(),
-            base.createdAt()
+            base.createdAt(),
+            base.employeeRole(),
+            base.allowedDashboards()
+        );
+    }
+
+    public UserDto withEmployeeAccess(String employeeRole, List<String> allowedDashboards) {
+        return new UserDto(
+            id,
+            firstName,
+            lastName,
+            preferredName,
+            displayName,
+            email,
+            phoneNumber,
+            address,
+            role,
+            profileCompleted,
+            verified,
+            phoneVerified,
+            emailVerified,
+            is18OrOlder,
+            termsAccepted,
+            privacyAccepted,
+            identityConsent,
+            marketingConsent,
+            onboardingStep,
+            identityPage1Complete,
+            subscriptionDetails,
+            userTokens,
+            createdAt,
+            employeeRole,
+            allowedDashboards == null ? List.of() : List.copyOf(allowedDashboards)
         );
     }
 }

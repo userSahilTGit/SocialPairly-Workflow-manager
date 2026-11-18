@@ -7,6 +7,7 @@ import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
+import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
 import com.SocialPairly_Workflow_Manager.service.UserService;
 import com.SocialPairly_Workflow_Manager.service.UserTokenService;
@@ -43,6 +44,9 @@ class UserControllerAdditionalTest {
     @Mock
     private UserTokenService userTokenService;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private UserController userController;
 
@@ -56,6 +60,10 @@ class UserControllerAdditionalTest {
         user.setFirstName("Test");
         user.setLastName("User");
         when(currentUserService.getCurrentUser()).thenReturn(user);
+        lenient().when(employeeAccessService.applyEmployeeAccessOnAuth(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(employeeAccessService.toEnrichedDto(any(User.class), any()))
+                .thenAnswer(invocation -> UserDto.from(invocation.getArgument(0), invocation.getArgument(1)));
     }
 
     @Test

@@ -54,6 +54,7 @@ public class AuthService {
     private final UserService userService;
     private final EmailService emailService;
     private final LoginAccountSecurityService loginAccountSecurityService;
+    private final EmployeeAccessService employeeAccessService;
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -67,7 +68,8 @@ public class AuthService {
                        OtpService otpService,
                        UserService userService,
                        EmailService emailService,
-                       LoginAccountSecurityService loginAccountSecurityService) {
+                       LoginAccountSecurityService loginAccountSecurityService,
+                       EmployeeAccessService employeeAccessService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.refCountryRepository = refCountryRepository;
@@ -78,6 +80,7 @@ public class AuthService {
         this.userService = userService;
         this.emailService = emailService;
         this.loginAccountSecurityService = loginAccountSecurityService;
+        this.employeeAccessService = employeeAccessService;
     }
 
     /** Worldwide ISO countries with dialing codes for signup/signin dropdowns (BUG-1570). */
@@ -160,6 +163,7 @@ public class AuthService {
         user.setProfile(profile);
 
         User saved = userRepository.save(user);
+        saved = employeeAccessService.applyEmployeeAccessOnAuth(saved);
 
         String emailOtp = otpService.generateAndStore(
                 com.SocialPairly_Workflow_Manager.entity.AuthOtpCode.PURPOSE_EMAIL_VERIFY,
@@ -177,7 +181,7 @@ public class AuthService {
         // Phone SMS is handled by Firebase on the client (optional verification)
 
         String token = jwtUtil.generateToken(saved.getEmail(), false);
-        return new AuthResponse(token, UserDto.from(saved));
+        return new AuthResponse(token, employeeAccessService.toEnrichedDto(saved));
     }
 
     @Transactional
@@ -237,7 +241,7 @@ public class AuthService {
             log.info("Firebase phone verified for userId={} phone={}", currentUser.getId(), LogMasker.phone(phoneE164));
             return Map.of(
                     "message", "Phone verified successfully",
-                    "user", UserDto.from(currentUser)
+                    "user", employeeAccessService.toEnrichedDto(currentUser)
             );
         } catch (FirebaseAuthException e) {
             log.warn("Firebase idToken verification failed: {}", e.getMessage());
@@ -318,9 +322,11 @@ public class AuthService {
 
         loginAccountSecurityService.recordSuccessfulLogin(user, identifier, clientIp);
 
+        user = employeeAccessService.applyEmployeeAccessOnAuth(user);
+
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
         String token = jwtUtil.generateToken(user.getEmail(), rememberMe);
-        return new AuthResponse(token, UserDto.from(user));
+        return new AuthResponse(token, employeeAccessService.toEnrichedDto(user));
     }
 
     @Transactional
@@ -371,7 +377,7 @@ public class AuthService {
                     } catch (Exception mailEx) {
                         log.warn("Plan promotion email failed for google user {}: {}", LogMasker.email(normalizedEmail), mailEx.getMessage());
                     }
-                    return saved;
+                    return employeeAccessService.applyEmployeeAccessOnAuth(saved);
                 });
 
         loginAccountSecurityService.assertAccountAllowsLogin(user, normalizedEmail, null);
@@ -381,11 +387,13 @@ public class AuthService {
             userRepository.save(user);
         }
 
+        user = employeeAccessService.applyEmployeeAccessOnAuth(user);
+
         // 3. Generate your local system's secure context token string
         String systemJwtToken = jwtUtil.generateToken(user.getEmail(), rememberMe);
 
         // 4. Return matching traditional AuthResponse block format using your Record/DTO structure
-        return new AuthResponse(systemJwtToken, UserDto.from(user));
+        return new AuthResponse(systemJwtToken, employeeAccessService.toEnrichedDto(user));
     }
 
     /** Unique placeholder so Google/Apple sign-ups do not collide on users_details.phone_number. */

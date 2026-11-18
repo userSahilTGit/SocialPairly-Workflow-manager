@@ -7,6 +7,7 @@ import com.SocialPairly_Workflow_Manager.entity.Role;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.repository.QuestionRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
+import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +21,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmployeeAccessService employeeAccessService;
 
     @Value("${app.admin.email}")
     private String adminEmail;
@@ -29,10 +31,12 @@ public class DataInitializer implements CommandLineRunner {
 
     public DataInitializer(UserRepository userRepository,
                            QuestionRepository questionRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           EmployeeAccessService employeeAccessService) {
         this.userRepository = userRepository;
         this.questionRepository = questionRepository;
         this.passwordEncoder = passwordEncoder;
+        this.employeeAccessService = employeeAccessService;
     }
 
     @Override
@@ -42,21 +46,25 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedAdmin() {
+        User admin;
         if (userRepository.existsByEmail(adminEmail)) {
-            return;
+            admin = userRepository.findByEmail(adminEmail).orElse(null);
+        } else {
+            admin = new User();
+            admin.setFirstName("System");
+            admin.setLastName("Admin");
+            admin.setEmail(adminEmail);
+            admin.setPhoneNumber("0000000000");
+            admin.setPassword(passwordEncoder.encode(adminPassword));
+            admin.setAddress("HQ");
+            admin.setRole(Role.ADMIN);
+            admin.setProfileCompleted(true);
+            admin = userRepository.save(admin);
+            System.out.println(">> Seeded default admin: " + adminEmail + " / " + adminPassword);
         }
-
-        User admin = new User();
-        admin.setFirstName("System");
-        admin.setLastName("Admin");
-        admin.setEmail(adminEmail);
-        admin.setPhoneNumber("0000000000");
-        admin.setPassword(passwordEncoder.encode(adminPassword));
-        admin.setAddress("HQ");
-        admin.setRole(Role.ADMIN);
-        admin.setProfileCompleted(true);
-        userRepository.save(admin);
-        System.out.println(">> Seeded default admin: " + adminEmail + " / " + adminPassword);
+        if (admin != null) {
+            employeeAccessService.ensureSeedSuperAdmin(admin);
+        }
     }
 
     private void seedSampleQuestions() {

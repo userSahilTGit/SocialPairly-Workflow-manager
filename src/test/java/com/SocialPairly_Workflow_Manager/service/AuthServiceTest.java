@@ -4,6 +4,7 @@ import com.SocialPairly_Workflow_Manager.dto.AuthResponse;
 import com.SocialPairly_Workflow_Manager.dto.ForgotPasswordResetRequest;
 import com.SocialPairly_Workflow_Manager.dto.LoginRequest;
 import com.SocialPairly_Workflow_Manager.dto.RegisterRequest;
+import com.SocialPairly_Workflow_Manager.dto.UserDto;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.entity.RefCountry;
@@ -64,16 +65,24 @@ class AuthServiceTest {
     @Mock
     private LoginAccountSecurityService loginAccountSecurityService;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil("01234567890123456789012345678901", 3600000, 2592000000L);
         authService = new AuthService(userRepository, userProfileRepository, refCountryRepository, passwordEncoder,
-                authenticationManager, jwtUtil, otpService, userService, emailService, loginAccountSecurityService);
+                authenticationManager, jwtUtil, otpService, userService, emailService, loginAccountSecurityService,
+                employeeAccessService);
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "defaultCountryCode", "+1");
         lenient().doNothing().when(loginAccountSecurityService).assertAccountAllowsLogin(any(), any(), any());
         lenient().doNothing().when(loginAccountSecurityService).recordSuccessfulLogin(any(), any(), any());
+        lenient().when(employeeAccessService.applyEmployeeAccessOnAuth(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(employeeAccessService.toEnrichedDto(any(User.class)))
+                .thenAnswer(invocation -> UserDto.from(invocation.getArgument(0)));
     }
 
     @Test

@@ -46,6 +46,9 @@ class AdminServiceAdditionalTests {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private AdminService adminService;
 
@@ -61,6 +64,8 @@ class AdminServiceAdditionalTests {
         when(userRepository.findAll()).thenReturn(List.of(user));
         when(subscriptionRepository.findActiveSubscribedUserIds(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(1L));
+        when(employeeAccessService.enrich(org.mockito.ArgumentMatchers.any(UserDto.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         List<UserDto> users = adminService.listUsers();
 

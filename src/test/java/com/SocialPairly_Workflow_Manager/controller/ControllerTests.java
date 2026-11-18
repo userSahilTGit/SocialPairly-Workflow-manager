@@ -89,6 +89,9 @@ class ControllerTests {
     @Mock
     private UserTokenService userTokenService;
 
+    @Mock
+    private EmployeeAccessService employeeAccessService;
+
     @InjectMocks
     private AuthController authController;
 
@@ -108,7 +111,7 @@ class ControllerTests {
     void authControllerShouldDelegateRegistrationAndLogin() {
         RegisterRequest registerRequest = new RegisterRequest("A", "B", null, "a@example.com", "1234567", "password", "password", "addr", true, true, true, true, false);
         LoginRequest loginRequest = new LoginRequest("a@example.com", "password", null);
-        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0, null);
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "1234567", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0, null, null, List.of());
         AuthResponse authResponse = new AuthResponse("token", userDto);
 
         when(authService.register(registerRequest)).thenReturn(authResponse);
@@ -140,7 +143,7 @@ class ControllerTests {
                 List.<AdminStatsDto.CountByLabel>of(),
                 Map.of()
         );
-        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "123", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0, null);
+        UserDto userDto = new UserDto(1L, "A", "B", null, "A", "a@example.com", "123", "addr", null, false, false, false, false, false, false, false, false, false, null, false, "", 0, null, null, List.of());
         Question question = new Question();
         QuestionRequest request = new QuestionRequest("q", null, "cat", true, true, List.of());
 
@@ -231,6 +234,9 @@ class ControllerTests {
         when(currentUserService.getCurrentUser()).thenReturn(user);
         when(subscriptionService.findPrimaryActiveSubscription(2L)).thenReturn(java.util.Optional.empty());
         when(userProfileRepository.findByUserId(2L)).thenReturn(java.util.Optional.empty());
+        when(employeeAccessService.applyEmployeeAccessOnAuth(user)).thenReturn(user);
+        when(employeeAccessService.toEnrichedDto(eq(user), any()))
+                .thenAnswer(invocation -> UserDto.from(invocation.getArgument(0), invocation.getArgument(1)));
 
         when(userService.sendAccountDeleteOtp(user)).thenReturn(Map.of(
                 "message", "Deletion code sent to your email. It is valid for 5 minutes.",

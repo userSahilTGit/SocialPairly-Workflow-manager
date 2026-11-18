@@ -99,6 +99,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/support/contact").permitAll()
                         .requestMatchers("/api/payment/webhook").permitAll()
+                        .requestMatchers("/api/plans/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/plans/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/uploads/**", "/error").permitAll()
