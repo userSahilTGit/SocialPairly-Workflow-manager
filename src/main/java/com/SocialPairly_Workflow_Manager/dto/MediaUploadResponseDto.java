@@ -16,6 +16,7 @@ public class MediaUploadResponseDto {
     private String mediaUrl;
     private MediaType mediaType;
     private Double fileSizeKb;
+    private String contentHash;
     private MediaStatus status;
     private String rejectionReason;
     private String caption;

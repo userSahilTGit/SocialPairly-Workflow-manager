@@ -54,6 +54,9 @@ public class UserService {
 
     private static final int ACCOUNT_DELETE_OTP_TTL_MINUTES = 5;
     private static final int PASSWORD_CHANGE_OTP_TTL_MINUTES = 10;
+    private static final int PHONE_CHANGE_OTP_TTL_MINUTES = 10;
+    public static final String PHONE_CHANGE_VERIFICATION_REQUIRED =
+            "Changing your phone number requires approval. Enter the 4-digit code sent to your email.";
 
     @Value("${app.sms.default-country-code:+91}")
     private String defaultCountryCode;
@@ -232,22 +235,74 @@ public class UserService {
         return Map.of("message", "Password updated successfully");
     }
 
+    /** Email code that approves replacing an already-set phone number. */
+    @Transactional
+    public Map<String, String> sendPhoneChangeOtp(User currentUser) {
+        if (!PhoneNumberNormalizer.isEstablished(currentUser.getPhoneNumber())) {
+            throw new BadRequestException("No phone number is set yet. Add one directly; no approval code is needed.");
+        }
+        if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+            throw new BadRequestException("No email on your account to send a verification code. Contact support to change your number.");
+        }
+        String otp = otpService.generateAndStore(
+                AuthOtpCode.PURPOSE_PHONE_CHANGE,
+                currentUser.getEmail(),
+                PHONE_CHANGE_OTP_TTL_MINUTES);
+        try {
+            emailService.sendPhoneChangeOtpEmail(currentUser, otp, LogMasker.phone(currentUser.getPhoneNumber()));
+        } catch (MessagingException | MailException ex) {
+            log.warn("Failed to send phone-change OTP to {}: {}",
+                    LogMasker.identifier(currentUser.getEmail()), ex.getMessage());
+            throw new BadRequestException("Failed to send verification code. Please try again later.");
+        }
+        log.info("Phone-change OTP sent userId={}", currentUser.getId());
+        return Map.of(
+                "message", "Verification code sent to your email. It is valid for 10 minutes.",
+                "expiresInMinutes", "10"
+        );
+    }
+
     /**
      * Save/change the authenticated user's phone number and mark it unverified.
-     * SMS OTP is sent by Firebase on the client.
+     * The first number can be added freely; replacing an existing number requires the
+     * {@link AuthOtpCode#PURPOSE_PHONE_CHANGE} email code. SMS OTP is sent by Firebase on the client.
      */
     @Transactional
-    public Map<String, Object> updatePhone(User currentUser, String rawPhone) {
+    public Map<String, Object> updatePhone(User currentUser, String rawPhone, String otp) {
         String phoneStorage = normalizePhoneStorageOrThrow(rawPhone);
-        log.info("Updating phone for userId={} to {}", currentUser.getId(), LogMasker.phone(phoneStorage));
+        String current = currentUser.getPhoneNumber();
+
+        if (PhoneNumberNormalizer.sameNumber(current, phoneStorage, defaultCountryCode)) {
+            return Map.of(
+                    "message", "This is already your phone number.",
+                    "user", UserDto.from(currentUser)
+            );
+        }
 
         if (phoneNumberExistsForOtherUser(rawPhone, currentUser.getId())) {
             throw new BadRequestException("This phone number is already registered to another account");
         }
 
+        boolean replacing = PhoneNumberNormalizer.isEstablished(current);
+        if (replacing) {
+            String code = otp == null ? "" : otp.trim();
+            if (!code.matches("\\d{4}")) {
+                throw new BadRequestException(PHONE_CHANGE_VERIFICATION_REQUIRED);
+            }
+            if (currentUser.getEmail() == null || currentUser.getEmail().isBlank()) {
+                throw new BadRequestException("No email on your account to verify this change. Contact support to change your number.");
+            }
+            otpService.verify(AuthOtpCode.PURPOSE_PHONE_CHANGE, currentUser.getEmail(), code);
+        }
+
+        log.info("Updating phone for userId={} from {} to {}", currentUser.getId(),
+                LogMasker.phone(current), LogMasker.phone(phoneStorage));
         currentUser.setPhoneNumber(phoneStorage);
         currentUser.setPhoneVerified(false);
         userRepository.save(currentUser);
+        if (replacing) {
+            otpService.clear(AuthOtpCode.PURPOSE_PHONE_CHANGE, currentUser.getEmail());
+        }
 
         return Map.of(
                 "message", "Phone number saved. Complete Firebase SMS verification to confirm it.",

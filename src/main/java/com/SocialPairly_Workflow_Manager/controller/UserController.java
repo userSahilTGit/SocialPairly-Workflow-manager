@@ -66,10 +66,29 @@ public class UserController {
     }
 
     @PutMapping("/me/phone")
-    public ResponseEntity<Map<String, Object>> updatePhone(@Valid @RequestBody UpdatePhoneRequest request) {
+    public ResponseEntity<Map<String, Object>> updatePhone(
+            @Valid @RequestBody UpdatePhoneRequest request,
+            HttpServletRequest httpRequest) {
         User user = currentUserService.getCurrentUser();
         log.info("Update phone request for userId={}", user.getId());
-        return ResponseEntity.ok(userService.updatePhone(user, request.phoneNumber()));
+        if (request.otp() != null && !request.otp().isBlank()) {
+            authRateLimitService.check(
+                    AuthRateLimitService.ACTION_PHONE_CHANGE_VERIFY,
+                    clientIp(httpRequest),
+                    String.valueOf(user.getId()));
+        }
+        return ResponseEntity.ok(userService.updatePhone(user, request.phoneNumber(), request.otp()));
+    }
+
+    @PostMapping("/me/phone/send-otp")
+    public ResponseEntity<Map<String, String>> sendPhoneChangeOtp(HttpServletRequest httpRequest) {
+        User user = currentUserService.getCurrentUser();
+        log.info("Send phone-change OTP for userId={}", user.getId());
+        authRateLimitService.check(
+                AuthRateLimitService.ACTION_PHONE_CHANGE_SEND_OTP,
+                clientIp(httpRequest),
+                String.valueOf(user.getId()));
+        return ResponseEntity.ok(userService.sendPhoneChangeOtp(user));
     }
 
     @PutMapping("/me/password")

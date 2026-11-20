@@ -33,6 +33,10 @@ public class UserMedia {
     @Column(name = "file_size_kb", nullable = false)
     private Double fileSizeKb;
 
+    /** SHA-256 hex of {@link #mediaData}; null on rows uploaded before duplicate detection. */
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private MediaStatus status;

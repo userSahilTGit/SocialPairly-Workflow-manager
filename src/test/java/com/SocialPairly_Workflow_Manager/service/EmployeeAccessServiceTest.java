@@ -368,6 +368,32 @@ class EmployeeAccessServiceTest {
         assertFalse(updated.canAccess());
     }
 
+    @Test
+    void ensureCustomerSupportDashboardAccessSeedsMissingRolesAndReenables() {
+        when(dashboardAccessRepository.findByRoleCodeAndDashboardKey(anyString(), eq(DashboardKeys.CUSTOMER_SUPPORT)))
+                .thenReturn(Optional.empty());
+        when(dashboardAccessRepository.save(any(RoleDashboardAccess.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.ensureCustomerSupportDashboardAccess();
+
+        verify(dashboardAccessRepository, times(3)).save(argThat(row ->
+                row.getDashboardKey().equals(DashboardKeys.CUSTOMER_SUPPORT) && row.isCanAccess()));
+
+        RoleDashboardAccess disabled = new RoleDashboardAccess();
+        disabled.setRoleCode(EmployeeRoleCodes.ADMIN);
+        disabled.setDashboardKey(DashboardKeys.CUSTOMER_SUPPORT);
+        disabled.setCanAccess(false);
+        when(dashboardAccessRepository.findByRoleCodeAndDashboardKey(EmployeeRoleCodes.SUPER_ADMIN, DashboardKeys.CUSTOMER_SUPPORT))
+                .thenReturn(Optional.of(disabled));
+        when(dashboardAccessRepository.findByRoleCodeAndDashboardKey(EmployeeRoleCodes.ADMIN, DashboardKeys.CUSTOMER_SUPPORT))
+                .thenReturn(Optional.of(disabled));
+        when(dashboardAccessRepository.findByRoleCodeAndDashboardKey(EmployeeRoleCodes.CUSTOMER_SUPPORT, DashboardKeys.CUSTOMER_SUPPORT))
+                .thenReturn(Optional.of(disabled));
+
+        service.ensureCustomerSupportDashboardAccess();
+        verify(dashboardAccessRepository, atLeast(4)).save(any(RoleDashboardAccess.class));
+    }
+
     private void stubSuperAdminAccess() {
         StaffRoleAssignment assignment = new StaffRoleAssignment();
         assignment.setRoleCode(EmployeeRoleCodes.SUPER_ADMIN);

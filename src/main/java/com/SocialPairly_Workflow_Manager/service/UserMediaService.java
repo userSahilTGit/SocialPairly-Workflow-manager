@@ -16,7 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -70,6 +73,12 @@ public class UserMediaService {
 
         try {
             byte[] fileBytes = file.getBytes();
+            String contentHash = sha256Hex(fileBytes);
+            if (isDuplicateOfExisting(existing, contentHash)) {
+                throw new BadRequestException(mediaType == MediaType.VIDEO
+                        ? "This video is already in your media library. Duplicate uploads are not allowed."
+                        : "This photo is already in your media library. Duplicate uploads are not allowed.");
+            }
 
             // 👈 Moderation (Step 3) — zero-cost hybrid approach:
             // 1. Text/handle filter: pure Java regex (always active, $0)
@@ -85,6 +94,7 @@ public class UserMediaService {
                     .mediaData(fileBytes) // 👈 Directly save file bytes into MySQL LONGBLOB
                     .mediaType(mediaType)
                     .fileSizeKb(fileSizeKb)
+                    .contentHash(contentHash)
                     .status(initialStatus)
                     .isCover(photoCount == 0 && mediaType == MediaType.PHOTO) // 👈 First photo becomes the cover
                     .mediaCategory(mediaType == MediaType.PHOTO ? "FULL_LENGTH" : null) // 👈 Auto-assign photos to FULL_LENGTH category
@@ -343,6 +353,7 @@ public class UserMediaService {
                 .mediaUrl("/api/media/" + media.getId() + "/stream")
                 .mediaType(media.getMediaType())
                 .fileSizeKb(media.getFileSizeKb())
+                .contentHash(media.getContentHash())
                 .status(media.getStatus())
                 .rejectionReason(media.getRejectionReason())
                 .caption(media.getCaption())
@@ -354,6 +365,34 @@ public class UserMediaService {
                 .requiresAccessApproval(media.getRequiresAccessApproval())
                 .createdAt(media.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Compares against stored hashes. Legacy rows without a hash are hashed from their
+     * bytes once and backfilled so later uploads skip the re-read.
+     */
+    private boolean isDuplicateOfExisting(List<UserMedia> existing, String contentHash) {
+        for (UserMedia media : existing) {
+            String stored = media.getContentHash();
+            if (stored == null && media.getMediaData() != null) {
+                stored = sha256Hex(media.getMediaData());
+                media.setContentHash(stored);
+                userMediaRepository.save(media);
+            }
+            if (contentHash.equals(stored)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String sha256Hex(byte[] data) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /** Display name for admin moderation grouping / search. */

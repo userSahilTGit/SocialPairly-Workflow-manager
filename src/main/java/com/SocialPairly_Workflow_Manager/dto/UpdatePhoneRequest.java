@@ -6,5 +6,11 @@ import jakarta.validation.constraints.Size;
 public record UpdatePhoneRequest(
     @NotBlank(message = "Phone number is required")
     @Size(min = 7, max = 20, message = "Phone number must be between 7 and 20 characters")
-    String phoneNumber
-) {}
+    String phoneNumber,
+    /** Email code from {@code POST /api/users/me/phone/send-otp}; required to replace an existing number. */
+    String otp
+) {
+    public UpdatePhoneRequest(String phoneNumber) {
+        this(phoneNumber, null);
+    }
+}

@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -193,6 +194,131 @@ class IdentityOnboardingServiceTest {
         service.saveIdentity(user, req);
         assertEquals("Ada", user.getFirstName());
         assertEquals("Addie", user.getPreferredName());
+    }
+
+    private static IdentityBackgroundRequest nameOnlyRequest(String first, String middle, String last) {
+        return new IdentityBackgroundRequest(
+                IdentityOnboardingService.ACTION_SAVE_LATER,
+                null, first, middle, last, null, null,
+                null, null, null, null,
+                null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void legalNameFirstChangeIsAllowedAndRecorded() {
+        user.setFirstName("Ada");
+        user.setMiddleName(null);
+        user.setLastName("Lovelace");
+
+        var res = service.saveIdentity(user, nameOnlyRequest("Augusta", "Ada", "King"));
+
+        assertEquals("Augusta", user.getFirstName());
+        assertEquals("Ada", user.getMiddleName());
+        assertEquals("King", user.getLastName());
+        assertTrue(user.isLegalNameChangeUsed());
+        assertNotNull(user.getLegalNameChangedAt());
+        assertTrue(res.legalNameChangeUsed());
+    }
+
+    @Test
+    void legalNameSecondChangeIsRejected() {
+        user.setFirstName("Augusta");
+        user.setMiddleName("Ada");
+        user.setLastName("King");
+        user.setLegalNameChangeUsed(true);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> service.saveIdentity(user, nameOnlyRequest("Augusta", null, "King")));
+
+        assertEquals(IdentityOnboardingService.LEGAL_NAME_LOCKED_MESSAGE, ex.getMessage());
+        assertEquals("Ada", user.getMiddleName());
+    }
+
+    @Test
+    void legalNameUnchangedResaveAllowedAfterLock() {
+        user.setFirstName("Augusta");
+        user.setMiddleName("Ada");
+        user.setLastName("King");
+        user.setLegalNameChangeUsed(true);
+
+        assertDoesNotThrow(() -> service.saveIdentity(user, nameOnlyRequest(" Augusta ", "Ada", "King")));
+        assertEquals("Augusta", user.getFirstName());
+    }
+
+    private static IdentityBackgroundRequest primaryPhoneRequest(String primaryPhone) {
+        return new IdentityBackgroundRequest(
+                IdentityOnboardingService.ACTION_SAVE_LATER,
+                null, "Ada", null, "Lovelace", null, null,
+                null, null, null, null,
+                null, primaryPhone, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void primaryPhoneCannotReplaceEstablishedNumberFromIdentityForm() {
+        user.setPhoneVerified(true);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> service.saveIdentity(user, primaryPhoneRequest("9123456789")));
+
+        assertEquals(IdentityOnboardingService.PRIMARY_PHONE_LOCKED_MESSAGE, ex.getMessage());
+        assertEquals("+919876543210", user.getPhoneNumber());
+        assertTrue(user.isPhoneVerified());
+    }
+
+    @Test
+    void primaryPhoneSameNumberInOtherFormatKeepsVerification() {
+        user.setPhoneVerified(true);
+
+        assertDoesNotThrow(() -> service.saveIdentity(user, primaryPhoneRequest("+91-9876543210")));
+
+        assertEquals("+919876543210", user.getPhoneNumber());
+        assertTrue(user.isPhoneVerified());
+    }
+
+    @Test
+    void primaryPhoneCanBeAddedWhenOnlyPlaceholderExists() {
+        user.setPhoneNumber("oauth:1a2b3c");
+
+        service.saveIdentity(user, primaryPhoneRequest("9123456789"));
+
+        assertEquals("+91-9123456789", user.getPhoneNumber());
+        assertFalse(user.isPhoneVerified());
+    }
+
+    @Test
+    void citizenResidencyRequiresMatchingNationality() {
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                        "US", "CITIZEN", null, Set.of("IN")));
+        assertTrue(ex.getMessage().contains("Citizen"));
+        assertDoesNotThrow(() -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                "US", "CITIZEN", "NO", Set.of("IN", "US")));
+    }
+
+    @Test
+    void nonCitizenResidencyRejectedWhenHoldingResidenceNationality() {
+        assertThrows(BadRequestException.class,
+                () -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                        "IN", "WORK_AUTHORIZED", null, Set.of("IN")));
+        assertDoesNotThrow(() -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                "US", "WORK_AUTHORIZED", "YES", Set.of("IN")));
+    }
+
+    @Test
+    void citizenCannotRequireSponsorship() {
+        assertThrows(BadRequestException.class,
+                () -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                        null, "CITIZEN", "YES", Set.of()));
+    }
+
+    @Test
+    void consistencySkippedWhenNoNationalityOrPreferNotToSay() {
+        assertDoesNotThrow(() -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                "US", "CITIZEN", null, Set.of()));
+        assertDoesNotThrow(() -> IdentityOnboardingService.validateNationalityImmigrationConsistency(
+                "US", "PREFER_NOT_TO_SAY", "YES", Set.of("US")));
     }
 
     @Test

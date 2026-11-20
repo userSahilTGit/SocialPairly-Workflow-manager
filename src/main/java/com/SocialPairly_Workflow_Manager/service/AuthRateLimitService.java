@@ -26,6 +26,8 @@ public class AuthRateLimitService {
     public static final String ACTION_DELETE_VERIFY = "delete-verify";
     public static final String ACTION_PASSWORD_CHANGE_SEND_OTP = "password-change-send-otp";
     public static final String ACTION_PASSWORD_CHANGE_VERIFY_OTP = "password-change-verify-otp";
+    public static final String ACTION_PHONE_CHANGE_SEND_OTP = "phone-change-send-otp";
+    public static final String ACTION_PHONE_CHANGE_VERIFY = "phone-change-verify";
 
     @Value("${app.rate-limit.password-change-send-otp-max:5}")
     private int passwordChangeSendOtpMax = 5;
@@ -61,8 +63,11 @@ public class AuthRateLimitService {
     public void check(String action, String clientIp, String identifier) {
         Integer max;
         if (ACTION_PASSWORD_CHANGE_SEND_OTP.equals(action)
-                || ACTION_PASSWORD_CHANGE_VERIFY_OTP.equals(action)) {
+                || ACTION_PASSWORD_CHANGE_VERIFY_OTP.equals(action)
+                || ACTION_PHONE_CHANGE_SEND_OTP.equals(action)) {
             max = passwordChangeSendOtpMax;
+        } else if (ACTION_PHONE_CHANGE_VERIFY.equals(action)) {
+            max = limits.get(ACTION_DELETE_VERIFY);
         } else {
             max = limits.get(action);
         }

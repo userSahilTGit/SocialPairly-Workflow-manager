@@ -1211,7 +1211,7 @@ class IdentityOnboardingServiceCoverageTest {
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", "Mr.", "Ada", "Marie", "Lovelace", "Jr.", "Addie",
                     LocalDate.of(1990, 5, 15), "She/Her", "Woman", "MATCHES",
-                    "ada2@example.com", "+919876543211", "+919876543212", "+919876543213",
+                    "ada2@example.com", "+919876543210", "+919876543212", "+919876543213",
                     "EMAIL", "MORNING",
                     residence, previousAddresses, nationality, immigration, relationship,
                     family, educations, career, financial, safety, civilJudgment,
@@ -1285,7 +1285,7 @@ class IdentityOnboardingServiceCoverageTest {
         }
 
         @Test
-        void phoneDiffResetsVerification() {
+        void phoneDiffIsRejectedOnceNumberIsSet() {
             stubAcceptedConsent();
             user.setPhoneVerified(true);
             user.setPhoneNumber("+919876543210");
@@ -1294,8 +1294,9 @@ class IdentityOnboardingServiceCoverageTest {
                     null, null, null, null,
                     null, "+919876543299", null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-            service.saveIdentity(user, req);
-            assertFalse(user.isPhoneVerified());
+            assertThrows(BadRequestException.class, () -> service.saveIdentity(user, req));
+            assertTrue(user.isPhoneVerified());
+            assertEquals("+919876543210", user.getPhoneNumber());
         }
 
         @Test

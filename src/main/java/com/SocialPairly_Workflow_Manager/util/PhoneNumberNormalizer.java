@@ -81,6 +81,28 @@ public final class PhoneNumberNormalizer {
         return new ArrayList<>(keys);
     }
 
+    /**
+     * True when the stored value is a real number the member set (not blank, an OAuth
+     * placeholder like {@code oauth:1a2b}, or an all-zero admin stub).
+     */
+    public static boolean isEstablished(String stored) {
+        String phone = stored == null ? "" : stored.trim();
+        if (phone.isEmpty() || phone.startsWith("oauth:")) {
+            return false;
+        }
+        String digits = phone.replaceAll("\\D", "");
+        return digits.length() >= 8 && !digits.matches("0+");
+    }
+
+    /** Same subscriber number regardless of storage vs E.164 formatting. */
+    public static boolean sameNumber(String a, String b, String defaultCountryCode) {
+        if (a == null || b == null || a.isBlank() || b.isBlank()) {
+            return false;
+        }
+        List<String> keysA = lookupKeys(a, defaultCountryCode);
+        return lookupKeys(b, defaultCountryCode).stream().anyMatch(keysA::contains);
+    }
+
     public static PhoneParts parse(String raw, String defaultCountryCode) {
         if (raw == null || raw.isBlank()) {
             throw new IllegalArgumentException("Phone number is required");

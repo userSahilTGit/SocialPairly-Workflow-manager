@@ -14,6 +14,7 @@ public class AuthOtpCode {
     public static final String PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
     public static final String PURPOSE_ACCOUNT_DELETE = "ACCOUNT_DELETE";
     public static final String PURPOSE_PASSWORD_CHANGE = "PASSWORD_CHANGE";
+    public static final String PURPOSE_PHONE_CHANGE = "PHONE_CHANGE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

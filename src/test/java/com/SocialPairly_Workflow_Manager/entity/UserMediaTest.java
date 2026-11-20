@@ -77,7 +77,7 @@ class UserMediaTest {
         byte[] data = new byte[]{1, 2, 3};
         LocalDateTime now = LocalDateTime.now();
         UserMedia media = new UserMedia(
-                99L, user, data, MediaType.PHOTO, 9.9, MediaStatus.APPROVED,
+                99L, user, data, MediaType.PHOTO, 9.9, "abc123", MediaStatus.APPROVED,
                 null, "cap", 2, "HOBBY", "MUTUAL_ONLY", true, "prompt", false, now, now);
         assertEquals(99L, media.getId());
         assertSame(user, media.getUser());
