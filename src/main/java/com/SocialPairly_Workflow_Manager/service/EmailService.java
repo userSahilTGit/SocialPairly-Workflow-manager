@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.entity.ReactionType;
 import com.SocialPairly_Workflow_Manager.entity.Plan;
 import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
+import com.SocialPairly_Workflow_Manager.entity.SupportCallbackRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest;
 import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
@@ -667,6 +668,35 @@ public class EmailService {
         deliver(message);
     }
 
+    public void sendPhoneChangeOtpEmail(User user, String otp, String maskedCurrentPhone) throws MessagingException {
+        if (!hasValidEmail(user)) {
+            throw new MessagingException("User does not have a valid email address");
+        }
+
+        String userName = formatUserName(user);
+        String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
+                + EmailTemplateBuilder.paragraph(
+                "We received a request to change the mobile number on your " + appName + " account (currently "
+                        + maskedCurrentPhone + "). Use the verification code below to approve it:")
+                + """
+                <div style="text-align:center;margin:24px 0;">
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:5px;color:#6366f1;background-color:#eef2ff;padding:12px 32px;border-radius:8px;border:2px dashed #8b5cf6;display:inline-block;">%s</span>
+                </div>
+                """.formatted(otp)
+                + EmailTemplateBuilder.paragraph("This code is valid for the next 10 minutes.")
+                + EmailTemplateBuilder.paragraph(
+                "If you did not request this change, do not share this code. Your mobile number will remain unchanged; "
+                        + "consider changing your password.");
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        helper.setFrom(senderEmail);
+        helper.setTo(user.getEmail());
+        helper.setSubject("Approve your " + appName + " mobile number change");
+        helper.setText(EmailTemplateBuilder.build(appName, supportEmail, body), true);
+        deliver(message);
+    }
+
     /**
      * Shared-inbox support channel (not noreply):
      * <ul>
@@ -753,6 +783,53 @@ public class EmailService {
 
         log.info("Customer-care thread opened support={} member={} attachments={}",
                 LogMasker.email(supportEmail), LogMasker.email(customerEmail), files.size());
+    }
+
+    /**
+     * Notifies Super Admin / Admin / Customer Support inboxes when a premium member
+     * requests a phone callback from the support FAB.
+     */
+    @Async
+    public void sendPremiumCallbackRequestEmails(List<String> recipientEmails, SupportCallbackRequest callback) {
+        if (recipientEmails == null || recipientEmails.isEmpty() || callback == null) {
+            return;
+        }
+        String dashboardUrl = frontendUrl + "/admin/customer-support";
+        String phone = callback.getPhoneNumber() == null ? "" : callback.getPhoneNumber().trim();
+        String note = callback.getNote() == null || callback.getNote().isBlank()
+                ? "No note provided"
+                : callback.getNote().trim();
+
+        List<String> detailLines = new ArrayList<>();
+        detailLines.add(EmailTemplateBuilder.plainToHtml("Member: " + callback.getUserName()));
+        detailLines.add("Email: " + EmailTemplateBuilder.textLink("mailto:" + callback.getUserEmail(), callback.getUserEmail()));
+        if (!phone.isBlank()) {
+            detailLines.add("Phone: " + EmailTemplateBuilder.textLink(telHref(phone), phone));
+        }
+        detailLines.add(EmailTemplateBuilder.plainToHtml("Callback ID: #" + callback.getId()));
+        detailLines.add(EmailTemplateBuilder.plainToHtml("Note: " + note));
+
+        String body = EmailTemplateBuilder.paragraph(
+                "A premium member requested a phone callback from SocialPairly support.")
+                + EmailTemplateBuilder.htmlInfoBox("Callback details", detailLines)
+                + EmailTemplateBuilder.paragraph("Open the Customer Support dashboard to review and call them back.")
+                + EmailTemplateBuilder.button("Open Customer Support", dashboardUrl);
+
+        String html = EmailTemplateBuilder.build(appName, supportEmail, body);
+        String subject = "[Callback] Premium member requested a call back (#" + callback.getId() + ")";
+
+        for (String recipient : recipientEmails) {
+            if (recipient == null || !recipient.contains("@") || recipient.isBlank()) {
+                continue;
+            }
+            sendHtmlEmail(recipient.trim(), subject, html);
+        }
+
+        // Shared customer-care inbox should always get a copy even if no staff rows exist.
+        if (supportEmail != null && supportEmail.contains("@")
+                && recipientEmails.stream().noneMatch(email -> supportEmail.equalsIgnoreCase(email))) {
+            sendHtmlEmail(supportEmail.trim(), subject, html);
+        }
     }
 
     private static void addSupportAttachments(MimeMessageHelper helper, List<SupportAttachment> attachments)

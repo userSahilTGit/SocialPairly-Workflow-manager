@@ -119,6 +119,37 @@ class UserMediaServiceTest {
     }
 
     @Test
+    @DisplayName("uploadMedia - same photo bytes as a hashed existing row throws BadRequest")
+    void uploadMedia_duplicatePhotoByHash_throwsBadRequest() {
+        byte[] bytes = new byte[]{9, 8, 7};
+        UserMedia existingPhoto = media(5L, MediaType.PHOTO, MediaStatus.APPROVED);
+        existingPhoto.setContentHash(UserMediaService.sha256Hex(bytes));
+        when(userMediaRepository.findByUserId(1L)).thenReturn(List.of(existingPhoto));
+
+        MockMultipartFile file = new MockMultipartFile("file", "renamed.jpg", "image/jpeg", bytes);
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.uploadMedia(owner, file));
+
+        assertTrue(ex.getMessage().contains("photo is already in your media library"));
+        verify(userMediaRepository, never()).save(any(UserMedia.class));
+    }
+
+    @Test
+    @DisplayName("uploadMedia - legacy row without hash is backfilled and duplicate video rejected")
+    void uploadMedia_duplicateLegacyVideo_backfillsHashAndThrows() {
+        byte[] bytes = new byte[]{4, 4, 4};
+        UserMedia legacy = media(6L, MediaType.VIDEO, MediaStatus.APPROVED);
+        legacy.setMediaData(bytes);
+        when(userMediaRepository.findByUserId(1L)).thenReturn(List.of(legacy));
+
+        MockMultipartFile file = new MockMultipartFile("file", "clip.mp4", "video/mp4", bytes);
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.uploadMedia(owner, file));
+
+        assertTrue(ex.getMessage().contains("video is already in your media library"));
+        assertEquals(UserMediaService.sha256Hex(bytes), legacy.getContentHash());
+        verify(userMediaRepository).save(legacy);
+    }
+
+    @Test
     @DisplayName("uploadMedia - photo, moderation disabled, becomes APPROVED and cover")
     void uploadMedia_photo_moderationDisabled_approvedAndCover() throws IOException {
         MockMultipartFile file = new MockMultipartFile("file", "p.jpg", "image/jpeg", new byte[]{1, 2, 3});

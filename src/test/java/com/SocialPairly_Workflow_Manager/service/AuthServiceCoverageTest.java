@@ -464,6 +464,30 @@ class AuthServiceCoverageTest {
     }
 
     @Test
+    void verifyPhoneWithFirebaseShouldRejectDifferentNumberThanExistingPhone() throws Exception {
+        User user = new User();
+        user.setId(3L);
+        user.setPhoneNumber("+1-2025550100");
+        user.setPhoneVerified(true);
+
+        FirebaseToken token = mock(FirebaseToken.class);
+        when(token.getClaims()).thenReturn(Map.of("phone_number", "+12025550199"));
+        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+
+        try (org.mockito.MockedStatic<FirebaseAuth> mocked = mockStatic(FirebaseAuth.class)) {
+            mocked.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.verifyIdToken("id-token")).thenReturn(token);
+            when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(3L))).thenReturn(false);
+
+            assertThrows(BadRequestException.class, () -> authService.verifyPhoneWithFirebase(user, "id-token"));
+
+            assertEquals("+1-2025550100", user.getPhoneNumber());
+            assertTrue(user.isPhoneVerified());
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    @Test
     void verifyPhoneWithFirebaseShouldRejectMissingPhoneClaim() throws Exception {
         User user = new User();
         user.setId(3L);

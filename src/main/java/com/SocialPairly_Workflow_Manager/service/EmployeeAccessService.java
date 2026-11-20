@@ -109,6 +109,38 @@ public class EmployeeAccessService {
         log.info("Seeded SUPER_ADMIN employee assignment for {}", email);
     }
 
+    /**
+     * Ensures Super Admin / Admin / Customer Support can open the Customer Support
+     * dashboard (callback queue). Safe to call on every boot; only inserts missing rows.
+     */
+    @Transactional
+    public void ensureCustomerSupportDashboardAccess() {
+        List<String> roles = List.of(
+                EmployeeRoleCodes.SUPER_ADMIN,
+                EmployeeRoleCodes.ADMIN,
+                EmployeeRoleCodes.CUSTOMER_SUPPORT
+        );
+        for (String roleCode : roles) {
+            Optional<RoleDashboardAccess> existing =
+                    dashboardAccessRepository.findByRoleCodeAndDashboardKey(roleCode, DashboardKeys.CUSTOMER_SUPPORT);
+            if (existing.isPresent()) {
+                RoleDashboardAccess row = existing.get();
+                if (!row.isCanAccess()) {
+                    row.setCanAccess(true);
+                    row.setUpdatedByEmail("system-seed");
+                    dashboardAccessRepository.save(row);
+                }
+                continue;
+            }
+            RoleDashboardAccess created = new RoleDashboardAccess();
+            created.setRoleCode(roleCode);
+            created.setDashboardKey(DashboardKeys.CUSTOMER_SUPPORT);
+            created.setCanAccess(true);
+            created.setUpdatedByEmail("system-seed");
+            dashboardAccessRepository.save(created);
+        }
+    }
+
     public UserDto enrich(UserDto base) {
         if (base == null) {
             return null;

@@ -18,6 +18,7 @@ import com.SocialPairly_Workflow_Manager.repository.RefCountryRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.security.JwtUtil;
+import com.SocialPairly_Workflow_Manager.util.ContactIdentifier;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import com.SocialPairly_Workflow_Manager.util.PhoneNumberNormalizer;
 import com.google.firebase.auth.FirebaseAuth;
@@ -114,6 +115,20 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering user email={} phone={}",
                 LogMasker.email(request.email()), LogMasker.phone(request.phoneNumber()));
+        String first = request.firstName() == null ? "" : request.firstName().trim();
+        String last = request.lastName() == null ? "" : request.lastName().trim();
+        String middle = request.middleName() == null ? null : request.middleName().trim();
+        int combinedNameLen = first.length() + last.length() + (middle == null ? 0 : middle.length());
+        if (first.isEmpty() || last.isEmpty()) {
+            throw new BadRequestException("Username is required");
+        }
+        if (first.length() > 60 || last.length() > 60 || (middle != null && middle.length() > 60) || combinedNameLen > 120) {
+            throw new BadRequestException("Username is too long (maximum 60 characters per name part, 120 characters total)");
+        }
+        String normalizedEmail = request.email() == null ? "" : request.email().trim().toLowerCase();
+        if (normalizedEmail.isEmpty() || normalizedEmail.length() > 120 || !ContactIdentifier.isValidEmailOrPhone(normalizedEmail) || !normalizedEmail.contains("@")) {
+            throw new BadRequestException("Please enter a valid email address (e.g. name@example.com)");
+        }
         if (!request.password().equals(request.confirmPassword())) {
             throw new BadRequestException("Passwords do not match");
         }
@@ -121,9 +136,8 @@ public class AuthService {
                 || !request.privacyAccepted() || !request.identityConsent()) {
             throw new BadRequestException("Required consents must be accepted");
         }
-        if (userRepository.existsByEmail(request.email().toLowerCase().trim())) {
-            // Same client-facing signal for email or phone conflict — do not reveal which.
-            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            throw new BadRequestException("This email address is already registered. Please sign in or use a different email.");
         }
 
         String phoneStorage;
@@ -134,15 +148,14 @@ public class AuthService {
         }
 
         if (phoneNumberExists(request.phoneNumber())) {
-            throw new BadRequestException(REGISTRATION_CONFLICT_MESSAGE);
+            throw new BadRequestException("This phone number is already registered to another account.");
         }
 
         User user = new User();
-        user.setFirstName(request.firstName());
-        user.setLastName(request.lastName());
-        String middle = request.middleName() == null ? null : request.middleName().trim();
+        user.setFirstName(first);
+        user.setLastName(last);
         user.setMiddleName(middle == null || middle.isBlank() ? null : middle);
-        user.setEmail(request.email().toLowerCase().trim());
+        user.setEmail(normalizedEmail);
         user.setPhoneNumber(phoneStorage);
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setAddress(request.address());
@@ -226,6 +239,12 @@ public class AuthService {
 
             if (phoneNumberExistsForOtherUser(phoneStorage, currentUser.getId())) {
                 throw new BadRequestException("This phone number is already registered to another account");
+            }
+            if (PhoneNumberNormalizer.isEstablished(currentUser.getPhoneNumber())
+                    && !PhoneNumberNormalizer.sameNumber(currentUser.getPhoneNumber(), phoneStorage, defaultCountryCode)) {
+                throw new BadRequestException(
+                        "This SMS code is for a different number than the one on your account. "
+                                + "Approve the number change with the code sent to your email first.");
             }
 
             currentUser.setPhoneNumber(phoneStorage);
@@ -404,10 +423,12 @@ public class AuthService {
     }
 
     /**
-     * Generic register conflict — avoids revealing whether email or phone already exists.
+     * Retained only for backwards compatibility if referenced externally;
+     * register() now returns field-specific error messages (Bug 1598).
      */
+    @Deprecated
     public static final String REGISTRATION_CONFLICT_MESSAGE =
-            "Unable to complete registration with the provided details. If you already have an account, please sign in.";
+            "This email address or phone number is already registered.";
 
     /**
      * Generic forgot-password acceptance — same response whether or not the account exists.

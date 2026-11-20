@@ -7,8 +7,9 @@ import java.util.regex.Pattern;
  */
 public final class ContactIdentifier {
 
+    /** Allows common mailbox characters including apostrophe in the local-part. */
     private static final Pattern EMAIL = Pattern.compile(
-            "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+            "^[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     /** Fallback country code only for phone-shape validation (not storage). */
     private static final String VALIDATION_DEFAULT_CC = "+91";

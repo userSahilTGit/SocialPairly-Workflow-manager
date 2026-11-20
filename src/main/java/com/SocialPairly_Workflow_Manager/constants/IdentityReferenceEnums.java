@@ -107,7 +107,9 @@ public final class IdentityReferenceEnums {
                 Map.entry("housingStatuses", HOUSING_STATUSES),
                 Map.entry("debtRanges", DEBT_RANGES),
                 Map.entry("sharePreferences", SHARE_PREFERENCES),
-                Map.entry("languages", LANGUAGE_OPTIONS)
+                Map.entry("languages", LANGUAGE_OPTIONS),
+                Map.entry("relationshipModelPrefs", RELATIONSHIP_MODEL_PREFS),
+                Map.entry("proficiencyLevels", PROFICIENCY_LEVELS)
                 // Phase 2: Map.entry("backgroundConsentDocumentVersion", OnboardingSteps.BACKGROUND_CONSENT_DOCUMENT_VERSION)
         );
     }

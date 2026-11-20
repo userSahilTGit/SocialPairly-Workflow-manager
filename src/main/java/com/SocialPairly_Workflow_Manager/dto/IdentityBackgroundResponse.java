@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static com.SocialPairly_Workflow_Manager.dto.IdentitySectionDtos.*;
@@ -49,5 +50,7 @@ public record IdentityBackgroundResponse(
     BackgroundConsentDto backgroundConsent,
     String incomeRangeSharePreference,
     String locationCity,
-    String locationCountry
+    String locationCountry,
+    boolean legalNameChangeUsed,
+    LocalDateTime legalNameChangedAt
 ) {}

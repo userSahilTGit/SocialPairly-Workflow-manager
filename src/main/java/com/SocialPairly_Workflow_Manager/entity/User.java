@@ -27,6 +27,13 @@ public class User {
     @Column(name = "middle_name", length = 60)
     private String middleName;
 
+    /** Set once the member uses their single lifetime change of first/middle/last name. */
+    @Column(name = "legal_name_change_used", nullable = false, columnDefinition = "boolean default false")
+    private boolean legalNameChangeUsed = false;
+
+    @Column(name = "legal_name_changed_at")
+    private LocalDateTime legalNameChangedAt;
+
     @Column(name = "name_suffix", length = 20)
     private String nameSuffix;
 
@@ -147,6 +154,12 @@ public class User {
 
     public String getMiddleName() { return middleName; }
     public void setMiddleName(String middleName) { this.middleName = middleName; }
+
+    public boolean isLegalNameChangeUsed() { return legalNameChangeUsed; }
+    public void setLegalNameChangeUsed(boolean legalNameChangeUsed) { this.legalNameChangeUsed = legalNameChangeUsed; }
+
+    public LocalDateTime getLegalNameChangedAt() { return legalNameChangedAt; }
+    public void setLegalNameChangedAt(LocalDateTime legalNameChangedAt) { this.legalNameChangedAt = legalNameChangedAt; }
 
     public String getNameSuffix() { return nameSuffix; }
     public void setNameSuffix(String nameSuffix) { this.nameSuffix = nameSuffix; }

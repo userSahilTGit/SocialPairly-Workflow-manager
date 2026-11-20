@@ -7,6 +7,7 @@ import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.entity.UserProfile;
 import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
+import com.SocialPairly_Workflow_Manager.service.AuthRateLimitService;
 import com.SocialPairly_Workflow_Manager.service.EmployeeAccessService;
 import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
 import com.SocialPairly_Workflow_Manager.service.UserService;
@@ -19,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +48,9 @@ class UserControllerAdditionalTest {
 
     @Mock
     private EmployeeAccessService employeeAccessService;
+
+    @Mock
+    private AuthRateLimitService authRateLimitService;
 
     @InjectMocks
     private UserController userController;
@@ -99,12 +104,33 @@ class UserControllerAdditionalTest {
     @Test
     void updatePhoneShouldDelegateToUserService() {
         UpdatePhoneRequest request = new UpdatePhoneRequest("+12025550123");
-        when(userService.updatePhone(user, "+12025550123"))
+        when(userService.updatePhone(user, "+12025550123", null))
                 .thenReturn(Map.of("phoneNumber", "+12025550123", "verified", false));
 
-        ResponseEntity<Map<String, Object>> response = userController.updatePhone(request);
+        ResponseEntity<Map<String, Object>> response = userController.updatePhone(request, new MockHttpServletRequest());
 
         assertEquals("+12025550123", response.getBody().get("phoneNumber"));
-        verify(userService).updatePhone(user, "+12025550123");
+        verify(userService).updatePhone(user, "+12025550123", null);
+    }
+
+    @Test
+    void updatePhoneWithOtpShouldBeRateLimitedAndDelegate() {
+        UpdatePhoneRequest request = new UpdatePhoneRequest("+12025550123", "1234");
+        when(userService.updatePhone(user, "+12025550123", "1234")).thenReturn(Map.of("message", "ok"));
+
+        userController.updatePhone(request, new MockHttpServletRequest());
+
+        verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_PHONE_CHANGE_VERIFY), anyString(), eq("5"));
+        verify(userService).updatePhone(user, "+12025550123", "1234");
+    }
+
+    @Test
+    void sendPhoneChangeOtpShouldBeRateLimitedAndDelegate() {
+        when(userService.sendPhoneChangeOtp(user)).thenReturn(Map.of("message", "sent"));
+
+        ResponseEntity<Map<String, String>> response = userController.sendPhoneChangeOtp(new MockHttpServletRequest());
+
+        assertEquals("sent", response.getBody().get("message"));
+        verify(authRateLimitService).check(eq(AuthRateLimitService.ACTION_PHONE_CHANGE_SEND_OTP), anyString(), eq("5"));
     }
 }

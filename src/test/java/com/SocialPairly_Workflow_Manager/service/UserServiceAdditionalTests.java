@@ -149,12 +149,132 @@ class UserServiceAdditionalTests {
         when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(false);
         when(userRepository.save(user)).thenReturn(user);
 
-        Map<String, Object> result = userService.updatePhone(user, "9876543210");
+        Map<String, Object> result = userService.updatePhone(user, "9876543210", null);
 
         assertEquals("+91-9876543210", user.getPhoneNumber());
         assertFalse(user.isPhoneVerified());
         assertEquals("Phone number saved. Complete Firebase SMS verification to confirm it.", result.get("message"));
         verify(userRepository).save(user);
+        verifyNoInteractions(otpService);
+    }
+
+    @Test
+    void updatePhoneShouldAllowReplacingOAuthPlaceholderWithoutOtp() {
+        User user = new User();
+        user.setId(7L);
+        user.setPhoneNumber("oauth:1a2b3c");
+        when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(false);
+
+        userService.updatePhone(user, "9876543210", null);
+
+        assertEquals("+91-9876543210", user.getPhoneNumber());
+        verifyNoInteractions(otpService);
+    }
+
+    @Test
+    void updatePhoneShouldRequireEmailOtpToReplaceExistingNumber() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("+91-9876543210");
+        user.setPhoneVerified(true);
+        when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(false);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> userService.updatePhone(user, "9123456789", null));
+
+        assertEquals(UserService.PHONE_CHANGE_VERIFICATION_REQUIRED, ex.getMessage());
+        assertEquals("+91-9876543210", user.getPhoneNumber());
+        assertTrue(user.isPhoneVerified());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updatePhoneShouldKeepOldNumberWhenEmailOtpIsWrong() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("+91-9876543210");
+        user.setPhoneVerified(true);
+        when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(false);
+        doThrow(new BadRequestException("Invalid OTP"))
+                .when(otpService).verify(AuthOtpCode.PURPOSE_PHONE_CHANGE, "ada@example.com", "0000");
+
+        assertThrows(BadRequestException.class, () -> userService.updatePhone(user, "9123456789", "0000"));
+
+        assertEquals("+91-9876543210", user.getPhoneNumber());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updatePhoneShouldReplaceExistingNumberWithValidEmailOtp() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("+91-9876543210");
+        user.setPhoneVerified(true);
+        when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(false);
+
+        userService.updatePhone(user, "9123456789", " 1234 ");
+
+        verify(otpService).verify(AuthOtpCode.PURPOSE_PHONE_CHANGE, "ada@example.com", "1234");
+        verify(otpService).clear(AuthOtpCode.PURPOSE_PHONE_CHANGE, "ada@example.com");
+        assertEquals("+91-9123456789", user.getPhoneNumber());
+        assertFalse(user.isPhoneVerified());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updatePhoneShouldBeNoOpForSameNumberAndKeepVerified() {
+        User user = new User();
+        user.setId(7L);
+        user.setPhoneNumber("+91-9876543210");
+        user.setPhoneVerified(true);
+
+        Map<String, Object> result = userService.updatePhone(user, "+919876543210", null);
+
+        assertEquals("This is already your phone number.", result.get("message"));
+        assertTrue(user.isPhoneVerified());
+        verify(userRepository, never()).save(any());
+        verifyNoInteractions(otpService);
+    }
+
+    @Test
+    void sendPhoneChangeOtpShouldEmailCodeWhenPhoneIsSet() throws Exception {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("+91-9876543210");
+        when(otpService.generateAndStore(AuthOtpCode.PURPOSE_PHONE_CHANGE, "ada@example.com", 10)).thenReturn("4321");
+
+        Map<String, String> result = userService.sendPhoneChangeOtp(user);
+
+        assertEquals("10", result.get("expiresInMinutes"));
+        verify(emailService).sendPhoneChangeOtpEmail(eq(user), eq("4321"), anyString());
+    }
+
+    @Test
+    void sendPhoneChangeOtpShouldRejectWhenNoPhoneSet() {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("oauth:abc");
+
+        assertThrows(BadRequestException.class, () -> userService.sendPhoneChangeOtp(user));
+        verifyNoInteractions(otpService);
+    }
+
+    @Test
+    void sendPhoneChangeOtpShouldSurfaceMailFailure() throws Exception {
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("ada@example.com");
+        user.setPhoneNumber("+91-9876543210");
+        when(otpService.generateAndStore(anyString(), anyString(), anyInt())).thenReturn("4321");
+        doThrow(new jakarta.mail.MessagingException("smtp down"))
+                .when(emailService).sendPhoneChangeOtpEmail(any(), anyString(), anyString());
+
+        assertThrows(BadRequestException.class, () -> userService.sendPhoneChangeOtp(user));
     }
 
     @Test
@@ -162,7 +282,7 @@ class UserServiceAdditionalTests {
         User user = new User();
         user.setId(7L);
 
-        assertThrows(BadRequestException.class, () -> userService.updatePhone(user, "123"));
+        assertThrows(BadRequestException.class, () -> userService.updatePhone(user, "123", null));
     }
 
     @Test
@@ -171,7 +291,7 @@ class UserServiceAdditionalTests {
         user.setId(7L);
         when(userRepository.existsByPhoneNumberAndIdNot(anyString(), eq(7L))).thenReturn(true);
 
-        assertThrows(BadRequestException.class, () -> userService.updatePhone(user, "9876543210"));
+        assertThrows(BadRequestException.class, () -> userService.updatePhone(user, "9876543210", null));
         verify(userRepository, never()).save(any());
     }
 

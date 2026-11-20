@@ -638,7 +638,7 @@ class IdentityOnboardingServiceBranchCoverageTest {
 
         @Test
         void validateAndApplyCoversVisibilityContactAndPhoneChange() {
-            user.setPhoneNumber("+919999999999");
+            user.setPhoneNumber("oauth:ada");
             user.setPhoneVerified(true);
             IdentityBackgroundRequest req = new IdentityBackgroundRequest(
                     "SAVE_LATER", null, "Ada", "Marie", "Lovelace", "None", "Addie",

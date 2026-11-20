@@ -636,6 +636,18 @@ public class IdentityOnboardingService {
         if (number != null && number.length() > 100) {
             throw new BadRequestException("idDocumentNumber is too long");
         }
+        String effectiveType = type != null ? type : ensureCompliance(user).getIdDocumentType();
+        if (number != null && effectiveType != null) {
+            String upper = effectiveType.toUpperCase(Locale.ROOT);
+            if (("DRIVER_LICENSE".equals(upper) || "STATE_ID".equals(upper))
+                    && !STATE_OR_DL_NUMBER.matcher(number).matches()) {
+                throw new BadRequestException(
+                        "STATE_ID".equals(upper)
+                                ? "State ID number must be exactly 8 digits"
+                                : "Driver's license number must be exactly 8 digits"
+                );
+            }
+        }
         UserIdentityCompliance compliance = ensureCompliance(user);
         if (type != null) {
             compliance.setIdDocumentType(type);
@@ -860,6 +872,38 @@ public class IdentityOnboardingService {
         backgroundRepository.save(background);
     }
 
+    private static final Set<String> NON_CITIZEN_RESIDENCY = Set.of(
+            "PERMANENT_RESIDENT", "WORK_AUTHORIZED", "STUDENT", "TEMPORARY_RESIDENT");
+
+    /**
+     * Blocks contradictory nationality + immigration combinations. Only checks when the member has
+     * listed at least one nationality, so partially filled forms are not rejected.
+     */
+    static void validateNationalityImmigrationConsistency(String residenceCountry,
+                                                          String residencyCategory,
+                                                          String sponsorship,
+                                                          Set<String> heldNationalities) {
+        if ("CITIZEN".equals(residencyCategory) && "YES".equals(sponsorship)) {
+            throw new BadRequestException(
+                    "Citizens do not need visa sponsorship in their country of residence. "
+                            + "Set future sponsorship to No or Prefer not to say.");
+        }
+        if (residenceCountry == null || residencyCategory == null || heldNationalities.isEmpty()) {
+            return;
+        }
+        boolean holdsResidenceNationality = heldNationalities.contains(residenceCountry);
+        if ("CITIZEN".equals(residencyCategory) && !holdsResidenceNationality) {
+            throw new BadRequestException(
+                    "Residency category is Citizen, but your current country of residence is not one of your "
+                            + "nationalities. Add it to your nationalities or choose another residency category.");
+        }
+        if (NON_CITIZEN_RESIDENCY.contains(residencyCategory) && holdsResidenceNationality) {
+            throw new BadRequestException(
+                    "You hold nationality of your current country of residence, so the residency category "
+                            + "should be Citizen.");
+        }
+    }
+
     private void applyImmigration(User user, ImmigrationDto dto) {
         if (dto.residencyCategory() != null && !dto.residencyCategory().isBlank()) {
             validateAllowlistEnum("residencyCategory", dto.residencyCategory().trim().toUpperCase(Locale.ROOT),
@@ -885,6 +929,18 @@ public class IdentityOnboardingService {
         if (dto.openToPartnerAbroad() != null) {
             background.setOpenToPartnerAbroad(blankToNull(dto.openToPartnerAbroad().trim().toUpperCase(Locale.ROOT)));
         }
+        Set<String> heldNationalities = new LinkedHashSet<>();
+        if (background.getPrimaryNationality() != null) heldNationalities.add(background.getPrimaryNationality());
+        if (background.getCountryOfCitizenship() != null) heldNationalities.add(background.getCountryOfCitizenship());
+        for (String code : readStringList(background.getAdditionalNationalities())) {
+            String normalized = normalizeCountryCode(code);
+            if (normalized != null) heldNationalities.add(normalized);
+        }
+        validateNationalityImmigrationConsistency(
+                background.getCurrentCountryOfResidence(),
+                background.getResidencyCategory(),
+                background.getFutureSponsorshipRequired(),
+                heldNationalities);
         List<String> preferred = new ArrayList<>();
         if (dto.preferredFutureCountries() != null) {
             for (String code : dto.preferredFutureCountries()) {
@@ -916,6 +972,17 @@ public class IdentityOnboardingService {
         }
 
         UserLifeProfile life = ensureLife(user);
+        String coParenting = dto.coParenting() == null ? null : dto.coParenting().trim().toUpperCase(Locale.ROOT);
+        if ("YES".equals(coParenting)) {
+            String hasChildren = life.getHasChildren() == null ? null : life.getHasChildren().trim().toUpperCase(Locale.ROOT);
+            Integer childrenCount = life.getChildrenCount();
+            if (!"YES".equals(hasChildren)) {
+                throw new BadRequestException("Co-parenting requires hasChildren = YES");
+            }
+            if (childrenCount == null || childrenCount < 1) {
+                throw new BadRequestException("Co-parenting requires childrenCount of at least 1");
+            }
+        }
         if (dto.maritalStatus() != null) {
             life.setMaritalStatus(blankToNull(dto.maritalStatus().trim().toUpperCase(Locale.ROOT)));
         }
@@ -947,8 +1014,13 @@ public class IdentityOnboardingService {
         }
 
         UserLifeProfile life = ensureLife(user);
+        String hasChildren = dto.hasChildren() == null ? null : dto.hasChildren().trim().toUpperCase(Locale.ROOT);
+        String coParenting = life.getCoParenting() == null ? null : life.getCoParenting().trim().toUpperCase(Locale.ROOT);
+        if ("YES".equals(coParenting) && !"YES".equals(hasChildren)) {
+            throw new BadRequestException("Co-parenting requires hasChildren = YES");
+        }
         if (dto.hasChildren() != null) {
-            life.setHasChildren(blankToNull(dto.hasChildren().trim().toUpperCase(Locale.ROOT)));
+            life.setHasChildren(blankToNull(hasChildren));
         }
         if (dto.childrenCount() != null) {
             int count = dto.childrenCount();
@@ -956,6 +1028,11 @@ public class IdentityOnboardingService {
                 throw new BadRequestException(
                         "childrenCount (own and adopted combined) must be between 0 and " + MAX_CHILDREN_COUNT);
             }
+            if (("YES".equals(hasChildren) || "YES".equals(coParenting)) && count < 1) {
+                throw new BadRequestException("childrenCount must be at least 1 when hasChildren or coParenting is YES");
+            }
+        } else if ("YES".equals(hasChildren) || "YES".equals(coParenting)) {
+            throw new BadRequestException("childrenCount is required when hasChildren or coParenting is YES");
         }
         life.setChildrenCount(dto.childrenCount());
         life.setChildrenLiveWithUser(trimToNull(dto.childrenLiveWithUser()));
@@ -1009,7 +1086,9 @@ public class IdentityOnboardingService {
 
     private void applyEducations(UserProfile profile, List<EducationDto> educations, LocalDate dateOfBirth) {
         profile.getEducations().clear();
-        int currentYear = LocalDate.now().getYear();
+        LocalDate today = LocalDate.now();
+        int currentYear = today.getYear();
+        int currentMonthKey = currentYear * 12 + today.getMonthValue();
         Integer dobYear = dateOfBirth == null ? null : dateOfBirth.getYear();
         for (EducationDto dto : educations) {
             String institution = trimToNull(dto.institution());
@@ -1029,6 +1108,7 @@ public class IdentityOnboardingService {
 
             validateMonth("startMonth", dto.startMonth());
             validateEducationYear("startYear", dto.startYear(), currentYear, dobYear);
+            rejectFutureMonth("Start month", dto.startMonth(), dto.startYear(), currentMonthKey);
 
             boolean currentlyStudying = Boolean.TRUE.equals(dto.currentlyStudying());
             Integer graduationMonth = currentlyStudying ? null : dto.graduationMonth();
@@ -1036,6 +1116,10 @@ public class IdentityOnboardingService {
             if (!currentlyStudying) {
                 validateMonth("graduationMonth", graduationMonth);
                 validateEducationYear("graduationYear", graduationYear, currentYear, dobYear);
+                rejectFutureMonth("Graduation month", graduationMonth, graduationYear, currentMonthKey);
+                if (dto.startYear() != null && graduationYear != null && graduationYear < dto.startYear()) {
+                    throw new BadRequestException("Graduation year cannot be before start year");
+                }
                 if (dto.startYear() != null && graduationYear != null) {
                     int startKey = dto.startYear() * 12 + (dto.startMonth() == null ? 1 : dto.startMonth());
                     int endKey = graduationYear * 12 + (graduationMonth == null ? 1 : graduationMonth);
@@ -1064,6 +1148,15 @@ public class IdentityOnboardingService {
             edu.setShowInstitutionPublicly(Boolean.TRUE.equals(dto.showInstitutionPublicly()));
             edu.setVerificationDocumentId(dto.verificationDocumentId());
             profile.getEducations().add(edu);
+        }
+    }
+
+    private static void rejectFutureMonth(String label, Integer month, Integer year, int currentMonthKey) {
+        if (month == null || year == null) {
+            return;
+        }
+        if (year * 12 + month > currentMonthKey) {
+            throw new BadRequestException(label + " cannot be in the future");
         }
     }
 
@@ -1174,15 +1267,16 @@ public class IdentityOnboardingService {
         profile.setEmployerNamePubliclyAllowed(Boolean.TRUE.equals(life.getShowEmployerPublicly()));
     }
 
-    private static final Pattern CAREER_ALNUM_PATTERN = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N} ]{0,499}$");
+    private static final Pattern CAREER_TEXT_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} ]{0,499}$");
     private static final Pattern EMPLOYER_NAME_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} .'-]{0,499}$");
     private static final Pattern EMPLOYMENT_TYPE_PATTERN = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N} /\\-]{0,79}$");
+    private static final Pattern STATE_OR_DL_NUMBER = Pattern.compile("^\\d{8}$");
 
     private void validateCareerAlphanumericField(String field, String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) return;
-        if (!CAREER_ALNUM_PATTERN.matcher(trimmed).matches()) {
-            throw new BadRequestException(field + " may contain letters and numbers only");
+        if (!CAREER_TEXT_PATTERN.matcher(trimmed).matches()) {
+            throw new BadRequestException(field + " may contain letters and spaces only");
         }
     }
 
@@ -1293,6 +1387,29 @@ public class IdentityOnboardingService {
         lifeProfileRepository.save(life);
     }
 
+    static final String LEGAL_NAME_LOCKED_MESSAGE =
+            "Your first, middle, and last name can only be changed once. Contact support to correct your legal name.";
+    static final String PRIMARY_PHONE_LOCKED_MESSAGE =
+            "Your primary phone is already set. Change it from Profile > Contact, which requires a verification code sent to your email.";
+
+    /**
+     * First/middle/last name may change once per account lifetime (signup values don't count).
+     * Null first/last means "not sent" and is not a change; middle is compared as sent.
+     */
+    private static void applyLegalNameChange(User user, String first, String middle, String last) {
+        boolean firstChanged = first != null && !first.equals(trimToNull(user.getFirstName()));
+        boolean lastChanged = last != null && !last.equals(trimToNull(user.getLastName()));
+        boolean middleChanged = !Objects.equals(middle, trimToNull(user.getMiddleName()));
+        if (!firstChanged && !lastChanged && !middleChanged) {
+            return;
+        }
+        if (user.isLegalNameChangeUsed()) {
+            throw new BadRequestException(LEGAL_NAME_LOCKED_MESSAGE);
+        }
+        user.setLegalNameChangeUsed(true);
+        user.setLegalNameChangedAt(LocalDateTime.now());
+    }
+
     private void validateAndApply(User user, IdentityBackgroundRequest request, boolean strict) {
         String prefix = normalizeOptional(request.namePrefix());
         String first = trimToNull(request.firstName());
@@ -1363,6 +1480,7 @@ public class IdentityOnboardingService {
         validateAllowlist("preferredContactMethod", contactMethod, CONTACT_METHODS);
         validateAllowlist("bestTimeToContact", bestTime, BEST_TIMES);
 
+        applyLegalNameChange(user, first, middle, last);
         user.setNamePrefix(blankToNull(prefix));
         if (first != null) {
             user.setFirstName(first);
@@ -1374,11 +1492,13 @@ public class IdentityOnboardingService {
         user.setNameSuffix(suffix);
         user.setPreferredName(preferred);
         user.setSecondaryEmail(secondaryEmail);
-        if (primaryPhone != null) {
-            if (!primaryPhone.equals(user.getPhoneNumber())) {
-                user.setPhoneNumber(primaryPhone);
-                user.setPhoneVerified(false);
+        if (primaryPhone != null
+                && !PhoneNumberNormalizer.sameNumber(primaryPhone, user.getPhoneNumber(), defaultCountryCode)) {
+            if (PhoneNumberNormalizer.isEstablished(user.getPhoneNumber())) {
+                throw new BadRequestException(PRIMARY_PHONE_LOCKED_MESSAGE);
             }
+            user.setPhoneNumber(primaryPhone);
+            user.setPhoneVerified(false);
         }
         user.setSecondaryPhone(secondaryPhone);
         user.setHomePhone(homePhone);
@@ -1741,7 +1861,9 @@ public class IdentityOnboardingService {
                 backgroundConsent,
                 profile.getIncomeRangeSharePreference(),
                 profile.getLocationCity(),
-                profile.getLocationCountry()
+                profile.getLocationCountry(),
+                user.isLegalNameChangeUsed(),
+                user.getLegalNameChangedAt()
         );
     }
 

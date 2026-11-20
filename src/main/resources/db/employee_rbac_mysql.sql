@@ -36,3 +36,10 @@ CREATE TABLE IF NOT EXISTS role_dashboard_access (
   UNIQUE KEY uk_role_dashboard (role_code, dashboard_key),
   KEY idx_role_dashboard_key (dashboard_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Premium callback queue lives under Customer Support. Keep these roles able to open it.
+INSERT IGNORE INTO role_dashboard_access (role_code, dashboard_key, can_access, updated_by_email)
+VALUES
+  ('SUPER_ADMIN', 'CUSTOMER_SUPPORT', 1, 'system-seed'),
+  ('ADMIN', 'CUSTOMER_SUPPORT', 1, 'system-seed'),
+  ('CUSTOMER_SUPPORT', 'CUSTOMER_SUPPORT', 1, 'system-seed');
