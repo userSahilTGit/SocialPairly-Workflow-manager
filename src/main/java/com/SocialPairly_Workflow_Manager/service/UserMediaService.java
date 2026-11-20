@@ -50,6 +50,9 @@ public class UserMediaService {
             }
         } else if (contentType.startsWith("video/")) {
             mediaType = MediaType.VIDEO;
+            if (!"video/mp4".equalsIgnoreCase(contentType) && !"application/mp4".equalsIgnoreCase(contentType)) {
+                throw new BadRequestException("Only MP4 video uploads are supported for reliable playback.");
+            }
             if (file.getSize() > MAX_VIDEO_SIZE_BYTES) {
                 throw new BadRequestException("Video file size exceeds the 5MB limit.");
             }

@@ -1232,7 +1232,7 @@ public class IdentityOnboardingService {
 
         validateCareerAlphanumericField("jobFunction", dto.jobFunction());
         validateCareerAlphanumericField("industry", dto.industry());
-        validateCareerAlphanumericField("employerName", dto.employerName());
+        validateEmployerNameField(dto.employerName());
         validateCareerAlphanumericField("careerAmbitions", dto.careerAmbitions());
         validateEmploymentTypeField(dto.employmentType());
         if (dto.yearsInProfession() != null && dto.yearsInProfession() < 0) {
@@ -1268,6 +1268,7 @@ public class IdentityOnboardingService {
     }
 
     private static final Pattern CAREER_TEXT_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} ]{0,499}$");
+    private static final Pattern EMPLOYER_NAME_PATTERN = Pattern.compile("^[\\p{L}][\\p{L} .'-]{0,499}$");
     private static final Pattern EMPLOYMENT_TYPE_PATTERN = Pattern.compile("^[\\p{L}\\p{N}][\\p{L}\\p{N} /\\-]{0,79}$");
     private static final Pattern STATE_OR_DL_NUMBER = Pattern.compile("^\\d{8}$");
 
@@ -1276,6 +1277,17 @@ public class IdentityOnboardingService {
         if (trimmed == null) return;
         if (!CAREER_TEXT_PATTERN.matcher(trimmed).matches()) {
             throw new BadRequestException(field + " may contain letters and spaces only");
+        }
+    }
+
+    private void validateEmployerNameField(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) return;
+        if (trimmed.chars().anyMatch(Character::isDigit)) {
+            throw new BadRequestException("employerName cannot contain numbers");
+        }
+        if (!EMPLOYER_NAME_PATTERN.matcher(trimmed).matches()) {
+            throw new BadRequestException("employerName may contain letters and spaces only");
         }
     }
 

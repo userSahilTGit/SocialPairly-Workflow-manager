@@ -1155,5 +1155,12 @@ class Final96PercentBranchCoverageTest {
         realEmpSvc.updateDashboardAccess(new UpdateRoleDashboardAccessRequest("SUPER_ADMIN", "DASHBOARD", true));
         realEmpSvc.updateDashboardAccess(new UpdateRoleDashboardAccessRequest("SUPER_ADMIN", "ROLE_ACCESS", true));
         realEmpSvc.updateDashboardAccess(new UpdateRoleDashboardAccessRequest("CUSTOMER_SUPPORT", "ROLE_ACCESS", false));
+
+        ReflectionTestUtils.invokeMethod(idSvc, "validateEmployerNameField", (String) null);
+        ReflectionTestUtils.invokeMethod(idSvc, "validateEmployerNameField", "Acme O'Reilly Inc.");
+        assertThrows(BadRequestException.class,
+                () -> ReflectionTestUtils.invokeMethod(idSvc, "validateEmployerNameField", "Acme123"));
+        assertThrows(BadRequestException.class,
+                () -> ReflectionTestUtils.invokeMethod(idSvc, "validateEmployerNameField", "Acme@Corp"));
     }
 }
