@@ -13,7 +13,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     @Query("""
             SELECT DISTINCT s.user.id FROM Subscription s
-            WHERE s.status = 'active'
+            WHERE LOWER(s.status) = 'active'
               AND s.currentPeriodEnd > :now
             """)
     List<Long> findActiveSubscribedUserIds(@Param("now") LocalDateTime now);
@@ -32,7 +32,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             SELECT s FROM Subscription s
             JOIN FETCH s.plan
             WHERE s.user.id = :userId
-              AND s.status = 'active'
+              AND LOWER(s.status) = 'active'
               AND s.currentPeriodEnd > :now
             ORDER BY s.currentPeriodEnd DESC
             """)
@@ -45,7 +45,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END
             FROM Subscription s
             WHERE s.user.id = :userId
-              AND s.status = 'active'
+              AND LOWER(s.status) = 'active'
               AND s.currentPeriodEnd > :now
             """)
     boolean hasActiveSubscriptionForUser(

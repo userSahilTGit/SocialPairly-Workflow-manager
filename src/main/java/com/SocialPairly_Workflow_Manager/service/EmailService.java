@@ -59,6 +59,9 @@ public class EmailService {
     @Value("${app.support.email:customercare@socialpairly.com}")
     private String supportEmail;
 
+    @Value("${app.support.premium-email:salmaan.razzak@socialpairly.com}")
+    private String premiumSupportEmail;
+
     @Value("${app.email.base-url:https://www.socialpairly.com}")
     private String appBaseUrl;
 
@@ -707,15 +710,25 @@ public class EmailService {
      * OTP / system mail continues to use {@code senderEmail} (noreply).
      */
     public void sendCustomerCareEmail(CustomerCareRequest request) throws MessagingException {
-        sendCustomerCareEmail(request, List.of());
+        sendCustomerCareEmail(request, List.of(), false);
     }
 
     public void sendCustomerCareEmail(CustomerCareRequest request, List<SupportAttachment> attachments)
             throws MessagingException {
+        sendCustomerCareEmail(request, attachments, false);
+    }
+
+    public void sendCustomerCareEmail(
+            CustomerCareRequest request,
+            List<SupportAttachment> attachments,
+            boolean premiumMember
+    ) throws MessagingException {
+        String targetSupportEmail = resolveCustomerCareRecipient(premiumMember);
         String customerName = request.name().trim();
         String customerEmail = request.email().trim();
         String issuesLabel = formatIssues(request.issues());
-        String subjectLine = "[Customer Care] " + request.subject().trim();
+        String subjectPrefix = premiumMember ? "[Premium Customer Care] " : "[Customer Care] ";
+        String subjectLine = subjectPrefix + request.subject().trim();
         String messageText = request.message().trim();
         List<SupportAttachment> files = attachments == null ? List.of() : attachments;
         String attachmentLabel = formatAttachmentNames(files);
@@ -723,6 +736,9 @@ public class EmailService {
         List<String> detailLines = new ArrayList<>();
         detailLines.add(EmailTemplateBuilder.plainToHtml("From: " + customerName));
         detailLines.add("Email: " + EmailTemplateBuilder.textLink("mailto:" + customerEmail, customerEmail));
+        if (premiumMember) {
+            detailLines.add(EmailTemplateBuilder.plainToHtml("Membership: Premium"));
+        }
         if (request.phone() != null && !request.phone().isBlank()) {
             String phone = request.phone().trim();
             detailLines.add("Phone: " + EmailTemplateBuilder.textLink(telHref(phone), phone));
@@ -740,18 +756,20 @@ public class EmailService {
             detailLines.add(EmailTemplateBuilder.plainToHtml("Attachments: " + attachmentLabel));
         }
 
-        String agentBody = EmailTemplateBuilder.paragraph(
-                "A member contacted " + appName + " customer care. Reply to this email to continue the conversation with them.")
+        String agentIntro = premiumMember
+                ? "A Premium member contacted " + appName + " priority support. Reply to this email to continue the conversation with them."
+                : "A member contacted " + appName + " customer care. Reply to this email to continue the conversation with them.";
+        String agentBody = EmailTemplateBuilder.paragraph(agentIntro)
                 + EmailTemplateBuilder.htmlInfoBox("Contact details", detailLines)
                 + EmailTemplateBuilder.labeledBlock("Message", messageText);
 
         MimeMessage agentMessage = mailSender.createMimeMessage();
         MimeMessageHelper agentHelper = new MimeMessageHelper(agentMessage, true, "UTF-8");
         agentHelper.setFrom(supportFromAddress(customerName));
-        agentHelper.setTo(supportEmail);
+        agentHelper.setTo(targetSupportEmail);
         agentHelper.setReplyTo(customerEmail);
         agentHelper.setSubject(subjectLine);
-        agentHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, agentBody), true);
+        agentHelper.setText(EmailTemplateBuilder.build(appName, targetSupportEmail, agentBody), true);
         addSupportAttachments(agentHelper, files);
         deliver(agentMessage);
 
@@ -775,14 +793,21 @@ public class EmailService {
         MimeMessageHelper memberHelper = new MimeMessageHelper(memberMessage, true, "UTF-8");
         memberHelper.setFrom(supportFromAddress(appName + " Customer Care"));
         memberHelper.setTo(customerEmail);
-        memberHelper.setReplyTo(supportEmail);
+        memberHelper.setReplyTo(targetSupportEmail);
         memberHelper.setSubject("Re: " + subjectLine);
-        memberHelper.setText(EmailTemplateBuilder.build(appName, supportEmail, memberBody), true);
+        memberHelper.setText(EmailTemplateBuilder.build(appName, targetSupportEmail, memberBody), true);
         addSupportAttachments(memberHelper, files);
         deliver(memberMessage);
 
-        log.info("Customer-care thread opened support={} member={} attachments={}",
-                LogMasker.email(supportEmail), LogMasker.email(customerEmail), files.size());
+        log.info("Customer-care thread opened support={} member={} premium={} attachments={}",
+                LogMasker.email(targetSupportEmail), LogMasker.email(customerEmail), premiumMember, files.size());
+    }
+
+    public String resolveCustomerCareRecipient(boolean premiumMember) {
+        if (premiumMember && premiumSupportEmail != null && !premiumSupportEmail.isBlank()) {
+            return premiumSupportEmail.trim();
+        }
+        return supportEmail;
     }
 
     /**
