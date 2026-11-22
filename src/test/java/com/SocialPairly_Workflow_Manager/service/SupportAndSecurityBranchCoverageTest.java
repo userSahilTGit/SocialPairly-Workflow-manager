@@ -135,8 +135,11 @@ class SupportAndSecurityBranchCoverageTest {
         sDup.setRoleCode("SUPER_ADMIN");
         when(roleRepo.findByRoleCodeInAndActiveTrue(anySet())).thenReturn(List.of(sNull, sBlank, s1, sDup));
 
-        SupportCallbackRequestDto dto1 = service.requestCallback(null);
+        String tomorrow = java.time.LocalDate.now().plusDays(1).toString();
+        SupportCallbackRequestDto dto1 = service.requestCallback(
+                new CreateSupportCallbackRequest(null, tomorrow, "10:00-12:00"));
         assertEquals("PrefName", dto1.userName());
+        assertEquals("10:00-12:00", dto1.timeSlot());
 
         // User with no name and no preferredName -> falls back to email; no staff rows; blank note
         User u2 = new User();
@@ -149,8 +152,10 @@ class SupportAndSecurityBranchCoverageTest {
                 eq(11L), eq(SupportCallbackStatus.PENDING), any())).thenReturn(Optional.empty());
         when(roleRepo.findByRoleCodeInAndActiveTrue(anySet())).thenReturn(List.of());
 
-        SupportCallbackRequestDto dto2 = service.requestCallback(new CreateSupportCallbackRequest("   "));
+        SupportCallbackRequestDto dto2 = service.requestCallback(
+                new CreateSupportCallbackRequest("   ", tomorrow, "12:00-14:00"));
         assertEquals("noname@example.com", dto2.userName());
+        assertEquals("12:00-14:00", dto2.timeSlot());
 
         // firstNonBlank((String[]) null) via reflection
         assertNull(ReflectionTestUtils.invokeMethod(SupportCallbackService.class, "firstNonBlank", (Object) null));
@@ -187,15 +192,18 @@ class SupportAndSecurityBranchCoverageTest {
         service.updateStatus(77L, new UpdateSupportCallbackStatusRequest(SupportCallbackStatus.CONTACTED));
         assertNotNull(existing.getResolvedAt());
 
-        // listMyNotifications empty & non-empty
-        when(notifRepo.findByRecipientEmailIgnoreCaseOrderByCreatedAtDesc("staff@example.com"))
+        // listMyNotifications returns unread callback alerts only (read rows stay in DB)
+        when(notifRepo.findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+                eq("staff@example.com"), eq(SupportCallbackService.NOTIFICATION_TYPE_CALLBACK)))
                 .thenReturn(List.of());
         assertTrue(service.listMyNotifications().isEmpty());
 
         StaffInboxNotification n = new StaffInboxNotification();
         n.setId(1L);
         n.setRelatedCallbackId(77L);
-        when(notifRepo.findByRecipientEmailIgnoreCaseOrderByCreatedAtDesc("staff@example.com"))
+        n.setRead(false);
+        when(notifRepo.findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+                eq("staff@example.com"), eq(SupportCallbackService.NOTIFICATION_TYPE_CALLBACK)))
                 .thenReturn(List.of(n));
         when(cbRepo.findAllById(anySet())).thenReturn(List.of(existing));
         assertEquals(1, service.listMyNotifications().size());

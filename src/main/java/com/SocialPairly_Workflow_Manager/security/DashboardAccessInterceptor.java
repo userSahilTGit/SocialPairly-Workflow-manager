@@ -47,12 +47,13 @@ public class DashboardAccessInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/admin/access")) {
             return DashboardKeys.ROLE_ACCESS;
         }
-        if (path.startsWith("/api/admin/callback-alerts")) {
-            // Super Admin / Admin home dashboard can surface pending callback badges.
-            return DashboardKeys.DASHBOARD;
-        }
-        if (path.startsWith("/api/admin/customer-support")) {
+        if (path.startsWith("/api/admin/callback-alerts")
+                || path.startsWith("/api/admin/customer-support")) {
+            // Callback queue + home-dashboard alerts: Super Admin / Admin / Customer Support only.
             return DashboardKeys.CUSTOMER_SUPPORT;
+        }
+        if (path.startsWith("/api/admin/ratings")) {
+            return DashboardKeys.RATINGS;
         }
         if (path.startsWith("/api/admin/questions")) {
             return DashboardKeys.QUESTIONS;

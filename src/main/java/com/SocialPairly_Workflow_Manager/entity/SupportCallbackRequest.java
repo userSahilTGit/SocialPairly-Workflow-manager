@@ -1,12 +1,14 @@
 package com.SocialPairly_Workflow_Manager.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "support_callback_requests", indexes = {
         @Index(name = "idx_support_callback_status_created", columnList = "status, created_at"),
-        @Index(name = "idx_support_callback_user", columnList = "user_id")
+        @Index(name = "idx_support_callback_user", columnList = "user_id"),
+        @Index(name = "idx_support_callback_schedule", columnList = "preferred_date, time_slot")
 })
 public class SupportCallbackRequest {
 
@@ -29,6 +31,15 @@ public class SupportCallbackRequest {
 
     @Column(length = 500)
     private String note;
+
+    @Column(name = "preferred_date")
+    private LocalDate preferredDate;
+
+    @Column(name = "preferred_day", length = 20)
+    private String preferredDay;
+
+    @Column(name = "time_slot", length = 40)
+    private String timeSlot;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -94,6 +105,15 @@ public class SupportCallbackRequest {
 
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+
+    public LocalDate getPreferredDate() { return preferredDate; }
+    public void setPreferredDate(LocalDate preferredDate) { this.preferredDate = preferredDate; }
+
+    public String getPreferredDay() { return preferredDay; }
+    public void setPreferredDay(String preferredDay) { this.preferredDay = preferredDay; }
+
+    public String getTimeSlot() { return timeSlot; }
+    public void setTimeSlot(String timeSlot) { this.timeSlot = timeSlot; }
 
     public SupportCallbackStatus getStatus() { return status; }
     public void setStatus(SupportCallbackStatus status) { this.status = status; }

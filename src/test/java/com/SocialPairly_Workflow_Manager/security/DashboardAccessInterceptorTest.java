@@ -36,7 +36,9 @@ class DashboardAccessInterceptorTest {
     void resolveDashboardKeyMapsKnownPaths() {
         assertEquals(DashboardKeys.ROLE_ACCESS, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/access/employees"));
         assertEquals(DashboardKeys.CUSTOMER_SUPPORT, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/customer-support"));
-        assertEquals(DashboardKeys.DASHBOARD, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/callback-alerts/summary"));
+        assertEquals(DashboardKeys.CUSTOMER_SUPPORT, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/callback-alerts/summary"));
+        assertEquals(DashboardKeys.CUSTOMER_SUPPORT, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/callback-alerts/callbacks"));
+        assertEquals(DashboardKeys.RATINGS, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/ratings"));
         assertEquals(DashboardKeys.QUESTIONS, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/questions"));
         assertEquals(DashboardKeys.MODERATION, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/media/pending"));
         assertEquals(DashboardKeys.IDENTITY_DOCS, DashboardAccessInterceptor.resolveDashboardKey("/api/admin/identity-documents"));

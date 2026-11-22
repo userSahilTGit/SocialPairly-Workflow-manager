@@ -1,8 +1,10 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
+import com.SocialPairly_Workflow_Manager.constants.CallbackTimeSlots;
 import com.SocialPairly_Workflow_Manager.entity.SupportCallbackRequest;
 import com.SocialPairly_Workflow_Manager.entity.SupportCallbackStatus;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record SupportCallbackRequestDto(
@@ -12,6 +14,10 @@ public record SupportCallbackRequestDto(
         String userEmail,
         String phoneNumber,
         String note,
+        LocalDate preferredDate,
+        String preferredDay,
+        String timeSlot,
+        String timeSlotLabel,
         SupportCallbackStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
@@ -31,6 +37,10 @@ public record SupportCallbackRequestDto(
                 row.getUserEmail(),
                 row.getPhoneNumber(),
                 row.getNote(),
+                row.getPreferredDate(),
+                row.getPreferredDay(),
+                row.getTimeSlot(),
+                CallbackTimeSlots.labelFor(row.getTimeSlot()),
                 row.getStatus(),
                 row.getCreatedAt(),
                 row.getUpdatedAt(),

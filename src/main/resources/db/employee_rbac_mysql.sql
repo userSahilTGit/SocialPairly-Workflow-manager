@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS role_dashboard_access (
   id              BIGINT       NOT NULL AUTO_INCREMENT,
   role_code       VARCHAR(40)  NOT NULL,
   dashboard_key   VARCHAR(60)  NOT NULL
-      COMMENT 'DASHBOARD, QUESTIONS, MODERATION, IDENTITY_DOCS, PLANS, EVENTS, FINANCE, ROLE_ACCESS, CUSTOMER_SUPPORT',
+      COMMENT 'DASHBOARD, QUESTIONS, MODERATION, IDENTITY_DOCS, PLANS, EVENTS, FINANCE, ROLE_ACCESS, CUSTOMER_SUPPORT, RATINGS',
   can_access      BIT(1)       NOT NULL DEFAULT 1,
   updated_by_email VARCHAR(120) NULL,
   created_at      DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -42,4 +42,5 @@ INSERT IGNORE INTO role_dashboard_access (role_code, dashboard_key, can_access, 
 VALUES
   ('SUPER_ADMIN', 'CUSTOMER_SUPPORT', 1, 'system-seed'),
   ('ADMIN', 'CUSTOMER_SUPPORT', 1, 'system-seed'),
-  ('CUSTOMER_SUPPORT', 'CUSTOMER_SUPPORT', 1, 'system-seed');
+  ('CUSTOMER_SUPPORT', 'CUSTOMER_SUPPORT', 1, 'system-seed'),
+  ('SUPER_ADMIN', 'RATINGS', 1, 'system-seed');

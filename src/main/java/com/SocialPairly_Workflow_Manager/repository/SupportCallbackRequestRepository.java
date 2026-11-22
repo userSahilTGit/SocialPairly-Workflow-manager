@@ -21,4 +21,9 @@ public interface SupportCallbackRequestRepository extends JpaRepository<SupportC
             SupportCallbackStatus status,
             LocalDateTime createdAfter
     );
+
+    Optional<SupportCallbackRequest> findFirstByUser_IdAndStatusOrderByCreatedAtDesc(
+            Long userId,
+            SupportCallbackStatus status
+    );
 }

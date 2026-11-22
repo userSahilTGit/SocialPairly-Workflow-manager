@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.service;
 
+import com.SocialPairly_Workflow_Manager.constants.CallbackTimeSlots;
 import com.SocialPairly_Workflow_Manager.constants.EmployeeRoleCodes;
 import com.SocialPairly_Workflow_Manager.dto.CreateSupportCallbackRequest;
 import com.SocialPairly_Workflow_Manager.dto.StaffInboxNotificationDto;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -87,19 +89,42 @@ public class SupportCallbackService {
             throw new BadRequestException("Add a phone number to your profile before requesting a callback.");
         }
 
+        LocalDate preferredDate = request != null
+                ? CallbackTimeSlots.parsePreferredDate(request.preferredDate())
+                : null;
+        String normalizedSlot = request != null
+                ? CallbackTimeSlots.normalizeSlot(request.timeSlot())
+                : null;
+        if (preferredDate == null || normalizedSlot == null) {
+            throw new BadRequestException("Select both a day and a 2-hour time slot for the callback.");
+        }
+
         SupportCallbackRequest row = new SupportCallbackRequest();
         row.setUser(user);
         row.setUserName(formatName(user));
         row.setUserEmail(user.getEmail());
         row.setPhoneNumber(phone.trim());
+        row.setPreferredDate(preferredDate);
+        row.setPreferredDay(CallbackTimeSlots.dayNameFor(preferredDate));
+        row.setTimeSlot(normalizedSlot);
         if (request != null && request.note() != null && !request.note().isBlank()) {
             row.setNote(request.note().trim());
         }
 
         SupportCallbackRequest saved = callbackRepository.save(row);
         notifyStaff(saved);
-        log.info("Premium callback requested id={} userId={}", saved.getId(), user.getId());
+        log.info("Premium callback requested id={} userId={} date={} slot={}",
+                saved.getId(), user.getId(), saved.getPreferredDate(), saved.getTimeSlot());
         return SupportCallbackRequestDto.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public SupportCallbackRequestDto getMyActiveCallback() {
+        User user = currentUserService.getCurrentUser();
+        return callbackRepository
+                .findFirstByUser_IdAndStatusOrderByCreatedAtDesc(user.getId(), SupportCallbackStatus.PENDING)
+                .map(SupportCallbackRequestDto::from)
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -145,11 +170,17 @@ public class SupportCallbackService {
         return SupportCallbackRequestDto.from(saved);
     }
 
+    /**
+     * Active inbox only: unread callback notifications.
+     * Read rows stay in {@code staff_inbox_notifications} for audit; handled callbacks
+     * remain in {@code support_callback_requests} with status/actor timestamps.
+     */
     @Transactional(readOnly = true)
     public List<StaffInboxNotificationDto> listMyNotifications() {
         User user = currentUserService.getCurrentUser();
         List<StaffInboxNotification> rows =
-                notificationRepository.findByRecipientEmailIgnoreCaseOrderByCreatedAtDesc(user.getEmail());
+                notificationRepository.findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+                        user.getEmail(), NOTIFICATION_TYPE_CALLBACK);
         Set<Long> callbackIds = rows.stream()
                 .map(StaffInboxNotification::getRelatedCallbackId)
                 .filter(Objects::nonNull)
@@ -166,7 +197,8 @@ public class SupportCallbackService {
     @Transactional(readOnly = true)
     public long countMyUnreadNotifications() {
         User user = currentUserService.getCurrentUser();
-        return notificationRepository.countByRecipientEmailIgnoreCaseAndReadFalse(user.getEmail());
+        return notificationRepository.countByRecipientEmailIgnoreCaseAndTypeAndReadFalse(
+                user.getEmail(), NOTIFICATION_TYPE_CALLBACK);
     }
 
     /** Handled for one staff member means handled for all: clear every recipient's unread copy. */
@@ -196,9 +228,19 @@ public class SupportCallbackService {
             uniqueByEmail.putIfAbsent(email, assignment);
         }
 
-        String title = "Premium callback requested";
-        String message = callback.getUserName() + " (" + callback.getPhoneNumber()
-                + ") requested a support callback.";
+        String scheduleSummary = CallbackTimeSlots.formatScheduleSummary(
+                callback.getPreferredDate(),
+                callback.getPreferredDay(),
+                callback.getTimeSlot()
+        );
+        String title = scheduleSummary != null
+                ? "Premium callback scheduled (" + CallbackTimeSlots.labelFor(callback.getTimeSlot()) + ")"
+                : "Premium callback requested";
+        String message = scheduleSummary != null
+                ? callback.getUserName() + " (" + callback.getPhoneNumber()
+                        + ") selected slot: " + scheduleSummary + "."
+                : callback.getUserName() + " (" + callback.getPhoneNumber()
+                        + ") requested a support callback.";
 
         List<StaffInboxNotification> notifications = new ArrayList<>();
         for (StaffRoleAssignment assignment : uniqueByEmail.values()) {
