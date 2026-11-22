@@ -23,6 +23,11 @@ Command: `mvnw test jacoco:report` + `scripts/print-jacoco-summary.py`
 
 Full HTML report (local): `target/site/jacoco/index.html`
 
+## Screenshots
+
+- `_test_shots/ratingsNsupportexperience/jacoco-bundle.png` — JaCoCo HTML total row (98% / 95%)
+- `_test_shots/ratingsNsupportexperience/jacoco-98.5-pass.png` — summary card
+
 ## Decision
 
 Coverage **above 90%** → proceed with push / MR / merge to `main`.
