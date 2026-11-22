@@ -16,5 +16,13 @@ public interface StaffInboxNotificationRepository extends JpaRepository<StaffInb
 
     long countByRecipientEmailIgnoreCaseAndReadFalse(String recipientEmail);
 
+    long countByRecipientEmailIgnoreCaseAndTypeAndReadFalse(String recipientEmail, String type);
+
+    List<StaffInboxNotification> findByRecipientEmailIgnoreCaseAndTypeAndReadFalse(
+            String recipientEmail, String type);
+
+    List<StaffInboxNotification> findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+            String recipientEmail, String type);
+
     List<StaffInboxNotification> findByRelatedCallbackIdAndReadFalse(Long relatedCallbackId);
 }

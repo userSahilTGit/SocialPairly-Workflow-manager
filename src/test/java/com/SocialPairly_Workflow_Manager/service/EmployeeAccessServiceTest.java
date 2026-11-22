@@ -394,6 +394,70 @@ class EmployeeAccessServiceTest {
         verify(dashboardAccessRepository, atLeast(4)).save(any(RoleDashboardAccess.class));
     }
 
+    @Test
+    void enforceSupportOpsOnlyDashboardsSeedsAndRevokesOtherRoles() {
+        when(dashboardAccessRepository.findByRoleCodeAndDashboardKey(anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(dashboardAccessRepository.save(any(RoleDashboardAccess.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RoleDashboardAccess financeCs = new RoleDashboardAccess();
+        financeCs.setRoleCode(EmployeeRoleCodes.FINANCE);
+        financeCs.setDashboardKey(DashboardKeys.CUSTOMER_SUPPORT);
+        financeCs.setCanAccess(true);
+        RoleDashboardAccess testerRatings = new RoleDashboardAccess();
+        testerRatings.setRoleCode(EmployeeRoleCodes.TESTER);
+        testerRatings.setDashboardKey(DashboardKeys.RATINGS);
+        testerRatings.setCanAccess(true);
+        when(dashboardAccessRepository.findAll()).thenReturn(List.of(financeCs, testerRatings));
+
+        service.enforceSupportOpsOnlyDashboards();
+
+        assertFalse(financeCs.isCanAccess());
+        assertFalse(testerRatings.isCanAccess());
+        verify(dashboardAccessRepository, atLeast(6)).save(any(RoleDashboardAccess.class));
+    }
+
+    @Test
+    void hasDashboardAccessBlocksCallRequestsAndRatingsForNonSupportOps() {
+        User finance = new User();
+        finance.setEmail("finance@socialpairly.com");
+        finance.setRole(Role.ADMIN);
+        StaffRoleAssignment financeRole = new StaffRoleAssignment();
+        financeRole.setRoleCode(EmployeeRoleCodes.FINANCE);
+        when(assignmentRepository.findByEmailIgnoreCaseAndActiveTrue("finance@socialpairly.com"))
+                .thenReturn(Optional.of(financeRole));
+        RoleDashboardAccess fakeCs = new RoleDashboardAccess();
+        fakeCs.setDashboardKey(DashboardKeys.CUSTOMER_SUPPORT);
+        RoleDashboardAccess fakeRatings = new RoleDashboardAccess();
+        fakeRatings.setDashboardKey(DashboardKeys.RATINGS);
+        RoleDashboardAccess financeDash = new RoleDashboardAccess();
+        financeDash.setDashboardKey(DashboardKeys.FINANCE);
+        when(dashboardAccessRepository.findByRoleCodeAndCanAccessTrue(EmployeeRoleCodes.FINANCE))
+                .thenReturn(List.of(fakeCs, fakeRatings, financeDash));
+
+        assertFalse(service.hasDashboardAccess(finance, DashboardKeys.CUSTOMER_SUPPORT));
+        assertFalse(service.hasDashboardAccess(finance, DashboardKeys.RATINGS));
+        assertTrue(service.hasDashboardAccess(finance, DashboardKeys.FINANCE));
+    }
+
+    @Test
+    void updateDashboardAccessRejectsSupportOpsDashboardsForOtherRoles() {
+        stubSuperAdminAccess();
+        when(currentUserService.getCurrentUser()).thenReturn(superAdminUser());
+
+        assertThrows(BadRequestException.class, () -> service.updateDashboardAccess(
+                new UpdateRoleDashboardAccessRequest(EmployeeRoleCodes.FINANCE, DashboardKeys.CUSTOMER_SUPPORT, true)));
+        assertThrows(BadRequestException.class, () -> service.updateDashboardAccess(
+                new UpdateRoleDashboardAccessRequest(EmployeeRoleCodes.EVENT_TEAM, DashboardKeys.RATINGS, true)));
+    }
+
+    private User superAdminUser() {
+        User user = new User();
+        user.setEmail("super@socialpairly.com");
+        user.setRole(Role.ADMIN);
+        return user;
+    }
+
     private void stubSuperAdminAccess() {
         StaffRoleAssignment assignment = new StaffRoleAssignment();
         assignment.setRoleCode(EmployeeRoleCodes.SUPER_ADMIN);

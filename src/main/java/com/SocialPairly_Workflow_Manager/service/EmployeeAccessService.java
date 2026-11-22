@@ -115,14 +115,46 @@ public class EmployeeAccessService {
      */
     @Transactional
     public void ensureCustomerSupportDashboardAccess() {
-        List<String> roles = List.of(
-                EmployeeRoleCodes.SUPER_ADMIN,
-                EmployeeRoleCodes.ADMIN,
-                EmployeeRoleCodes.CUSTOMER_SUPPORT
-        );
-        for (String roleCode : roles) {
+        ensureSupportOpsDashboard(DashboardKeys.CUSTOMER_SUPPORT);
+    }
+
+    /**
+     * Ratings console for Super Admin / Admin / Customer Support only.
+     */
+    @Transactional
+    public void ensureRatingsDashboardAccess() {
+        ensureSupportOpsDashboard(DashboardKeys.RATINGS);
+    }
+
+    /**
+     * Seeds call-request + ratings access for support-ops roles and revokes those
+     * dashboards from every other employee role.
+     */
+    @Transactional
+    public void enforceSupportOpsOnlyDashboards() {
+        ensureSupportOpsDashboard(DashboardKeys.CUSTOMER_SUPPORT);
+        ensureSupportOpsDashboard(DashboardKeys.RATINGS);
+        for (RoleDashboardAccess row : dashboardAccessRepository.findAll()) {
+            String key = row.getDashboardKey();
+            if (!DashboardKeys.CUSTOMER_SUPPORT.equals(key) && !DashboardKeys.RATINGS.equals(key)) {
+                continue;
+            }
+            if (EmployeeRoleCodes.isSupportOpsRole(row.getRoleCode())) {
+                continue;
+            }
+            if (row.isCanAccess()) {
+                row.setCanAccess(false);
+                row.setUpdatedByEmail("system-seed");
+                dashboardAccessRepository.save(row);
+                log.info("Revoked {} dashboard from non-support-ops role {}", key, row.getRoleCode());
+            }
+        }
+    }
+
+    private void ensureSupportOpsDashboard(String dashboardKey) {
+        for (String roleCode : EmployeeRoleCodes.supportOpsRoles()) {
             Optional<RoleDashboardAccess> existing =
-                    dashboardAccessRepository.findByRoleCodeAndDashboardKey(roleCode, DashboardKeys.CUSTOMER_SUPPORT);
+                    dashboardAccessRepository.findByRoleCodeAndDashboardKey(roleCode, dashboardKey);
             if (existing.isPresent()) {
                 RoleDashboardAccess row = existing.get();
                 if (!row.isCanAccess()) {
@@ -134,7 +166,7 @@ public class EmployeeAccessService {
             }
             RoleDashboardAccess created = new RoleDashboardAccess();
             created.setRoleCode(roleCode);
-            created.setDashboardKey(DashboardKeys.CUSTOMER_SUPPORT);
+            created.setDashboardKey(dashboardKey);
             created.setCanAccess(true);
             created.setUpdatedByEmail("system-seed");
             dashboardAccessRepository.save(created);
@@ -171,18 +203,39 @@ public class EmployeeAccessService {
         if (coarseRole != Role.ADMIN && (employeeRole == null || employeeRole.isBlank())) {
             return List.of();
         }
+        Set<String> keys;
         if (employeeRole == null || employeeRole.isBlank()) {
-            return orderedDashboardKeys(DashboardKeys.all());
+            // Legacy coarse ADMIN without staff role: general dashboards only — never call requests / ratings.
+            keys = new LinkedHashSet<>(DashboardKeys.all());
+        } else {
+            List<RoleDashboardAccess> rows = dashboardAccessRepository.findByRoleCodeAndCanAccessTrue(employeeRole);
+            if (rows.isEmpty() && coarseRole == Role.ADMIN) {
+                keys = new LinkedHashSet<>(DashboardKeys.all());
+            } else {
+                keys = rows.stream()
+                        .map(RoleDashboardAccess::getDashboardKey)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+            }
         }
-        List<RoleDashboardAccess> rows = dashboardAccessRepository.findByRoleCodeAndCanAccessTrue(employeeRole);
-        if (rows.isEmpty() && coarseRole == Role.ADMIN) {
-            // Mapping missing — keep legacy admins fully functional.
-            return orderedDashboardKeys(DashboardKeys.all());
+        return orderedDashboardKeys(restrictSupportOpsDashboards(keys, employeeRole));
+    }
+
+    /**
+     * Call requests ({@code CUSTOMER_SUPPORT}) and ratings ({@code RATINGS}) are reserved for
+     * Super Admin, Admin, and Customer Support — even if Role & Access or legacy fallback
+     * would otherwise include them.
+     */
+    private Set<String> restrictSupportOpsDashboards(Set<String> keys, String employeeRole) {
+        if (keys == null || keys.isEmpty()) {
+            return Set.of();
         }
-        Set<String> keys = rows.stream()
-                .map(RoleDashboardAccess::getDashboardKey)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        return orderedDashboardKeys(keys);
+        if (EmployeeRoleCodes.isSupportOpsRole(employeeRole)) {
+            return keys;
+        }
+        Set<String> filtered = new LinkedHashSet<>(keys);
+        filtered.remove(DashboardKeys.CUSTOMER_SUPPORT);
+        filtered.remove(DashboardKeys.RATINGS);
+        return filtered;
     }
 
     public boolean hasDashboardAccess(User user, String dashboardKey) {
@@ -194,6 +247,10 @@ public class EmployeeAccessService {
             return false;
         }
         String employeeRole = resolveEmployeeRoleCode(user.getEmail(), user.getRole());
+        if ((DashboardKeys.CUSTOMER_SUPPORT.equals(key) || DashboardKeys.RATINGS.equals(key))
+                && !EmployeeRoleCodes.isSupportOpsRole(employeeRole)) {
+            return false;
+        }
         List<String> allowed = resolveAllowedDashboards(user.getEmail(), user.getRole(), employeeRole);
         return allowed.contains(key);
     }
@@ -202,6 +259,19 @@ public class EmployeeAccessService {
         User user = currentUserService.getCurrentUser();
         if (!hasDashboardAccess(user, dashboardKey)) {
             throw new ForbiddenException("You do not have access to this dashboard");
+        }
+    }
+
+    /** Call requests and ratings: Super Admin / Admin / Customer Support only. */
+    public void requireSupportOpsAccess() {
+        User user = currentUserService.getCurrentUser();
+        if (user == null || user.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("You do not have access to this dashboard");
+        }
+        String employeeRole = resolveEmployeeRoleCode(user.getEmail(), user.getRole());
+        if (!EmployeeRoleCodes.isSupportOpsRole(employeeRole)) {
+            throw new ForbiddenException(
+                    "Call requests and ratings are limited to Super Admin, Admin, and Customer Support");
         }
     }
 
@@ -349,6 +419,12 @@ public class EmployeeAccessService {
                 && Boolean.TRUE.equals(request.canAccess())) {
             throw new BadRequestException("ROLE_ACCESS dashboard is reserved for SUPER_ADMIN");
         }
+        if ((DashboardKeys.CUSTOMER_SUPPORT.equals(dashboardKey) || DashboardKeys.RATINGS.equals(dashboardKey))
+                && Boolean.TRUE.equals(request.canAccess())
+                && !EmployeeRoleCodes.isSupportOpsRole(roleCode)) {
+            throw new BadRequestException(
+                    "Customer Support and Ratings dashboards are reserved for SUPER_ADMIN, ADMIN, and CUSTOMER_SUPPORT");
+        }
 
         RoleDashboardAccess row = dashboardAccessRepository
                 .findByRoleCodeAndDashboardKey(roleCode, dashboardKey)
@@ -438,6 +514,7 @@ public class EmployeeAccessService {
                 DashboardKeys.EVENTS,
                 DashboardKeys.FINANCE,
                 DashboardKeys.CUSTOMER_SUPPORT,
+                DashboardKeys.RATINGS,
                 DashboardKeys.ROLE_ACCESS
         );
         return order.stream().filter(keys::contains).toList();

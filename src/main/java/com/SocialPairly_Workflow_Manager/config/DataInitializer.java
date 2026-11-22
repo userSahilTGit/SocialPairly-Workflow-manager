@@ -65,7 +65,7 @@ public class DataInitializer implements CommandLineRunner {
         if (admin != null) {
             employeeAccessService.ensureSeedSuperAdmin(admin);
         }
-        employeeAccessService.ensureCustomerSupportDashboardAccess();
+        employeeAccessService.enforceSupportOpsOnlyDashboards();
     }
 
     private void seedSampleQuestions() {

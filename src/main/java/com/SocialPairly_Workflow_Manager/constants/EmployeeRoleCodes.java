@@ -34,6 +34,9 @@ public final class EmployeeRoleCodes {
     private EmployeeRoleCodes() {
     }
 
+    /** Roles allowed to see call requests and member ratings. */
+    private static final Set<String> SUPPORT_OPS = Set.of(SUPER_ADMIN, ADMIN, CUSTOMER_SUPPORT);
+
     public static boolean isValid(String roleCode) {
         return roleCode != null && ALL.contains(roleCode.trim().toUpperCase(Locale.ROOT));
     }
@@ -47,6 +50,16 @@ public final class EmployeeRoleCodes {
 
     public static Set<String> all() {
         return Set.copyOf(ALL);
+    }
+
+    /** Super Admin, Admin, and Customer Support only. */
+    public static boolean isSupportOpsRole(String roleCode) {
+        String normalized = normalize(roleCode);
+        return normalized != null && SUPPORT_OPS.contains(normalized);
+    }
+
+    public static Set<String> supportOpsRoles() {
+        return Set.copyOf(SUPPORT_OPS);
     }
 
     public static boolean isSocialPairlyDomain(String email) {

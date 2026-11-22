@@ -548,9 +548,7 @@ class EmailServiceTest {
     }
 
     @Test
-    void sendCustomerCareEmailRoutesPremiumMembersToPremiumInbox() throws Exception {
-        org.springframework.test.util.ReflectionTestUtils.setField(
-                emailService, "premiumSupportEmail", "salmaan.razzak@socialpairly.com");
+    void sendCustomerCareEmailUsesSharedInboxForPremiumMembers() throws Exception {
         MimeMessage agentMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
         MimeMessage memberMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
         when(mailSender.createMimeMessage()).thenReturn(agentMessage, memberMessage);
@@ -565,21 +563,14 @@ class EmailServiceTest {
                 null
         ), null, true);
 
-        assertEquals("salmaan.razzak@socialpairly.com", agentMessage.getAllRecipients()[0].toString());
+        String sharedInbox = String.valueOf(
+                org.springframework.test.util.ReflectionTestUtils.getField(emailService, "supportEmail"));
+        assertEquals(sharedInbox, agentMessage.getAllRecipients()[0].toString());
         assertTrue(agentMessage.getSubject().startsWith("[Premium Customer Care] "));
-        assertEquals("salmaan.razzak@socialpairly.com", memberMessage.getReplyTo()[0].toString());
+        assertEquals(sharedInbox, memberMessage.getReplyTo()[0].toString());
         assertTrue(htmlOf(agentMessage).contains("Membership: Premium"));
-
-        org.springframework.test.util.ReflectionTestUtils.setField(emailService, "premiumSupportEmail", "   ");
-        assertEquals(
-                org.springframework.test.util.ReflectionTestUtils.getField(emailService, "supportEmail"),
-                emailService.resolveCustomerCareRecipient(true)
-        );
-        org.springframework.test.util.ReflectionTestUtils.setField(emailService, "premiumSupportEmail", null);
-        assertEquals(
-                org.springframework.test.util.ReflectionTestUtils.getField(emailService, "supportEmail"),
-                emailService.resolveCustomerCareRecipient(true)
-        );
+        assertEquals(sharedInbox, emailService.resolveCustomerCareRecipient(true));
+        assertEquals(sharedInbox, emailService.resolveCustomerCareRecipient(false));
     }
 
     private static String htmlOf(MimeMessage message) throws Exception {

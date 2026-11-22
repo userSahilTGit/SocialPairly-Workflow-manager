@@ -17,9 +17,11 @@ public final class DashboardKeys {
     public static final String FINANCE = "FINANCE";
     public static final String ROLE_ACCESS = "ROLE_ACCESS";
     public static final String CUSTOMER_SUPPORT = "CUSTOMER_SUPPORT";
+    public static final String RATINGS = "RATINGS";
 
     private static final Set<String> ALL = new LinkedHashSet<>(List.of(
-            DASHBOARD, QUESTIONS, MODERATION, IDENTITY_DOCS, PLANS, EVENTS, FINANCE, ROLE_ACCESS, CUSTOMER_SUPPORT
+            DASHBOARD, QUESTIONS, MODERATION, IDENTITY_DOCS, PLANS, EVENTS, FINANCE,
+            ROLE_ACCESS, CUSTOMER_SUPPORT, RATINGS
     ));
 
     private DashboardKeys() {

@@ -20,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -90,13 +91,28 @@ class SupportCallbackServiceTest {
         when(staffRoleAssignmentRepository.findByRoleCodeInAndActiveTrue(anyCollection()))
                 .thenReturn(List.of(superAdmin, admin, cs));
 
-        var result = service.requestCallback(new CreateSupportCallbackRequest("Please call after 6pm"));
+        String tomorrow = LocalDate.now().plusDays(1).toString();
+        var result = service.requestCallback(
+                new CreateSupportCallbackRequest("Please call after 6pm", tomorrow, "18:00-20:00"));
 
         assertEquals(99L, result.id());
         assertEquals(SupportCallbackStatus.PENDING, result.status());
         assertEquals("+916282902802", result.phoneNumber());
+        assertEquals("18:00-20:00", result.timeSlot());
         verify(notificationRepository).saveAll(argThat(list -> ((List<?>) list).size() == 3));
         verify(emailService).sendPremiumCallbackRequestEmails(anyList(), any(SupportCallbackRequest.class));
+    }
+
+    @Test
+    void requestCallbackRequiresDayAndSlot() {
+        when(currentUserService.getCurrentUser()).thenReturn(premiumUser);
+        when(subscriptionService.hasActiveSubscription(11L)).thenReturn(true);
+
+        assertThrows(BadRequestException.class,
+                () -> service.requestCallback(new CreateSupportCallbackRequest("note only")));
+        assertThrows(BadRequestException.class,
+                () -> service.requestCallback(null));
+        verify(callbackRepository, never()).save(any());
     }
 
     @Test
@@ -161,30 +177,32 @@ class SupportCallbackServiceTest {
     }
 
     @Test
-    void listMyNotificationsIncludesHandlerDetails() {
+    void listMyNotificationsReturnsUnreadCallbackAlertsOnly() {
         when(currentUserService.getCurrentUser()).thenReturn(premiumUser);
-        StaffInboxNotification n = new StaffInboxNotification();
-        n.setId(1L);
-        n.setRelatedCallbackId(7L);
-        n.setRead(true);
-        StaffInboxNotification orphan = new StaffInboxNotification();
-        orphan.setId(2L);
-        when(notificationRepository.findByRecipientEmailIgnoreCaseOrderByCreatedAtDesc("priya@example.com"))
-                .thenReturn(List.of(n, orphan));
+        StaffInboxNotification unread = new StaffInboxNotification();
+        unread.setId(1L);
+        unread.setRelatedCallbackId(7L);
+        unread.setRead(false);
+        unread.setType(SupportCallbackService.NOTIFICATION_TYPE_CALLBACK);
+        when(notificationRepository.findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+                eq("priya@example.com"), eq(SupportCallbackService.NOTIFICATION_TYPE_CALLBACK)))
+                .thenReturn(List.of(unread));
         SupportCallbackRequest cb = new SupportCallbackRequest();
         cb.setId(7L);
-        cb.setStatus(SupportCallbackStatus.CLOSED);
-        cb.setStatusUpdatedByUserId(2L);
-        cb.setStatusUpdatedByName("Asha Admin");
-        cb.setStatusUpdatedByRole(EmployeeRoleCodes.ADMIN);
+        cb.setStatus(SupportCallbackStatus.PENDING);
+        cb.setPreferredDay("Monday");
+        cb.setTimeSlot("14:00-16:00");
         when(callbackRepository.findAllById(Set.of(7L))).thenReturn(List.of(cb));
 
         var result = service.listMyNotifications();
 
-        assertEquals(2, result.size());
-        assertEquals(SupportCallbackStatus.CLOSED, result.get(0).callbackStatus());
-        assertEquals("Asha Admin", result.get(0).handledByName());
-        assertEquals(2L, result.get(0).handledByUserId());
-        assertNull(result.get(1).callbackStatus());
+        assertEquals(1, result.size());
+        assertEquals(SupportCallbackStatus.PENDING, result.get(0).callbackStatus());
+        assertFalse(result.get(0).read());
+
+        when(notificationRepository.findByRecipientEmailIgnoreCaseAndTypeAndReadFalseOrderByCreatedAtDesc(
+                eq("priya@example.com"), eq(SupportCallbackService.NOTIFICATION_TYPE_CALLBACK)))
+                .thenReturn(List.of());
+        assertTrue(service.listMyNotifications().isEmpty());
     }
 }

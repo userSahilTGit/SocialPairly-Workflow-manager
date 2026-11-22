@@ -15,5 +15,7 @@ class DashboardKeysTest {
         assertEquals("FINANCE", DashboardKeys.normalize(" finance "));
         assertNull(DashboardKeys.normalize(null));
         assertTrue(DashboardKeys.all().contains(DashboardKeys.CUSTOMER_SUPPORT));
+        assertTrue(DashboardKeys.all().contains(DashboardKeys.RATINGS));
+        assertTrue(DashboardKeys.isValid(DashboardKeys.RATINGS));
     }
 }

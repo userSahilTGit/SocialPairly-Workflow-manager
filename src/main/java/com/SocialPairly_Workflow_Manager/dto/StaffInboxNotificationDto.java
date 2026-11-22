@@ -1,14 +1,16 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
+import com.SocialPairly_Workflow_Manager.constants.CallbackTimeSlots;
 import com.SocialPairly_Workflow_Manager.entity.StaffInboxNotification;
 import com.SocialPairly_Workflow_Manager.entity.SupportCallbackRequest;
 import com.SocialPairly_Workflow_Manager.entity.SupportCallbackStatus;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
  * Staff inbox row. {@code read} flips only when the related callback is marked contacted or closed;
- * the callback/handler fields show who acted on it.
+ * the callback/handler fields show who acted on it and which 2-hour slot was selected.
  */
 public record StaffInboxNotificationDto(
         Long id,
@@ -20,6 +22,10 @@ public record StaffInboxNotificationDto(
         boolean read,
         LocalDateTime createdAt,
         SupportCallbackStatus callbackStatus,
+        LocalDate callbackPreferredDate,
+        String callbackPreferredDay,
+        String callbackTimeSlot,
+        String callbackTimeSlotLabel,
         Long handledByUserId,
         String handledByName,
         String handledByEmail,
@@ -41,6 +47,10 @@ public record StaffInboxNotificationDto(
                 row.isRead(),
                 row.getCreatedAt(),
                 callback != null ? callback.getStatus() : null,
+                callback != null ? callback.getPreferredDate() : null,
+                callback != null ? callback.getPreferredDay() : null,
+                callback != null ? callback.getTimeSlot() : null,
+                callback != null ? CallbackTimeSlots.labelFor(callback.getTimeSlot()) : null,
                 callback != null ? callback.getStatusUpdatedByUserId() : null,
                 callback != null ? callback.getStatusUpdatedByName() : null,
                 callback != null ? callback.getStatusUpdatedByEmail() : null,

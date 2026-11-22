@@ -8,6 +8,7 @@ import com.SocialPairly_Workflow_Manager.entity.Refund;
 import com.SocialPairly_Workflow_Manager.entity.Subscription;
 import com.SocialPairly_Workflow_Manager.entity.SupportCallbackRequest;
 import com.SocialPairly_Workflow_Manager.entity.User;
+import com.SocialPairly_Workflow_Manager.constants.CallbackTimeSlots;
 import com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest;
 import com.SocialPairly_Workflow_Manager.dto.RefundTokenAdjustment;
 import com.SocialPairly_Workflow_Manager.dto.SupportAttachment;
@@ -58,9 +59,6 @@ public class EmailService {
 
     @Value("${app.support.email:customercare@socialpairly.com}")
     private String supportEmail;
-
-    @Value("${app.support.premium-email:salmaan.razzak@socialpairly.com}")
-    private String premiumSupportEmail;
 
     @Value("${app.email.base-url:https://www.socialpairly.com}")
     private String appBaseUrl;
@@ -803,10 +801,8 @@ public class EmailService {
                 LogMasker.email(targetSupportEmail), LogMasker.email(customerEmail), premiumMember, files.size());
     }
 
+    /** Free and premium members share the same customer-care inbox. */
     public String resolveCustomerCareRecipient(boolean premiumMember) {
-        if (premiumMember && premiumSupportEmail != null && !premiumSupportEmail.isBlank()) {
-            return premiumSupportEmail.trim();
-        }
         return supportEmail;
     }
 
@@ -830,6 +826,14 @@ public class EmailService {
         detailLines.add("Email: " + EmailTemplateBuilder.textLink("mailto:" + callback.getUserEmail(), callback.getUserEmail()));
         if (!phone.isBlank()) {
             detailLines.add("Phone: " + EmailTemplateBuilder.textLink(telHref(phone), phone));
+        }
+        String scheduleSummary = CallbackTimeSlots.formatScheduleSummary(
+                callback.getPreferredDate(),
+                callback.getPreferredDay(),
+                callback.getTimeSlot()
+        );
+        if (scheduleSummary != null) {
+            detailLines.add(EmailTemplateBuilder.plainToHtml("Scheduled Slot (2 hrs): " + scheduleSummary));
         }
         detailLines.add(EmailTemplateBuilder.plainToHtml("Callback ID: #" + callback.getId()));
         detailLines.add(EmailTemplateBuilder.plainToHtml("Note: " + note));
