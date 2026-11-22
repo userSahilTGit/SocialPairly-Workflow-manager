@@ -147,4 +147,34 @@ public record UserDto(
             allowedDashboards == null ? List.of() : List.copyOf(allowedDashboards)
         );
     }
+
+    public UserDto withSubscriptionDetails(boolean subscribed) {
+        return new UserDto(
+            id,
+            firstName,
+            lastName,
+            preferredName,
+            displayName,
+            email,
+            phoneNumber,
+            address,
+            role,
+            profileCompleted,
+            verified,
+            phoneVerified,
+            emailVerified,
+            is18OrOlder,
+            termsAccepted,
+            privacyAccepted,
+            identityConsent,
+            marketingConsent,
+            onboardingStep,
+            identityPage1Complete,
+            subscribed ? "Subscribed" : "Unsubscribed",
+            userTokens,
+            createdAt,
+            employeeRole,
+            allowedDashboards
+        );
+    }
 }

@@ -57,12 +57,17 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<UserDto> me() {
         User user = currentUserService.getCurrentUser();
-        subscriptionService.findPrimaryActiveSubscription(user.getId())
-                .ifPresent(sub -> userTokenService.ensureSubscriptionTokensCredited(user, sub));
+        boolean hasActiveSubscription = subscriptionService.findPrimaryActiveSubscription(user.getId())
+                .map(sub -> {
+                    userTokenService.ensureSubscriptionTokensCredited(user, sub);
+                    return true;
+                })
+                .orElse(false);
         log.debug("Fetching current user profile for userId={}", user.getId());
         User resolved = employeeAccessService.applyEmployeeAccessOnAuth(user);
         UserProfile profile = userProfileRepository.findByUserId(resolved.getId()).orElse(null);
-        return ResponseEntity.ok(employeeAccessService.toEnrichedDto(resolved, profile));
+        return ResponseEntity.ok(employeeAccessService.toEnrichedDto(resolved, profile)
+                .withSubscriptionDetails(hasActiveSubscription));
     }
 
     @PutMapping("/me/phone")

@@ -2,16 +2,22 @@ package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest;
 import com.SocialPairly_Workflow_Manager.dto.SupportAttachment;
+import com.SocialPairly_Workflow_Manager.entity.User;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
+import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import com.SocialPairly_Workflow_Manager.service.EmailService;
+import com.SocialPairly_Workflow_Manager.service.SubscriptionService;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import jakarta.mail.MessagingException;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.MailException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,9 +43,22 @@ public class SupportController {
     private static final Set<String> ALLOWED_TYPES = Set.of("image/png", "image/jpeg", "application/pdf");
 
     private final EmailService emailService;
+    private final UserRepository userRepository;
+    private final SubscriptionService subscriptionService;
 
     public SupportController(EmailService emailService) {
+        this(emailService, null, null);
+    }
+
+    @Autowired
+    public SupportController(
+            EmailService emailService,
+            UserRepository userRepository,
+            SubscriptionService subscriptionService
+    ) {
         this.emailService = emailService;
+        this.userRepository = userRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     /**
@@ -59,12 +78,16 @@ public class SupportController {
     }
 
     private ResponseEntity<Map<String, String>> deliver(CustomerCareRequest request, List<SupportAttachment> attachments) {
-        log.info("Customer-care contact from email={} issues={} attachments={}",
+        boolean premiumMember = isPremiumRequester(request);
+        log.info("Customer-care contact from email={} premium={} issues={} attachments={}",
                 LogMasker.email(request.email()),
+                premiumMember,
                 request.issues() == null ? 0 : request.issues().size(),
                 attachments.size());
         try {
-            if (attachments.isEmpty()) {
+            if (premiumMember) {
+                emailService.sendCustomerCareEmail(request, attachments, true);
+            } else if (attachments.isEmpty()) {
                 emailService.sendCustomerCareEmail(request);
             } else {
                 emailService.sendCustomerCareEmail(request, attachments);
@@ -76,6 +99,27 @@ public class SupportController {
         return ResponseEntity.ok(Map.of(
                 "message", "Thanks — your message was sent to customer care. We will reply by email."
         ));
+    }
+
+    private boolean isPremiumRequester(CustomerCareRequest request) {
+        if (userRepository == null || subscriptionService == null) {
+            return false;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null
+                && !"anonymousUser".equalsIgnoreCase(auth.getName())) {
+            User authed = userRepository.findByEmail(auth.getName().trim().toLowerCase(Locale.ROOT)).orElse(null);
+            if (authed != null) {
+                return subscriptionService.hasActiveSubscription(authed.getId());
+            }
+        }
+        if (request != null && request.email() != null && !request.email().isBlank()) {
+            User byEmail = userRepository.findByEmail(request.email().trim().toLowerCase(Locale.ROOT)).orElse(null);
+            if (byEmail != null) {
+                return subscriptionService.hasActiveSubscription(byEmail.getId());
+            }
+        }
+        return false;
     }
 
     private static List<SupportAttachment> toAttachments(List<MultipartFile> files) {

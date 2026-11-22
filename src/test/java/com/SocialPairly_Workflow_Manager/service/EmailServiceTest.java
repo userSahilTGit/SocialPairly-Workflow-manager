@@ -547,6 +547,41 @@ class EmailServiceTest {
         assertTrue(hasAttachment(memberMessage, "shot.png"));
     }
 
+    @Test
+    void sendCustomerCareEmailRoutesPremiumMembersToPremiumInbox() throws Exception {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                emailService, "premiumSupportEmail", "salmaan.razzak@socialpairly.com");
+        MimeMessage agentMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        MimeMessage memberMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(agentMessage, memberMessage);
+
+        emailService.sendCustomerCareEmail(new com.SocialPairly_Workflow_Manager.dto.CustomerCareRequest(
+                "Ada Lovelace",
+                "ada@example.com",
+                null,
+                List.of("Billing & subscriptions"),
+                "Priority question",
+                "Need quick help with my active membership.",
+                null
+        ), null, true);
+
+        assertEquals("salmaan.razzak@socialpairly.com", agentMessage.getAllRecipients()[0].toString());
+        assertTrue(agentMessage.getSubject().startsWith("[Premium Customer Care] "));
+        assertEquals("salmaan.razzak@socialpairly.com", memberMessage.getReplyTo()[0].toString());
+        assertTrue(htmlOf(agentMessage).contains("Membership: Premium"));
+
+        org.springframework.test.util.ReflectionTestUtils.setField(emailService, "premiumSupportEmail", "   ");
+        assertEquals(
+                org.springframework.test.util.ReflectionTestUtils.getField(emailService, "supportEmail"),
+                emailService.resolveCustomerCareRecipient(true)
+        );
+        org.springframework.test.util.ReflectionTestUtils.setField(emailService, "premiumSupportEmail", null);
+        assertEquals(
+                org.springframework.test.util.ReflectionTestUtils.getField(emailService, "supportEmail"),
+                emailService.resolveCustomerCareRecipient(true)
+        );
+    }
+
     private static String htmlOf(MimeMessage message) throws Exception {
         message.saveChanges();
         Object content = message.getContent();
