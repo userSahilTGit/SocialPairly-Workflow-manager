@@ -315,8 +315,11 @@ public class EventService {
     }
 
     private static String buildInviteBody(EventDetail event) {
-        return event.getVenueName() + " • " + event.getEventDate() + " at " + event.getEventTime()
-                + ". Complete unlock steps on Home to book your slot.";
+        String whenWhere = event.getVenueName() + " • " + event.getEventDate() + " at " + event.getEventTime();
+        if (event.getEnrollmentType() == EnrollmentType.OPEN) {
+            return whenWhere + ". Complete unlock steps on Home to book your slot.";
+        }
+        return whenWhere + ". Open Home to review and accept your invitation.";
     }
 
     private List<User> findUsersWithinRadius(double venueLat, double venueLng, int radiusMiles) {

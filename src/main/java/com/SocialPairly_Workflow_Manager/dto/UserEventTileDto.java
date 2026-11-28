@@ -20,11 +20,15 @@ public record UserEventTileDto(
         RsvpStatus rsvpStatus,
         int memberCount,
         String participantCode,
-        String entryCode
+        String entryCode,
+        String enrollmentType
 ) {
     public static UserEventTileDto from(EventParticipant participant, int memberCount) {
         EventDetail event = participant.getEvent();
         String participantCode = event.getEventCode() + "-" + participant.getUser().getId();
+        String enrollment = event.getEnrollmentType() != null
+                ? event.getEnrollmentType().name()
+                : "SELECTED";
         return new UserEventTileDto(
                 event.getId(),
                 event.getEventCode(),
@@ -37,7 +41,8 @@ public record UserEventTileDto(
                 participant.getRsvpStatus(),
                 memberCount,
                 participantCode,
-                participant.getEntryCode()
+                participant.getEntryCode(),
+                enrollment
         );
     }
 }

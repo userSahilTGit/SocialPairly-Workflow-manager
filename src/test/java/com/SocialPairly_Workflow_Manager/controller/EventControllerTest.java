@@ -49,7 +49,7 @@ class EventControllerTest {
         UserEventTileDto tile = new UserEventTileDto(
                 10L, "CODE", "Title", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0),
-                List.of("Dinner"), RsvpStatus.pending, 5, "CODE-1", null
+                List.of("Dinner"), RsvpStatus.pending, 5, "CODE-1", null, "SELECTED"
         );
         when(userEventService.listMyEvents(user)).thenReturn(List.of(tile));
 
@@ -75,7 +75,7 @@ class EventControllerTest {
         UserEventTileDto tile = new UserEventTileDto(
                 10L, "CODE", "Title", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0),
-                List.of(), RsvpStatus.accepted, 2, "CODE-1", "ENTRY"
+                List.of(), RsvpStatus.accepted, 2, "CODE-1", "ENTRY", "SELECTED"
         );
         when(userEventService.respondToInvitation(10L, user, true)).thenReturn(tile);
 

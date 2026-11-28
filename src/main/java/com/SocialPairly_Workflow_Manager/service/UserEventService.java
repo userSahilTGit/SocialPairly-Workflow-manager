@@ -108,7 +108,8 @@ public class UserEventService {
 
         int balance = userTokenService.getBalance(user);
         List<EventParticipant> mine = eventParticipantRepository.findPublishedEventsForUser(user.getId());
-        EventParticipant featuredParticipant = pickFeaturedParticipant(mine);
+        // Unlock / book-slot UI is OPEN-enrollment only. SELECTED invites keep the classic RSVP flow.
+        EventParticipant featuredParticipant = pickFeaturedOpenParticipant(mine);
         EventDetail openOpportunity = featuredParticipant == null ? findFeaturedOpenEvent() : null;
 
         EventDetail featuredEvent = featuredParticipant != null
@@ -125,10 +126,11 @@ public class UserEventService {
         boolean phoneOk = user.isPhoneVerified();
         boolean emailOk = user.isEmailVerified();
         boolean tokensReady = balance >= Math.max(tokenCost, 0);
+        boolean openPending = featuredEvent != null
+                && featuredEvent.getEnrollmentType() == EnrollmentType.OPEN
+                && featuredStatus == RsvpStatus.pending;
         // Phone verification is optional for unlock / booking; profile + tokens still required.
-        boolean canBook = featuredEvent != null
-                && featuredStatus == RsvpStatus.pending
-                && profileComplete && tokensReady;
+        boolean canBook = openPending && profileComplete && tokensReady;
 
         UserEventHomeStateDto.UnlockStepsDto steps = new UserEventHomeStateDto.UnlockStepsDto(
                 true, phoneOk, emailOk, profileComplete, tokensReady, canBook, balance, tokenCost);
@@ -136,10 +138,11 @@ public class UserEventService {
         UserEventHomeStateDto.FeaturedEventDto featuredDto = featuredEvent != null
                 ? toFeaturedDto(featuredEvent, featuredParticipant, user, balance) : null;
         UserEventHomeStateDto.VipPassDto vipPass = null;
-        // New users always see the unlock roadmap until they have a booked seat.
-        String phase = "UNLOCK";
+        String phase = featuredEvent != null ? "UNLOCK" : "NONE";
 
-        if (featuredParticipant != null) {
+        if (featuredParticipant != null
+                && featuredParticipant.getEvent() != null
+                && featuredParticipant.getEvent().getEnrollmentType() == EnrollmentType.OPEN) {
             EventDetail event = featuredParticipant.getEvent();
             LocalDateTime opensAt = matchingOpensAt(event);
             boolean accepted = featuredParticipant.getRsvpStatus() == RsvpStatus.accepted
@@ -610,12 +613,15 @@ public class UserEventService {
         return left.equals(right);
     }
 
-    private EventParticipant pickFeaturedParticipant(List<EventParticipant> mine) {
+    private EventParticipant pickFeaturedOpenParticipant(List<EventParticipant> mine) {
         return mine.stream()
+                .filter(p -> p.getEvent() != null && p.getEvent().getEnrollmentType() == EnrollmentType.OPEN)
                 .filter(p -> p.getRsvpStatus() == RsvpStatus.accepted || p.getRsvpStatus() == RsvpStatus.checked_in)
                 .findFirst()
-                .or(() -> mine.stream().filter(p -> p.getRsvpStatus() == RsvpStatus.pending).findFirst())
-                .or(() -> mine.stream().findFirst())
+                .or(() -> mine.stream()
+                        .filter(p -> p.getEvent() != null && p.getEvent().getEnrollmentType() == EnrollmentType.OPEN)
+                        .filter(p -> p.getRsvpStatus() == RsvpStatus.pending)
+                        .findFirst())
                 .orElse(null);
     }
 
@@ -624,11 +630,7 @@ public class UserEventService {
                 .filter(e -> e.getEnrollmentType() == EnrollmentType.OPEN)
                 .filter(e -> e.getEventDate() == null || !e.getEventDate().isBefore(LocalDate.now()))
                 .findFirst()
-                .orElseGet(() -> eventDetailRepository
-                        .findByStatusOrderByEventDateDescEventTimeDesc(EventStatus.published).stream()
-                        .filter(e -> e.getEventDate() == null || !e.getEventDate().isBefore(LocalDate.now()))
-                        .findFirst()
-                        .orElse(null));
+                .orElse(null);
     }
 
     private UserEventHomeStateDto.FeaturedEventDto toFeaturedDto(
