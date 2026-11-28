@@ -28,7 +28,7 @@ class OtpServiceAdditionalTests {
 
     @BeforeEach
     void setUp() {
-        service = new OtpService(authOtpCodeRepository, new BCryptPasswordEncoder());
+        service = new OtpService(authOtpCodeRepository, new BCryptPasswordEncoder(), true);
     }
 
     @Test

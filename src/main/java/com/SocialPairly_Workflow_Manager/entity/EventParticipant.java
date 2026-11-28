@@ -38,6 +38,18 @@ public class EventParticipant {
     @Column(name = "assigned_at", nullable = false, updatable = false)
     private LocalDateTime assignedAt;
 
+    @Column(name = "booking_tokens_spent", nullable = false)
+    private int bookingTokensSpent = 0;
+
+    @Column(name = "invited_via", length = 20)
+    private String invitedVia;
+
+    @Column(name = "notification_dismissed", nullable = false)
+    private boolean notificationDismissed = false;
+
+    @Column(name = "booked_at")
+    private LocalDateTime bookedAt;
+
     @PrePersist
     public void onCreate() {
         if (assignedAt == null) {
@@ -65,4 +77,16 @@ public class EventParticipant {
 
     public LocalDateTime getAssignedAt() { return assignedAt; }
     public void setAssignedAt(LocalDateTime assignedAt) { this.assignedAt = assignedAt; }
+
+    public int getBookingTokensSpent() { return bookingTokensSpent; }
+    public void setBookingTokensSpent(int bookingTokensSpent) { this.bookingTokensSpent = bookingTokensSpent; }
+
+    public String getInvitedVia() { return invitedVia; }
+    public void setInvitedVia(String invitedVia) { this.invitedVia = invitedVia; }
+
+    public boolean isNotificationDismissed() { return notificationDismissed; }
+    public void setNotificationDismissed(boolean notificationDismissed) { this.notificationDismissed = notificationDismissed; }
+
+    public LocalDateTime getBookedAt() { return bookedAt; }
+    public void setBookedAt(LocalDateTime bookedAt) { this.bookedAt = bookedAt; }
 }

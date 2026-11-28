@@ -1,9 +1,11 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
+import com.SocialPairly_Workflow_Manager.dto.EventBookSlotResponseDto;
 import com.SocialPairly_Workflow_Manager.dto.EventParticipantProfileDto;
 import com.SocialPairly_Workflow_Manager.dto.EventReactionRequest;
 import com.SocialPairly_Workflow_Manager.dto.EventReactionResponseDto;
 import com.SocialPairly_Workflow_Manager.dto.EventRsvpRequest;
+import com.SocialPairly_Workflow_Manager.dto.UserEventHomeStateDto;
 import com.SocialPairly_Workflow_Manager.dto.UserEventInvitationDto;
 import com.SocialPairly_Workflow_Manager.dto.UserEventTileDto;
 import com.SocialPairly_Workflow_Manager.dto.UserEventWorkspaceDto;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
@@ -30,6 +33,12 @@ public class EventController {
     public EventController(UserEventService userEventService, CurrentUserService currentUserService) {
         this.userEventService = userEventService;
         this.currentUserService = currentUserService;
+    }
+
+    @GetMapping("/home-state")
+    public ResponseEntity<UserEventHomeStateDto> homeState() {
+        User user = currentUserService.getCurrentUser();
+        return ResponseEntity.ok(userEventService.getHomeState(user));
     }
 
     @GetMapping("/my")
@@ -52,6 +61,27 @@ public class EventController {
         User user = currentUserService.getCurrentUser();
         log.info("User {} RSVP to event {} accept={}", user.getId(), eventId, request.accept());
         return ResponseEntity.ok(userEventService.respondToInvitation(eventId, user, request.accept()));
+    }
+
+    @PostMapping("/{eventId}/book-slot")
+    public ResponseEntity<EventBookSlotResponseDto> bookSlot(@PathVariable Long eventId) {
+        User user = currentUserService.getCurrentUser();
+        log.info("User {} booking slot for event {}", user.getId(), eventId);
+        return ResponseEntity.ok(userEventService.bookSlot(eventId, user));
+    }
+
+    @PostMapping("/notifications/{notificationId}/dismiss")
+    public ResponseEntity<Map<String, String>> dismissNotification(@PathVariable Long notificationId) {
+        User user = currentUserService.getCurrentUser();
+        userEventService.dismissNotification(notificationId, user);
+        return ResponseEntity.ok(Map.of("message", "Notification dismissed"));
+    }
+
+    @PostMapping("/notifications/{notificationId}/seen")
+    public ResponseEntity<Map<String, String>> markNotificationSeen(@PathVariable Long notificationId) {
+        User user = currentUserService.getCurrentUser();
+        userEventService.markNotificationSeen(notificationId, user);
+        return ResponseEntity.ok(Map.of("message", "Notification marked seen"));
     }
 
     @GetMapping("/{eventId}/workspace")

@@ -1,7 +1,6 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -20,7 +19,14 @@ public record EventUpsertRequest(
         @NotBlank @Pattern(regexp = "^[A-Za-z]{2}$", message = "State code must be exactly 2 letters") String stateCode,
         @NotBlank @Pattern(regexp = "^\\d{5}$", message = "FIPS code must be exactly 5 digits") String fipsCode,
         List<String> eventPerks,
-        @NotEmpty(message = "At least one member must be selected") List<Long> memberUserIds,
-        Boolean notifyParticipants
+        List<Long> memberUserIds,
+        Boolean notifyParticipants,
+        String enrollmentType,
+        Integer tokenCost,
+        Integer maleSlotLimit,
+        Integer femaleSlotLimit,
+        Double venueLatitude,
+        Double venueLongitude,
+        Integer notifyRadiusMiles
 ) {
 }

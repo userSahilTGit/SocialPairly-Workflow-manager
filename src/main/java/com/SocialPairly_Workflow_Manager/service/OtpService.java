@@ -6,6 +6,7 @@ import com.SocialPairly_Workflow_Manager.repository.AuthOtpCodeRepository;
 import com.SocialPairly_Workflow_Manager.util.LogMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +24,15 @@ public class OtpService {
     private final AuthOtpCodeRepository authOtpCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom random = new SecureRandom();
+    private final boolean logPlaintextOtp;
 
-    public OtpService(AuthOtpCodeRepository authOtpCodeRepository, PasswordEncoder passwordEncoder) {
+    public OtpService(
+            AuthOtpCodeRepository authOtpCodeRepository,
+            PasswordEncoder passwordEncoder,
+            @Value("${app.otp.log-plaintext:false}") boolean logPlaintextOtp) {
         this.authOtpCodeRepository = authOtpCodeRepository;
         this.passwordEncoder = passwordEncoder;
+        this.logPlaintextOtp = logPlaintextOtp;
     }
 
     /** Email verification OTP. */
@@ -56,7 +62,20 @@ public class OtpService {
         row.setVerified(false);
         row.setAttemptCount(0);
         authOtpCodeRepository.save(row);
-        log.info("OTP generated purpose={} identifier={} (valid {} minutes)", purpose, LogMasker.identifier(key), ttl);
+        if (logPlaintextOtp) {
+            log.info(
+                    "OTP generated purpose={} identifier={} code={} (valid {} minutes)",
+                    purpose,
+                    LogMasker.identifier(key),
+                    otp,
+                    ttl);
+        } else {
+            log.info(
+                    "OTP generated purpose={} identifier={} (valid {} minutes)",
+                    purpose,
+                    LogMasker.identifier(key),
+                    ttl);
+        }
         return otp;
     }
 

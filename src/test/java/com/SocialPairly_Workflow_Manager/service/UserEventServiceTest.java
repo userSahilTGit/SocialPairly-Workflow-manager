@@ -9,8 +9,10 @@ import com.SocialPairly_Workflow_Manager.dto.UserEventWorkspaceDto;
 import com.SocialPairly_Workflow_Manager.entity.*;
 import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
+import com.SocialPairly_Workflow_Manager.repository.EventDetailRepository;
 import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
 import com.SocialPairly_Workflow_Manager.repository.EventReactionRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserEventNotificationRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserIdentityBackgroundRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserLifeProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserPersonalityProfileRepository;
@@ -39,6 +41,9 @@ class UserEventServiceTest {
     private EventParticipantRepository eventParticipantRepository;
 
     @Mock
+    private EventDetailRepository eventDetailRepository;
+
+    @Mock
     private EventReactionRepository eventReactionRepository;
 
     @Mock
@@ -51,6 +56,9 @@ class UserEventServiceTest {
     private UserIdentityBackgroundRepository userIdentityBackgroundRepository;
 
     @Mock
+    private UserEventNotificationRepository userEventNotificationRepository;
+
+    @Mock
     private UserMediaService userMediaService;
 
     @Mock
@@ -58,6 +66,9 @@ class UserEventServiceTest {
 
     @Mock
     private UserTokenService userTokenService;
+
+    @Mock
+    private EventService eventService;
 
     @InjectMocks
     private UserEventService userEventService;
@@ -619,6 +630,8 @@ class UserEventServiceTest {
         e.setLocation("NYC");
         e.setEventDate(LocalDate.of(2026, 6, 1));
         e.setEventTime(LocalTime.of(18, 0));
+        e.setMatchingOpensAt(LocalDateTime.of(2026, 6, 1, 18, 0));
+        e.setTokenCost(0);
         e.setStatus(EventStatus.published);
         e.setEventPerks(List.of("Dinner"));
         return e;

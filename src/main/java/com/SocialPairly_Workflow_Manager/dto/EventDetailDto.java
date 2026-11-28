@@ -1,5 +1,6 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
+import com.SocialPairly_Workflow_Manager.entity.EnrollmentType;
 import com.SocialPairly_Workflow_Manager.entity.EventDetail;
 import com.SocialPairly_Workflow_Manager.entity.EventStatus;
 
@@ -23,7 +24,15 @@ public record EventDetailDto(
         int confirmedCount,
         List<EventParticipantDto> participants,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        EnrollmentType enrollmentType,
+        Integer tokenCost,
+        Integer maleSlotLimit,
+        Integer femaleSlotLimit,
+        Double venueLatitude,
+        Double venueLongitude,
+        Integer notifyRadiusMiles,
+        LocalDateTime matchingOpensAt
 ) {
     public static EventDetailDto from(EventDetail event, List<EventParticipantDto> participants, int confirmedCount) {
         return new EventDetailDto(
@@ -41,7 +50,15 @@ public record EventDetailDto(
                 confirmedCount,
                 participants,
                 event.getCreatedAt(),
-                event.getUpdatedAt()
+                event.getUpdatedAt(),
+                event.getEnrollmentType() != null ? event.getEnrollmentType() : EnrollmentType.SELECTED,
+                event.getTokenCost() != null ? event.getTokenCost() : 0,
+                event.getMaleSlotLimit(),
+                event.getFemaleSlotLimit(),
+                event.getVenueLatitude(),
+                event.getVenueLongitude(),
+                event.getNotifyRadiusMiles() != null ? event.getNotifyRadiusMiles() : 100,
+                event.getMatchingOpensAt()
         );
     }
 }

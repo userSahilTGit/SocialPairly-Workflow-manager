@@ -22,11 +22,16 @@ public class ProfileService {
     private final UserProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final EventService eventService;
 
-    public ProfileService(UserProfileRepository profileRepository, UserRepository userRepository, EmailService emailService) {
+    public ProfileService(UserProfileRepository profileRepository,
+                          UserRepository userRepository,
+                          EmailService emailService,
+                          EventService eventService) {
         this.profileRepository = profileRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.eventService = eventService;
     }
 
     public UserProfile getProfile(User user) {
@@ -85,6 +90,15 @@ public class ProfileService {
 
         if (!wasProfileCompleted) {
             emailService.sendProfileCompletedEmail(user);
+        }
+
+        if (saved.getLatitude() != null && saved.getLongitude() != null) {
+            try {
+                eventService.enrollUserIntoMatchingOpenEvents(user);
+            } catch (Exception ex) {
+                log.warn("Open-event enrollment after profile update failed for userId={}: {}",
+                        user.getId(), ex.getMessage());
+            }
         }
 
         return saved;

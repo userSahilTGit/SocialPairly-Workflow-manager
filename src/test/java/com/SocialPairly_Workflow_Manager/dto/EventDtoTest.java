@@ -167,7 +167,8 @@ class EventDtoTest {
         EventUpsertRequest upsert = new EventUpsertRequest(
                 "Title", "Desc", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0),
-                "NY", "36061", List.of("Dinner"), List.of(1L, 2L), true
+                "NY", "36061", List.of("Dinner"), List.of(1L, 2L), true,
+                "SELECTED", 0, null, null, null, null, 100
         );
         assertEquals("Title", upsert.title());
         assertEquals(2, upsert.memberUserIds().size());

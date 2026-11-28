@@ -47,6 +47,31 @@ public class EventDetail {
     private List<String> eventPerks = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "enrollment_type", nullable = false, length = 20)
+    private EnrollmentType enrollmentType = EnrollmentType.SELECTED;
+
+    @Column(name = "token_cost", nullable = false)
+    private Integer tokenCost = 0;
+
+    @Column(name = "male_slot_limit")
+    private Integer maleSlotLimit;
+
+    @Column(name = "female_slot_limit")
+    private Integer femaleSlotLimit;
+
+    @Column(name = "venue_latitude")
+    private Double venueLatitude;
+
+    @Column(name = "venue_longitude")
+    private Double venueLongitude;
+
+    @Column(name = "notify_radius_miles", nullable = false)
+    private Integer notifyRadiusMiles = 100;
+
+    @Column(name = "matching_opens_at")
+    private LocalDateTime matchingOpensAt;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private EventStatus status = EventStatus.draft;
 
@@ -99,6 +124,30 @@ public class EventDetail {
 
     public List<String> getEventPerks() { return eventPerks == null ? new ArrayList<>() : eventPerks; }
     public void setEventPerks(List<String> eventPerks) { this.eventPerks = eventPerks == null ? new ArrayList<>() : eventPerks; }
+
+    public EnrollmentType getEnrollmentType() { return enrollmentType; }
+    public void setEnrollmentType(EnrollmentType enrollmentType) { this.enrollmentType = enrollmentType; }
+
+    public Integer getTokenCost() { return tokenCost; }
+    public void setTokenCost(Integer tokenCost) { this.tokenCost = tokenCost; }
+
+    public Integer getMaleSlotLimit() { return maleSlotLimit; }
+    public void setMaleSlotLimit(Integer maleSlotLimit) { this.maleSlotLimit = maleSlotLimit; }
+
+    public Integer getFemaleSlotLimit() { return femaleSlotLimit; }
+    public void setFemaleSlotLimit(Integer femaleSlotLimit) { this.femaleSlotLimit = femaleSlotLimit; }
+
+    public Double getVenueLatitude() { return venueLatitude; }
+    public void setVenueLatitude(Double venueLatitude) { this.venueLatitude = venueLatitude; }
+
+    public Double getVenueLongitude() { return venueLongitude; }
+    public void setVenueLongitude(Double venueLongitude) { this.venueLongitude = venueLongitude; }
+
+    public Integer getNotifyRadiusMiles() { return notifyRadiusMiles; }
+    public void setNotifyRadiusMiles(Integer notifyRadiusMiles) { this.notifyRadiusMiles = notifyRadiusMiles; }
+
+    public LocalDateTime getMatchingOpensAt() { return matchingOpensAt; }
+    public void setMatchingOpensAt(LocalDateTime matchingOpensAt) { this.matchingOpensAt = matchingOpensAt; }
 
     public EventStatus getStatus() { return status; }
     public void setStatus(EventStatus status) { this.status = status; }

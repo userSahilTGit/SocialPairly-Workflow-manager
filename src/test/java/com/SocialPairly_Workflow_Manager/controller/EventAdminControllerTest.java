@@ -1,6 +1,7 @@
 package com.SocialPairly_Workflow_Manager.controller;
 
 import com.SocialPairly_Workflow_Manager.dto.*;
+import com.SocialPairly_Workflow_Manager.entity.EnrollmentType;
 import com.SocialPairly_Workflow_Manager.entity.EventStatus;
 import com.SocialPairly_Workflow_Manager.entity.ReactionType;
 import com.SocialPairly_Workflow_Manager.entity.RsvpStatus;
@@ -48,17 +49,20 @@ class EventAdminControllerTest {
         upsertRequest = new EventUpsertRequest(
                 "Title", "Desc", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0),
-                "NY", "36061", List.of("Dinner"), List.of(1L), false
+                "NY", "36061", List.of("Dinner"), List.of(1L), false,
+                "SELECTED", 0, null, null, null, null, 100
         );
         detailDto = new EventDetailDto(
                 1L, "NY-36061-1", "Title", "Desc", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0), EventStatus.draft,
-                List.of("Dinner"), 1, 0, List.of(), LocalDateTime.now(), LocalDateTime.now()
+                List.of("Dinner"), 1, 0, List.of(), LocalDateTime.now(), LocalDateTime.now(),
+                EnrollmentType.SELECTED, 0, null, null, null, null, 100, null
         );
         summaryDto = new EventSummaryDto(
                 1L, "NY-36061-1", "Title", "Venue", "Location",
                 LocalDate.of(2026, 6, 1), LocalTime.of(18, 0), EventStatus.draft,
-                1, 0, List.of("Dinner"), LocalDateTime.now()
+                1, 0, List.of("Dinner"), LocalDateTime.now(),
+                EnrollmentType.SELECTED, 0
         );
     }
 

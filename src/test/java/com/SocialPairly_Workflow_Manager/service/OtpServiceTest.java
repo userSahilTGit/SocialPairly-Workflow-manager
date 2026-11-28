@@ -31,7 +31,7 @@ class OtpServiceTest {
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
-        otpService = new OtpService(authOtpCodeRepository, passwordEncoder);
+        otpService = new OtpService(authOtpCodeRepository, passwordEncoder, true);
         lenient().when(authOtpCodeRepository.consumeAllActive(any(), any(), any())).thenReturn(0);
         lenient().when(authOtpCodeRepository.save(any(AuthOtpCode.class))).thenAnswer(inv -> inv.getArgument(0));
     }

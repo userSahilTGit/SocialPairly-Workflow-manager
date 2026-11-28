@@ -193,17 +193,18 @@ public class EmailService {
 
         String body = EmailTemplateBuilder.paragraph("Hi " + userName + ",")
                 + EmailTemplateBuilder.paragraph(
-                "You've been selected to join an exclusive upcoming event: " + event.getTitle() + "!")
+                "You're invited to an upcoming SocialPairly event: " + event.getTitle() + "!")
                 + eventDetails
                 + EmailTemplateBuilder.paragraph(
-                "Log in to your account now to view full details, accept your invitation, and connect with other attendees!")
-                + EmailTemplateBuilder.button("View Invitation on Dashboard", dashboardUrl)
+                "Log in to your Home dashboard to complete any unlock steps, book your slot, and view your VIP pass. "
+                        + "This email goes to all eligible members in range — paid and unpaid.")
+                + EmailTemplateBuilder.button("Open Home Dashboard", dashboardUrl)
                 + EmailTemplateBuilder.paragraph("Best regards,")
                 + EmailTemplateBuilder.paragraph("The " + appName + " Team");
 
         sendHtmlEmail(
                 user.getEmail(),
-                "You're Invited! Exclusive access to " + event.getTitle() + " 🎟️",
+                "You're Invited! " + event.getTitle() + " — book your slot on SocialPairly",
                 EmailTemplateBuilder.build(appName, supportEmail, body)
         );
     }

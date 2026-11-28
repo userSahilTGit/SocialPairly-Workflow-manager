@@ -9,6 +9,8 @@ import com.SocialPairly_Workflow_Manager.exception.BadRequestException;
 import com.SocialPairly_Workflow_Manager.exception.ResourceNotFoundException;
 import com.SocialPairly_Workflow_Manager.repository.EventDetailRepository;
 import com.SocialPairly_Workflow_Manager.repository.EventParticipantRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserEventNotificationRepository;
+import com.SocialPairly_Workflow_Manager.repository.UserProfileRepository;
 import com.SocialPairly_Workflow_Manager.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,12 @@ class EventServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private UserProfileRepository userProfileRepository;
+
+    @Mock
+    private UserEventNotificationRepository userEventNotificationRepository;
+
+    @Mock
     private EmailService emailService;
 
     @InjectMocks
@@ -61,7 +69,8 @@ class EventServiceTest {
         upsertRequest = new EventUpsertRequest(
                 "Mixer", "Description", "Venue", "Location",
                 LocalDate.of(2026, 8, 1), LocalTime.of(18, 0),
-                "ny", "36061", List.of("Dinner"), List.of(10L), false
+                "ny", "36061", List.of("Dinner"), List.of(10L), false,
+                "SELECTED", 0, null, null, null, null, 100
         );
     }
 
@@ -144,7 +153,8 @@ class EventServiceTest {
                 upsertRequest.title(), upsertRequest.description(), upsertRequest.venueName(),
                 upsertRequest.location(), upsertRequest.eventDate(), upsertRequest.eventTime(),
                 upsertRequest.stateCode(), upsertRequest.fipsCode(), upsertRequest.eventPerks(),
-                List.of(), upsertRequest.notifyParticipants()
+                List.of(), upsertRequest.notifyParticipants(),
+                "SELECTED", 0, null, null, null, null, 100
         );
         assertThrows(BadRequestException.class, () -> eventService.createDraft(emptyMembers));
     }
@@ -186,7 +196,8 @@ class EventServiceTest {
                 upsertRequest.title(), upsertRequest.description(), upsertRequest.venueName(),
                 upsertRequest.location(), upsertRequest.eventDate(), upsertRequest.eventTime(),
                 upsertRequest.stateCode(), upsertRequest.fipsCode(), upsertRequest.eventPerks(),
-                List.of(10L, 11L), true
+                List.of(10L, 11L), true,
+                "SELECTED", 0, null, null, null, null, 100
         );
 
         when(eventDetailRepository.findById(1L)).thenReturn(Optional.of(event));
@@ -209,7 +220,8 @@ class EventServiceTest {
                 upsertRequest.title(), upsertRequest.description(), upsertRequest.venueName(),
                 upsertRequest.location(), upsertRequest.eventDate(), upsertRequest.eventTime(),
                 upsertRequest.stateCode(), upsertRequest.fipsCode(), upsertRequest.eventPerks(),
-                List.of(), false
+                List.of(), false,
+                "SELECTED", 0, null, null, null, null, 100
         );
         when(eventDetailRepository.findById(1L)).thenReturn(Optional.of(event));
 
@@ -386,7 +398,8 @@ class EventServiceTest {
                 upsertRequest.title(), upsertRequest.description(), upsertRequest.venueName(),
                 upsertRequest.location(), upsertRequest.eventDate(), upsertRequest.eventTime(),
                 upsertRequest.stateCode(), upsertRequest.fipsCode(), null,
-                upsertRequest.memberUserIds(), upsertRequest.notifyParticipants()
+                upsertRequest.memberUserIds(), upsertRequest.notifyParticipants(),
+                "SELECTED", 0, null, null, null, null, 100
         );
         when(eventDetailRepository.countByEventCodePrefix("NY-36061")).thenReturn(0L);
         when(userRepository.findAllById(anySet())).thenReturn(List.of(memberUser));

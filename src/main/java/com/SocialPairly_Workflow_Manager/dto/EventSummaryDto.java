@@ -1,8 +1,8 @@
 package com.SocialPairly_Workflow_Manager.dto;
 
+import com.SocialPairly_Workflow_Manager.entity.EnrollmentType;
 import com.SocialPairly_Workflow_Manager.entity.EventDetail;
 import com.SocialPairly_Workflow_Manager.entity.EventStatus;
-import com.SocialPairly_Workflow_Manager.entity.RsvpStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -21,7 +21,9 @@ public record EventSummaryDto(
         int memberCount,
         int confirmedCount,
         List<String> eventPerks,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        EnrollmentType enrollmentType,
+        Integer tokenCost
 ) {
     public static EventSummaryDto from(EventDetail event, int memberCount, int confirmedCount) {
         return new EventSummaryDto(
@@ -36,7 +38,9 @@ public record EventSummaryDto(
                 memberCount,
                 confirmedCount,
                 event.getEventPerks(),
-                event.getCreatedAt()
+                event.getCreatedAt(),
+                event.getEnrollmentType() != null ? event.getEnrollmentType() : EnrollmentType.SELECTED,
+                event.getTokenCost() != null ? event.getTokenCost() : 0
         );
     }
 }
